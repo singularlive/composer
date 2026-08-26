@@ -4,7 +4,6 @@ Capture only when a rendered image will answer a visual question that Composer m
 
 1. When a Computer Use browser-control skill is available, follow its browser-selection rules, discover the already-open tabs on the selected browser surface, and attempt to claim the exact authenticated Composer editor tab for the inspected scene. Capture through that browser when the claim succeeds; do not limit discovery to the in-app browser.
 2. Use standalone capture only when no Computer Use browser-control skill is available, the matching Composer tab is not open on the selected browser surface, or the discovery/claim/control attempt fails.
-3. Use paired capture through the Singular screenshot extension only as the final fallback.
 
 Composer pairing and browser ownership are separate. Pairing authorizes the CLI to prepare the editor, but it does not by itself give a Computer Use browser control of a user-owned tab. When a browser-control skill is available, this distinction requires selecting the applicable browser surface and explicitly attempting discovery and claim there; it is not a reason to skip directly to standalone capture. Never open a second Composer editor merely to capture; Composer permits only one editor session for the composition.
 
@@ -81,17 +80,16 @@ Browser connection, tab ownership, and Composer pairing are separate lifecycles:
 If no Computer Use browser-control skill is available, no matching Composer tab is open on the selected browser surface, or the browser cannot claim/control the matching tab after the required attempt, continue with standalone capture:
 
 ```bash
-node scripts/composer-agent.js capture --source standalone --target root --output <path.png>
+node scripts/composer-agent.js capture --target root --output <path.png>
 ```
 
-Standalone remains the unified CLI default. It uses a private headless Chrome worker and never changes the user's active tab. The worker stays warm for five minutes after a capture so later standalone commands avoid another Chrome launch, while every capture uses and closes a fresh isolated browser context. If standalone fails and the existing Singular screenshot extension is available, explicitly retry with `--source paired`. This fallback order is an agent workflow; the `capture` command itself never changes sources automatically.
+Standalone is the unified CLI capture path. It uses a private headless Chrome worker and never changes the user's active tab. The worker stays warm for five minutes after a capture so later standalone commands avoid another Chrome launch, while every capture uses and closes a fresh isolated browser context.
 
 ## Unified capture command
 
 ```bash
 node scripts/composer-agent.js capture \
   --target <root|active> \
-  [--source <standalone|paired>] \
   [--wait-mode <smart|timed>] \
   [--timeline <In|Out> --at <seconds>] \
   [--measurements <path.json>] \
@@ -102,7 +100,6 @@ node scripts/composer-agent.js capture \
 ```
 
 - `--target` defaults to `root`. `active` captures the active scene or widget-owned sub-composition when one is open and otherwise resolves to root.
-- `--source` defaults to `standalone`. Use it when Browser cannot capture the existing Composer tab. `paired` must be requested explicitly and is the final extension-backed fallback.
 - `--wait-mode` applies only to standalone capture and defaults to `smart`. `smart` waits for finite Singular timelines and a short target-scoped visual quiet window. `timed` waits for core lifecycle and assets, then captures after `--settle` without requiring the output to stop moving.
 - `--timeline` and `--at` capture an exact paused position of the root or an ordinary active composition's `In` or `Out` timeline. They must be supplied together, require standalone `smart` mode, do not support widget-owned active compositions, and reject positions beyond the selected timeline duration instead of silently clamping them.
 - `--measurements` is standalone-only and writes an optional version-1 Player measurement snapshot immediately before the screenshot. Use it for a named geometry question, not as a default sidecar for every capture.
@@ -110,9 +107,8 @@ node scripts/composer-agent.js capture \
 - `--settle` adds a non-negative delay after core readiness. It defaults to `0` in `smart` mode and `2` seconds in `timed` mode.
 - `--server` is optional and must normalize to the server stored in the paired credentials. It supports environment-explicit invocations but cannot retarget an existing access token; a mismatch fails with `CAPTURE_SERVER_MISMATCH` and requires pairing with the intended server.
 - `standalone` runs `inspect` internally, keeps the Composition API token in the CLI process, and captures at the reported composition resolution.
-- `paired` captures the visible editor preview size through the Singular screenshot extension.
 
-Successful output contains the absolute path, selected source and target, PNG dimensions and byte size, composition identity, editor resolution, and readiness metadata. When requested, `measurements` adds the absolute JSON path, schema version, measured element count, truncation state, and byte size. The retained `fallback` field is always `null`. Output never contains a token, preview URL, data URL, browser command line, or raw extension error.
+Successful output contains the absolute path, source and target, PNG dimensions and byte size, composition identity, editor resolution, and readiness metadata. When requested, `measurements` adds the absolute JSON path, schema version, measured element count, truncation state, and byte size. The retained `fallback` field is always `null`. Output never contains a token, preview URL, data URL, browser command line, or raw browser error.
 
 Standalone core readiness requires a visible positive target box; target-owned DownloadStore cycles to finish; composition-script evaluation to reach `ok` or `error`; a short payload/resource quiet period; loaded fonts; decoded target images; and completed or failed CSS background assets. The listener is injected before navigation into every frame, so events emitted by nested widget frames can be collected from their immediate parents. All gates share the one caller-provided deadline.
 
@@ -164,10 +160,10 @@ node scripts/capture-composition-preview.js <endpoint> <width> <height> <composi
 Capture a paused root Timeline frame, for example halfway through `In`:
 
 ```bash
-node scripts/composer-agent.js capture --source standalone --target root --timeline In --at 0.5 --output <path.png>
+node scripts/composer-agent.js capture --target root --timeline In --at 0.5 --output <path.png>
 ```
 
-Timeline-position capture deliberately excludes widget-owned active compositions, timed mode, paired capture, continuous Behavior time, script timers, and video clocks. A paused root Timeline frame includes timeline-aware widget seek callbacks and linked descendants. An ordinary active composition uses the Player composition seek path. Neither form freezes independent runtime clocks.
+Timeline-position capture deliberately excludes widget-owned active compositions, timed mode, continuous Behavior time, script timers, and video clocks. A paused root Timeline frame includes timeline-aware widget seek callbacks and linked descendants. An ordinary active composition uses the Player composition seek path. Neither form freezes independent runtime clocks.
 
 Capture one isolated sub-composition at the same resolution:
 
@@ -191,7 +187,7 @@ Add `--measurements <path.json>` when Browser-owned or standalone capture must a
 
 ```bash
 node scripts/composer-agent.js prepare-capture --target root --measurements <path.measurements.json>
-node scripts/composer-agent.js capture --source standalone --target root --output <path.png> --measurements <path.measurements.json>
+node scripts/composer-agent.js capture --target root --output <path.png> --measurements <path.measurements.json>
 ```
 
 Browser preparation samples the ready editor renderer before returning control for its screenshot; standalone samples the already-ready private Player target immediately before taking the PNG. Neither path opens another page merely for measurement. Version 1 uses capture-target coordinates and contains the target dimensions plus up to 500 Singular group, widget, and sub-composition wrappers. Each element records its runtime ID, name, type, composition identity, pixel and percentage bounds, visible clipped bounds, visibility, opacity, transform, z-index, and transformed quad when the browser exposes it. Widget entries additionally record text length and rendered line count, bounded image geometry without image URLs, and SVG/canvas counts. Names are limited to 200 characters, images to ten per widget, and the complete file to 1 MB. The summary reports the measured and total element counts and whether truncation occurred.
@@ -229,30 +225,16 @@ An `Out1` or `Out2` state is not inherently invisible. Elements whose applicable
 
 Avoid changing animation solely for a screenshot. If state-based isolation is explicitly required, snapshot and restore every changed animation and composition state.
 
-## Paired-tab capture
-
-Use explicit paired capture when Browser cannot control the existing tab and standalone capture failed, or for focused extension debugging:
-
-```bash
-node scripts/composer-agent.js capture --source paired --target root --output <path.png>
-node scripts/composer-agent.js capture --source paired --target active --output <path.png>
-```
-
-`root` captures the complete root scene preview; `active` captures only the active sub-composition, or the root when the root is active. While a widget-owned composition is open, Composer already renders that template on a dedicated standalone editor canvas, and paired active capture crops that canvas. This path requires the existing Singular screenshot Chrome extension. The command saves the PNG locally and prints only its path and metadata, never image data.
-
-Paired capture applies the same target-bounds, font, image, and two-second quiet-window checks before requesting the extension screenshot. Capture isolation and the editor's previous bounding-box, snap-target, snap-guide, and highlighted-target state are restored on success and failure.
-
 ## Capture errors
 
-Stable error codes include `PLAYWRIGHT_UNAVAILABLE`, `BROWSER_LAUNCH_FAILED`, `PREVIEW_NAVIGATION_FAILED`, `PREVIEW_READY_TIMEOUT`, `PREVIEW_CONTINUOUS_ACTIVITY`, `PREVIEW_FRAME_NOT_FOUND`, `PREVIEW_TARGET_NOT_FOUND`, `PREVIEW_TARGET_NOT_VISIBLE`, `PREVIEW_ASSET_TIMEOUT`, `PREVIEW_TIMELINE_SEEK_FAILED`, `CAPTURE_ALREADY_PREPARED`, `CAPTURE_SESSION_MISMATCH`, `CAPTURE_ARTIFACT_EXISTS`, `CAPTURE_ARTIFACT_WRITE_FAILED`, `CAPTURE_ARTIFACT_READ_FAILED`, `CAPTURE_ARTIFACT_INVALID`, `CAPTURE_ARTIFACT_EVIDENCE_INVALID`, `CAPTURE_ARTIFACT_GEOMETRY_MISMATCH`, `CAPTURE_ARTIFACT_FORMAT_UNSUPPORTED`, `CAPTURE_ARTIFACT_DIMENSION_MISMATCH`, `CAPTURE_EXTENSION_REQUIRED`, `CAPTURE_EXTENSION_ERROR`, `CAPTURE_FAILED`, `CAPTURE_TOO_LARGE`, `MEASUREMENT_TOO_LARGE`, `MEASUREMENT_WRITE_FAILED`, `INVALID_CAPTURE_TARGET`, `INVALID_CAPTURE_SOURCE`, `INVALID_CAPTURE_WAIT_MODE`, `INVALID_CAPTURE_TIMELINE`, and `COMPOSITION_TOKEN_REQUIRED`.
+Stable error codes include `PLAYWRIGHT_UNAVAILABLE`, `BROWSER_LAUNCH_FAILED`, `PREVIEW_NAVIGATION_FAILED`, `PREVIEW_READY_TIMEOUT`, `PREVIEW_CONTINUOUS_ACTIVITY`, `PREVIEW_FRAME_NOT_FOUND`, `PREVIEW_TARGET_NOT_FOUND`, `PREVIEW_TARGET_NOT_VISIBLE`, `PREVIEW_ASSET_TIMEOUT`, `PREVIEW_TIMELINE_SEEK_FAILED`, `CAPTURE_ALREADY_PREPARED`, `CAPTURE_SESSION_MISMATCH`, `CAPTURE_ARTIFACT_EXISTS`, `CAPTURE_ARTIFACT_WRITE_FAILED`, `CAPTURE_ARTIFACT_READ_FAILED`, `CAPTURE_ARTIFACT_INVALID`, `CAPTURE_ARTIFACT_EVIDENCE_INVALID`, `CAPTURE_ARTIFACT_GEOMETRY_MISMATCH`, `CAPTURE_ARTIFACT_FORMAT_UNSUPPORTED`, `CAPTURE_ARTIFACT_DIMENSION_MISMATCH`, `CAPTURE_FAILED`, `CAPTURE_TOO_LARGE`, `MEASUREMENT_TOO_LARGE`, `MEASUREMENT_WRITE_FAILED`, `INVALID_CAPTURE_TARGET`, `INVALID_CAPTURE_WAIT_MODE`, `INVALID_CAPTURE_TIMELINE`, and `COMPOSITION_TOKEN_REQUIRED`.
 
 There is no automatic source fallback. Playwright, Chrome, token, navigation, renderer, target, and asset failures are reported directly with the applicable code.
 
 ## Reading results
 
 - Open every saved image with the available image-viewing tool before assessing or comparing.
-- Browser-owned, standalone, and paired captures exclude Composer controls, selection boxes, and snap guides.
+- Browser-owned and standalone captures exclude Composer controls, selection boxes, and snap guides.
 - Browser-owned capture lays out the canvas at the target resolution when Browser first sets the viewport to that size. Resolve the returned selector and validate its live bounds. Use an un-clipped, non-full-page viewport screenshot only when that target exactly covers the viewport and both match `editorResolution`; otherwise screenshot the verified clip. Do not use the whole browser window or trust an earlier clip without measurement. Its physical pixels may additionally reflect the returned device-pixel ratio, and the Browser backend may return JPEG or PNG bytes. Some in-app Browser screenshot backends apply host display-color conversion even when the DOM's computed colors are unchanged; use standalone capture when exact source-pixel color equality is required.
 - Standalone capture uses the requested root render resolution. An isolated scene sub-composition keeps its full canvas and replaces hidden sibling content with the preview background color; a widget-owned composition uses the dimensions of the selected runtime template instance.
 - A standalone measurement snapshot is structural evidence from that same ready Player page, sampled immediately before its PNG. Read `summary.truncated` before assuming every runtime element is present, and do not substitute its axis-aligned bounds for visual review of transformed, filtered, canvas, or video output.
-- Paired-tab capture uses the current on-screen preview DOM size and can therefore be smaller even when the reported editor resolution matches. Normalize dimensions before comparing the two.

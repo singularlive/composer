@@ -110,7 +110,7 @@ node scripts/composer-agent.js set-timeline-animation --id <id> --timeline In --
 node scripts/composer-agent.js set-timeline-animation --type group --id <id> --timeline Out --effect fade --start 0 --duration 0.4
 ```
 
-The command accepts `--type`, `--timeline In|Out`, `--effect`, `--property`, `--params-json`, `--easing-json`, `--start`, and `--duration`. It writes `effects` and `keyframes`, preserves the other timeline, and clears stale effect parameters when required. A `propertyType` of `selection` requires a returned property ID; `angle` requires a numeric degree value.
+The command accepts `--type`, `--timeline In|Out`, `--effect`, `--property`, `--params-file`, `--easing-file`, `--start`, and `--duration`. The two file options read UTF-8 JSON objects from the task's temporary JSON directory. It writes `effects` and `keyframes`, preserves the other timeline, and clears stale effect parameters when required. A `propertyType` of `selection` requires a returned property ID; `angle` requires a numeric degree value.
 
 Prefer `set-timeline-animations --file` whenever two or more assignments form one choreography. It accepts `{ "timelineAnimations": [...] }`. Every entry needs a stable `key` plus the single-setter fields. An entry may set an absolute `start`, or reference another entry with `after` and an optional signed `offset`; resolved start is `dependency start + dependency duration + offset`.
 
@@ -159,7 +159,7 @@ Continuous behavior is separate from In, Out, and property-change Update phases.
 ```bash
 node scripts/composer-agent.js behaviors
 node scripts/composer-agent.js behaviors --id <tile-id>
-node scripts/composer-agent.js set-behavior --id <tile-id> --property opacity --effect pingpong --value-min 60 --value-max 100 --duration 1 --easing-json '{"easing":"power1","inOut":"inOut"}'
+node scripts/composer-agent.js set-behavior --id <tile-id> --property opacity --effect pingpong --value-min 60 --value-max 100 --duration 1 --easing-file <temporary-directory>/behavior-easing.json
 node scripts/composer-agent.js set-behaviors --file <behavior-assignments.json>
 ```
 
@@ -184,7 +184,7 @@ node scripts/composer-agent.js set-update-animation --id <id> --phase in --effec
 node scripts/composer-agent.js set-update-animations --file <update-assignments.json>
 ```
 
-The single setter accepts `--phase in|out`, `--effect`, `--property`, `--params-json`, `--easing-json`, `--duration`, `--active`, `--always-execute`, and `--offset`. It intentionally has no Timeline `--start`, `after`, element type, or group target. The batch file contains `{ "updateAnimations": [...] }`; every entry has a stable `key`, tile `id`, and the single-setter fields. Duplicate element/phase targets are rejected and all entries share one rollback batch.
+The single setter accepts `--phase in|out`, `--effect`, `--property`, `--params-file`, `--easing-file`, `--duration`, `--active`, `--always-execute`, and `--offset`. The two file options read UTF-8 JSON objects from the task's temporary JSON directory. It intentionally has no Timeline `--start`, `after`, element type, or group target. The batch file contains `{ "updateAnimations": [...] }`; every entry has a stable `key`, tile `id`, and the single-setter fields. Duplicate element/phase targets are rejected and all entries share one rollback batch.
 
 ## Control nodes
 
@@ -200,7 +200,7 @@ node scripts/composer-agent.js control-nodes
 node scripts/composer-agent.js get --type tile --id <tile-id>
 ```
 
-`control-nodes` reports the ordered control fields, widget-data links, and tile/group layout node references. For widget data, use the field `id` from the tile's schema as the property identifier — never the displayed field title. For Transform/Effect targets, use the supported persisted layout-property name below. Check existing links or node references for the same element and property before creating; commands reject an existing link unless replacement is explicitly requested. Never replace a link silently.
+`control-nodes` reports the ordered control fields, each field's complete persisted metadata except deprecated Number `unitName` and `unitCollection`, widget-data links, and tile/group layout node references. Identity and ordering remain top-level field properties; additional persisted properties are returned under `metadata`. Unknown metadata is read and preserved for forward compatibility but cannot be changed by the agent. For widget data, use the field `id` from the tile's schema as the property identifier — never the displayed field title. For Transform/Effect targets, use the supported persisted layout-property name below. Check existing links or node references for the same element and property before creating; commands reject an existing link unless replacement is explicitly requested. Never replace a link silently.
 
 The same inspection determines how to fulfill ordinary visual-change requests. If the requested widget field appears in `links`, or the requested Transform/Effect field appears in `nodeRefs`, its defining Control Node is the authoritative input. Change that control with `set-control-value`; do **not** write the linked widget data or layout field directly. A direct property write bypasses the composition's public input contract and can be overwritten by the link. For example, when a Circle's `fillGradient` is linked to Color control `c1`, “change the circle to green” means setting `c1` to `{ "r": 0, "g": 255, "b": 0, "a": 1 }`, then verifying both `control-nodes` and the Circle readback.
 
@@ -220,11 +220,11 @@ These messages also include the active composition ID.
 ```bash
 node scripts/composer-agent.js create-control --name "name" --node-type text --tile-id <tile-id> --property text
 node scripts/composer-agent.js create-control --name "visible" --node-type checkbox --target layout --element-type tile --element-id <tile-id> --property visible
-node scripts/composer-agent.js create-control --name "External Headline" --node-type text --target standalone --value-json '"Initial headline"'
+node scripts/composer-agent.js create-control --name "External Headline" --node-type text --target standalone --value-file <temporary-directory>/initial-headline.json
 node scripts/composer-agent.js create-controls --file <controls.json>
 ```
 
-Creation follows Composer's normal path. Linked controls initialize from the target property's current value, so linking does not change the rendered graphic. A standalone control requires an explicit `--value-json` initial value and creates only its model field and payload; it intentionally creates no widget `dataLink` or layout `nodeRef`.
+Creation follows Composer's normal path. Linked controls initialize from the target property's current value, so linking does not change the rendered graphic. A standalone control requires an explicit `--value-file` initial value and creates only its model field and payload; it intentionally creates no widget `dataLink` or layout `nodeRef`.
 
 Use a standalone control when the value is an external/script input rather than a one-to-one property binding. A Player SDK `setPayload()` call can update it, the composition script can listen for `payload_changed`, read the authoritative payload with `comp.getPayload2()`, process the value, and update one or more widgets with their scripting APIs. Do not create a hidden backing widget for that pattern.
 
@@ -265,13 +265,27 @@ Composer removes invalid control-name characters and appends a numeric suffix wh
 
 Creation and optional linking are one batched operation; the previous control-node model and property link are restored if either write fails. Afterward, run `control-nodes` again. For linked controls, verify the returned `id`, value, `tileId`, `propertyId`, and link `keyId`. For standalone controls, verify the field and payload value exist and that neither `links` nor `nodeRefs` contains its `keyId`.
 
+### Change metadata
+
+Inspect first, then pass one JSON object containing only the properties to change:
+
+```bash
+node scripts/composer-agent.js update-control --id <control-id> --file <patch.json>
+```
+
+All five supported types accept `id`, `title`, `index`, `defaultValue`, `resetValue`, `immediateUpdate`, `hidden`, `style`, `hideTitle`, and `displayVariantRelevance`. Number controls additionally accept `step`, `format`, `unit`, `min`, `max`, and `showSlider`. `unitName` and `unitCollection` are deprecated and intentionally neither reported nor writable. `type` and internal `keyId` are immutable.
+
+New metadata values use strict current shapes: default/reset values match the control type; booleans are booleans; Number `step` is positive and finite; Number bounds are finite with `min <= max`; `showSlider: true` requires both bounds; `unit` is at most three characters; and display-variant relevance is a string or an array of non-empty strings. Existing legacy shapes remain readable and are preserved when omitted. Set an optional property to `null` to remove it; `title` cannot be removed. Omitted and unknown properties remain unchanged.
+
+An `id` change atomically migrates the payload key, matching local and cross-composition widget links, tile/group node references, and control-group membership. An `index` change reorders the field and normalizes every field index. The operation verifies readback and rolls back all writes on failure. Re-run `control-nodes` and verify the field, payload, links, ordering, and unrelated metadata.
+
 ### Change a value
 
 Inspect the active composition's controls first, then address one existing local control by its reported public `id` (preferred) or internal `keyId`:
 
 ```bash
 node scripts/composer-agent.js control-nodes
-node scripts/composer-agent.js set-control-value --id <control-id> --value-json '{"r":0,"g":255,"b":0,"a":1}'
+node scripts/composer-agent.js set-control-value --id <control-id> --value-file <temporary-directory>/green.json
 node scripts/composer-agent.js control-nodes
 ```
 

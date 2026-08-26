@@ -11,6 +11,18 @@ Control the user's currently open Singular Composer session through the bundled 
 node scripts/composer-agent.js <command> [options]
 ```
 
+## Pass structured CLI inputs through JSON files
+
+Never place JSON text directly in a Composer CLI process argument or pipe it through stdin. Before the first command that needs a structured value, create one uniquely named directory under the operating-system temporary directory or the agent session's temporary directory. Write each value as a descriptive UTF-8 JSON file, pass its path through `--value-file`, `--params-file`, `--easing-file`, `--layout-file`, or the command's existing `--file` option, and remove the temporary directory in finally-style cleanup after the related commands finish or fail. Relative paths resolve from the CLI working directory.
+
+JSON value files may contain any valid JSON value, including a string, number, boolean, array, or object; the command's existing type validation remains authoritative. Do not use stdin as an alternative file transport. `get-many --ids` is deliberately comma-separated text rather than JSON.
+
+For example, write `"Headline"` as the complete contents of a temporary `headline-value.json`, then run:
+
+```bash
+node scripts/composer-agent.js update --type tile --id <id> --path name --value-file <temporary-directory>/headline-value.json
+```
+
 The client can inspect a scene, build and refine bounded or clipped overlay graphics, author sanitized AISVG paths and widget-driven vector animation, manage scene and widget-owned sub-compositions, orchestrate keyed nested modules, update supported Table widgets, expose Control Nodes, assign timeline, property-change Update, batched choreography, and continuous behavior animations, apply reusable authoring techniques, move elements between groups, and capture the rendered preview. It cannot replace raw composition JSON or read, write, or execute scripts through the paired editor relay. After the graphic structure exists, `script-handoff` packages the active composition, widgets, controls, links, host, Composition API token, paired agent authorization, and suggested script target for this skill's separate token-and-Player phase; see [references/composition-scripts.md](references/composition-scripts.md).
 
 ## Composer is the source of truth for editor work
@@ -35,7 +47,7 @@ Atomic rollback does not replace verification. Inspect the correct scope before 
 
 If no active credentials exist:
 
-1. Ask the user to click **Agent** in the Composer toolbar.
+1. Ask the user to click **Composer AI** in the composition-editor header.
 2. Ask for the six-character one-time pairing code Composer displays.
 3. Run:
 
@@ -45,7 +57,7 @@ node scripts/composer-agent.js pair --code <pairing-code>
 
 The server defaults to `https://beta.singular.live/`. Pass `--server <singular-server-url>` only when the user explicitly needs another environment. Never print or request the access token. It is stored in the user's home directory and expires after 30 days. Composer remembers the scene/user authorization for the same period and resumes its editor connection automatically after a reload, so the one-time code is not repeated for each task. The same scene/account-scoped credential authorizes the separate script endpoints until it expires or is explicitly disconnected.
 
-On a successful claim, the bundled `pair` command automatically acknowledges the connection in Composer and tells the user to return to the AI Agent task. Confirm `"acknowledged": true` in its output. If it is false, do not imply that the user saw the message; report the pairing state and wait for the editor to reconnect or for a fresh pairing. `credentialStorage` reports only `default`, `override`, or `temporary`. An explicit `COMPOSER_AGENT_CREDENTIALS` path always wins; when the normal profile is permission-blocked and no override exists, the CLI uses a workspace-keyed operating-system temporary file and removes it on `complete`.
+On a successful claim, the bundled `pair` command automatically acknowledges the connection in Composer and tells the user to return to the AI Agent task. Confirm `"acknowledged": true` in its output; this now means the editor received the correlated activity message through the Redis relay, not merely that the server accepted it for publication. If it is false, do not imply that the user saw the message; report the pairing state and wait for the editor to reconnect or for a fresh pairing. `credentialStorage` reports only `default`, `override`, or `temporary`. An explicit `COMPOSER_AGENT_CREDENTIALS` path always wins; when the normal profile is permission-blocked and no override exists, the CLI uses a workspace-keyed operating-system temporary file and removes it on `complete`.
 
 ## Hold one work lease for the complete task
 
@@ -55,7 +67,7 @@ The saved JWT is authorization, not a permanent editor lock. At the start of eve
 node scripts/composer-agent.js start-work
 ```
 
-Composer locks for the lifetime of that lease, independent of the short-lived WebSocket used by each CLI command. Every editor command requires an active lease and renews its ten-minute fail-safe expiry. This keeps the surrounding editor dimmed and input-locked continuously while the agent works, while the visible graphic canvas keeps its authored appearance. The user can move the status panel aside and monitor progress. If a non-editor phase such as script work or Player verification approaches ten minutes without a paired command, send a meaningful `status` update to renew the lease.
+Composer locks for the lifetime of that lease, independent of the short-lived WebSocket used by each CLI command. Every editor command requires an active lease and renews its ten-minute fail-safe expiry. Composer opens its **Composer AI** modal, keeps it open and non-dismissible during active work, and blocks manual Composer input outside the modal until the lease is released or canceled. The modal activity log shows command progress and keeps **Cancel operation** available. If a non-editor phase such as script work or Player verification approaches ten minutes without a paired command, send a meaningful `status` update to renew the lease.
 
 Before yielding a final response, waiting for user input, or otherwise ending the current task, release the lease in a `finally`-style cleanup:
 
@@ -156,6 +168,7 @@ If the request also requires runtime logic, finish and verify the composition st
 
 - Before changing widget data or a linkable Transform/Effect property, inspect `control-nodes`. When the property is linked, change the defining Control Node with `set-control-value`; never bypass the public input contract with a direct property write.
 - Create, replace, change, or delete a Control Node only after readback confirms the field, compatible type, defining composition, current value, and existing links. Treat `CONTROL_LINK_CONFLICT` as a reason to inspect and decide, not as permission to relink automatically.
+- Change Control Node metadata with `update-control`, never generic `update`. Preserve omitted and unknown metadata, keep `type` and `keyId` immutable, and verify rename migrations and reordered indexes through `control-nodes` readback.
 - Use a standalone Control Node only for an intentional external or composition-script input. Give it an explicit initial value, keep it in the composition whose script consumes it, and verify that it has no `dataLink` or `nodeRef`; do not create a hidden backing widget.
 - Expose a Transform/Effect Control Node only when the user explicitly asks for that exact public input. Omission from a declarative specification preserves an existing control; it does not unlink or delete it.
 - Never cache a widget-owned sub-composition ID after leaving template edit mode or starting a later operation. Rediscover the current relationship from its owning widget and composition-valued field.
@@ -190,4 +203,4 @@ Read the file matching the task instead of loading everything up front.
 | [references/widget-subcompositions.md](references/widget-subcompositions.md) | Widget-owned templates, static vs. dynamic contracts, discovery, navigation, and composition-ID rebuilds. |
 | [references/table.md](references/table.md) | Table widget rendering, validated row specifications, supported options, and verification. |
 | [references/aisvg.md](references/aisvg.md) | Sanitized SVG/JSON input, dynamic bindings, one-/two-timeline widget animation, and moving-stroke patterns. |
-| [references/capture.md](references/capture.md) | Browser-owned canvas capture, viewport sizing and restoration, standalone and extension fallbacks, sub-composition isolation, and delays. |
+| [references/capture.md](references/capture.md) | Browser-owned canvas capture, viewport sizing and restoration, standalone capture, sub-composition isolation, and delays. |

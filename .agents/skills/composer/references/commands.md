@@ -14,6 +14,8 @@ The client preserves stdout for command JSON and pipelines. After every relevant
 
 The flags `--compact`, `--selection`, `--summary`, `--selected`, `--italic`, `--underline`, `--always-execute`, `--create`, and `--remove` are booleans: pass them with no value (enabled) or with an explicit `true`/`false`. `--remove` applies to `set-behavior`. `--active` always takes an explicit `true` or `false` value.
 
+Structured JSON inputs are always files, never inline process arguments or stdin. Create one unique operating-system or agent-session temporary directory per Composer task, write descriptive UTF-8 JSON files there, pass their paths with `--value-file`, `--params-file`, `--easing-file`, `--layout-file`, or an existing `--file` option, and remove the directory in finally-style cleanup after success or failure. Relative paths resolve from the CLI working directory. Value files may contain any valid JSON value; existing command validation still determines which shapes and types are accepted. `get-many --ids` accepts comma-separated text only and rejects JSON-array syntax.
+
 ## Command selection policy
 
 - **Preferred** commands are the normal path for the scope they represent.
@@ -24,7 +26,7 @@ The flags `--compact`, `--selection`, `--summary`, `--selected`, `--italic`, `--
 
 | Command | Purpose |
 | --- | --- |
-| `pair [--server <url>] --code <code>` | Claim a one-time pairing code, store a 30-day scene/user JWT authorization, and automatically acknowledge it in Composer. The editor resumes this authorization after reload. The server defaults to `https://beta.singular.live/`; output reports `acknowledged` and the sanitized `credentialStorage` category. |
+| `pair [--server <url>] --code <code>` | Claim a one-time pairing code, store a 30-day scene/user JWT authorization, and automatically acknowledge it in Composer. `acknowledged: true` requires a correlated receipt from the editor through the Redis relay. The editor resumes this authorization after reload. The server defaults to `https://beta.singular.live/`; output reports `acknowledged` and the sanitized `credentialStorage` category. |
 | `pair-intent [--server <url>] --intent-id <id> [--intent-secret -] [--device-name <name>]` | Orchestrator-only automatic pairing. Claim an authenticated short-lived intent after Composer binds it. Supply the secret through `COMPOSER_AGENT_INTENT_SECRET` or pipe it on stdin with `--intent-secret -`; literal secret arguments are rejected. The command waits up to two minutes across valid-but-unbound `409` responses and shared-rate-limit `429` responses, then stores and acknowledges credentials like `pair`. Normal runtime users should use the visible-code `pair` flow. |
 | `start-work` | Acquire or renew the ten-minute task-level work lease. Run once before the first editor command in every task; Composer remains locked across individual command sockets. |
 | `finish-work` | Release the current work lease and Composer input while preserving the reusable JWT authorization. Run before every final handoff or wait for user input. |
@@ -46,19 +48,19 @@ Pairing claims are rate limited to one request per second per client address acr
 | `get --type <tile\|group> --id <id>` | Read one complete tile or group. Tiles include layout, widget control data, and the widget field schema. |
 | `get --selected` | Read the currently selected tile or group in full, without a separate `inspect` first. Fails with a clear error when nothing is selected. |
 | `get-many --type <tile\|group> --ids <id-1,id-2>` | **Preferred for related targets:** validate every ID first, then read all of them. Returns no partial result. |
-| `select --type <tile\|group> --id <id>` | Select an existing element in Composer. |
+| `select --type <tile\|group> --id <id>` | Select an existing element in Composer. The `selected` result includes its `id`, `name`, and `elementType`. |
 | `move --id <tile-id> --group-id <group-id> [--index <n>]` | Move a tile into another group in the active composition, or reorder it within its group. |
-| `update --type <tile\|group> --id <id> --path <path> --value-json <json>` | Update one existing property. |
-| `update ... --namespace data --path <field-id> --value-json <json>` | Update one existing widget control value. |
+| `update --type <tile\|group> --id <id> --path <path> --value-file <value.json>` | Update one existing property. The `updated` result includes `id`, `name`, `elementType`, `namespace`, `path`, `previousValue`, and the applied `value`. |
+| `update ... --namespace data --path <field-id> --value-file <value.json>` | Update one existing widget control value and return the same named `updated` result shape. |
 | `fonts [--source <user\|account>] [--family <substring>]` | List safe font summaries from Composer's current font catalogs. |
 | `set-font --id <tile-id> [...]` | Set catalog-backed Text family, weight, italic, underline, or alignment properties. |
 
-`--value-json` must be valid JSON and must preserve the existing property's type. Null and undefined are rejected, so `update` can never act as a delete.
+`--value-file` must point to a readable valid JSON file whose value preserves the existing property's type. Null and undefined are rejected, so `update` can never act as a delete.
 
 ```bash
-node scripts/composer-agent.js update --type tile --id <id> --path layout.left --value-json 25
-node scripts/composer-agent.js update --type tile --id <id> --path name --value-json '"Headline"'
-node scripts/composer-agent.js update --type tile --id <id> --namespace data --path <field-id> --value-json '"Team A"'
+node scripts/composer-agent.js update --type tile --id <id> --path layout.left --value-file <temporary-directory>/left.json
+node scripts/composer-agent.js update --type tile --id <id> --path name --value-file <temporary-directory>/headline.json
+node scripts/composer-agent.js update --type tile --id <id> --namespace data --path <field-id> --value-file <temporary-directory>/team-name.json
 ```
 
 Before using `update` on widget data or a linkable layout property, run `control-nodes` and match the requested `(elementId, propertyId)` against its `links` and `nodeRefs`. If a Control Node drives that property, do not call `update` for the linked target. Use `set-control-value` on the defining Control Node and verify both the control and linked element readback. Direct property updates are only for unlinked targets.
@@ -83,8 +85,8 @@ Any tile can be moved into or out of any group. Moving a declarative graphic out
 | Command | Purpose |
 | --- | --- |
 | `create-group --name <name>` | **Targeted only:** create one ordinary group outside a declarative managed specification. |
-| `create-group --name <name> --layout-json <json>` | **Targeted only:** create one ordinary group and atomically assign supported bounds, clipping, or appearance fields. |
-| `configure-group --id <group-id> --layout-json <json>` | **Targeted only:** atomically update one existing ordinary group, or repair managed-group geometry/appearance after readback. |
+| `create-group --name <name> --layout-file <layout.json>` | **Targeted only:** create one ordinary group and atomically assign supported bounds, clipping, or appearance fields. |
+| `configure-group --id <group-id> --layout-file <layout.json>` | **Targeted only:** atomically update one existing ordinary group, or repair managed-group geometry/appearance after readback. |
 | `move-group --id <group-id> --index <n>` | Reorder one existing group without moving its children or changing managed metadata; index `0` is front-most. |
 | `delete-group --id <group-id>` | Delete a group and everything in it. |
 
@@ -97,7 +99,7 @@ Any tile can be moved into or out of any group. Moving a declarative graphic out
 To rename a group, use the existing update command; group `name` is not immutable:
 
 ```bash
-node scripts/composer-agent.js update --type group --id <group-id> --path name --value-json '"Scoreboard"'
+node scripts/composer-agent.js update --type group --id <group-id> --path name --value-file <temporary-directory>/group-name.json
 ```
 
 Supported group layout fields are `left`, `top`, `width`, `height`, `rotateX/Y/Z`, `anchor`, the complete Effect-property set below, `groupClipChildren`, `groupBorderRadiusMode`, and the four `groupBorderRadiusValue*` fields. Read the complete group with `get --type group` before configuration. Move children with the existing `move` command; group membership remains Composer's hierarchy source of truth.
@@ -119,7 +121,7 @@ Prefer shadow, opacity, blur, and X/Y skew as the compact effective toolkit for 
 | `set-timeline-animation --id <id> --timeline <In\|Out> --effect <id> [...]` | **Targeted only:** assign one isolated keyframed In/Out animation atomically. |
 | `set-timeline-animations --file <choreography.json>` | **Preferred for related assignments:** assign up to 100 keyed Timeline animations in one rollback-safe batch, with optional `after` dependencies and relative `offset` values. |
 
-Always read `timeline-animations` before assigning one. Timeline animation supports `--start`, `--duration`, `--params-json`, and `--easing-json`. Prefer the batch command whenever two or more assignments form one choreography. See [compositions.md](compositions.md).
+Always read `timeline-animations` before assigning one. Timeline animation supports `--start`, `--duration`, `--params-file`, and `--easing-file`. Prefer the batch command whenever two or more assignments form one choreography. See [compositions.md](compositions.md).
 
 ## Property-change Update animations
 
@@ -129,7 +131,7 @@ Always read `timeline-animations` before assigning one. Timeline animation suppo
 | `set-update-animation --id <id> --phase <in\|out> --effect <id> [...]` | **Targeted only:** assign one isolated property-change Update phase and any explicitly supplied shared settings. |
 | `set-update-animations --file <assignments.json>` | **Preferred for related assignments:** assign up to 100 keyed Update phases in one rollback-safe batch. |
 
-Update animation supports `--duration`, `--easing-json`, `--active`, `--always-execute`, and `--offset`. It has no Timeline `start` or `after` fields. Prefer the batch command for two or more related Update assignments.
+Update animation supports `--duration`, `--params-file`, `--easing-file`, `--active`, `--always-execute`, and `--offset`. It has no Timeline `start` or `after` fields. Prefer the batch command for two or more related Update assignments.
 
 ## Continuous behaviors
 
@@ -141,7 +143,7 @@ Update animation supports `--duration`, `--easing-json`, `--active`, `--always-e
 | `set-behavior --id <tile-id> --property <id> --remove` | **Targeted only:** remove one isolated behavior without replacing the rest of the array. |
 | `set-behaviors --file <assignments.json>` | **Preferred for related assignments:** upsert or remove up to 100 keyed behavior assignments in one rollback-safe batch. |
 
-`set-behavior` accepts `--effect`, `--active <true|false>`, `--value-min`, `--value-max`, `--duration`, `--duration-range`, `--delay`, `--delay-range`, and `--easing-json`. Values are checked against the live shared catalog before one sorted behavior array is written.
+`set-behavior` accepts `--effect`, `--active <true|false>`, `--value-min`, `--value-max`, `--duration`, `--duration-range`, `--delay`, `--delay-range`, and `--easing-file`. Values are checked against the live shared catalog before one sorted behavior array is written.
 
 ## Compositions
 
@@ -175,9 +177,10 @@ See [table.md](table.md).
 
 | Command | Purpose |
 | --- | --- |
-| `control-nodes` | Read ordered local control fields, widget-property data links, and tile/group layout node references. |
-| `set-control-value --id <control-id> --value-json <json>` | Set one existing supported local control value after type validation and authoritative readback. |
-| `create-control --name <name> --node-type <type> --target standalone --value-json <json>` | **Targeted only:** create one unlinked composition input for external payloads or script processing. |
+| `control-nodes` | Read ordered local control fields with their persisted metadata, widget-property data links, and tile/group layout node references. |
+| `set-control-value --id <control-id> --value-file <value.json>` | Set one existing supported local control value after type validation and authoritative readback. |
+| `update-control --id <control-id> --file <patch.json>` | Atomically patch supported metadata, rename the public ID with payload/link migration, or reorder one supported local control. |
+| `create-control --name <name> --node-type <type> --target standalone --value-file <value.json>` | **Targeted only:** create one unlinked composition input for external payloads or script processing. |
 | `create-control --name <name> --node-type <type> --tile-id <id> --property <field-id>` | **Targeted only:** create and link one isolated widget-data control. |
 | `create-control --name <name> --node-type <number\|checkbox> --target layout --element-type <tile\|group> --element-id <id> --property <layout-property>` | **Targeted only:** create and link one explicitly requested Transform/Effect public control; never use as a graphic-authoring default. |
 | `create-controls --file <controls.json>` | **Preferred for related controls:** validate, create, optionally link, and verify a batch atomically. |
@@ -206,9 +209,9 @@ The CLI commands are `apply` and `validate`; `graphics.apply` and `graphics.vali
 | `prepare-capture [--target <root\|active>] [--wait-mode <smart\|timed>] [--timeline <In\|Out> --at <seconds>] [--measurements <path.json>] [--artifact-manifest <path.json>] [--timeout <seconds>] [--settle <seconds>] [--restore-after <seconds>]` | Prepare the existing Composer canvas for a full-resolution Browser screenshot. It returns a capture ID, authoritative marked selector, diagnostic clip, editor resolution, readiness state, optional Timeline/measurement metadata, and optional prepared artifact-manifest metadata; defaults to smart readiness and automatic restoration after 30 seconds. A manifest path is created exclusively and cannot equal the measurement path. Browser must measure the marked element before capture. |
 | `finalize-capture --capture-id <id> --artifact-manifest <path.json> --output <image.png\|image.jpg> --evidence <path.json> [--browser <display-name>]` | Validate one Browser screenshot against its prepared transaction and version-1 geometry evidence, record PNG/JPEG dimensions, bytes, SHA-256, capture mode, and pixel scale, then restore Composer. Success changes the manifest to `complete`; validation failure writes `failed` with a stable sanitized error and still restores. Manifest, image, and evidence paths must be distinct. |
 | `restore-capture --capture-id <id>` | Restore Composer zoom, overlays, scrolling, canvas layout, and target isolation after Browser capture. |
-| `capture --target <root\|active> [--source <standalone\|paired>] [--wait-mode <smart\|timed>] [--measurements <path.json>] --output <path.png> [--timeout <seconds>] [--settle <seconds>] [--server <url>]` | Capture the root or active renderer without Browser ownership. `standalone` is the default. Its `smart` wait mode is the default for script-free, finite output; use `timed` for scripts or continuous motion. Standalone-only `--measurements` writes a bounded version-1 Player geometry snapshot immediately before the PNG. Explicit `paired` uses the Singular screenshot extension as the final fallback and accepts neither `--wait-mode` nor `--measurements`. Optional `--server` must match the server stored by pairing; it cannot retarget existing credentials. |
+| `capture --target <root\|active> [--wait-mode <smart\|timed>] [--measurements <path.json>] --output <path.png> [--timeout <seconds>] [--settle <seconds>] [--server <url>]` | Capture the root or active renderer through the standalone Player. `smart` is the default for script-free, finite output; use `timed` for scripts or continuous motion. `--measurements` writes a bounded version-1 Player geometry snapshot immediately before the PNG. Optional `--server` must match the server stored by pairing; it cannot retarget existing credentials. |
 
-Use Browser preparation only when Browser controls the already-open authenticated Composer tab; Composer pairing alone is not browser ownership. Browser and standalone accept the same `smart`/`timed`, settling, exact Timeline-position, and measurement evidence choices, although Browser still owns the actual screenshot bytes. Complete Browser captures through `finalize-capture`; use `restore-capture` only when finalization cannot be invoked. The CLI never changes capture sources automatically. The agent workflow is Browser-owned canvas first, standalone second, and explicit paired extension capture last. See [capture.md](capture.md).
+Use Browser preparation only when Browser controls the already-open authenticated Composer tab; Composer pairing alone is not browser ownership. Browser and standalone accept the same `smart`/`timed`, settling, exact Timeline-position, and measurement evidence choices, although Browser still owns the actual screenshot bytes. Complete Browser captures through `finalize-capture`; use `restore-capture` only when finalization cannot be invoked. The agent workflow is Browser-owned canvas first and standalone second. See [capture.md](capture.md).
 
 ## Composition scripts
 

@@ -104,21 +104,23 @@ function readJsonFile(filePath, description) {
   }
 }
 
+function readJsonOptionFile(options, name, description, required) {
+  const filePath = required
+    ? requireOption(options, name)
+    : options[name];
+  if (filePath === undefined) return undefined;
+  return readJsonFile(filePath, description);
+}
+
 function parseIds(value) {
-  let ids;
   if (value.trim().startsWith('[')) {
-    try {
-      ids = JSON.parse(value);
-    } catch (err) {
-      throw new Error(`--ids is not valid JSON: ${err.message}`);
-    }
-  } else {
-    ids = value.split(',').map(function (id) {
-      return id.trim();
-    }).filter(Boolean);
+    throw new Error('--ids accepts comma-separated IDs only; JSON arrays are not supported');
   }
+  const ids = value.split(',').map(function (id) {
+    return id.trim();
+  }).filter(Boolean);
   if (!Array.isArray(ids) || ids.length === 0) {
-    throw new Error('--ids must be a comma-separated list or JSON array');
+    throw new Error('--ids must be a comma-separated list');
   }
   return ids;
 }
@@ -191,14 +193,6 @@ function requireBooleanOption(options, name) {
   if (value === 'true') return true;
   if (value === 'false') return false;
   throw new Error(`--${name} must be "true" or "false"`);
-}
-
-function parseJsonOption(options, name) {
-  try {
-    return JSON.parse(options[name]);
-  } catch (err) {
-    throw new Error(`--${name} is not valid JSON: ${err.message}`);
-  }
 }
 
 // Directional effects take a named direction; dial effects take a numeric angle.
@@ -465,6 +459,10 @@ function createSocketUrl(credentials) {
 
 function sendSessionMessage(message, acknowledgementType) {
   const credentials = readCredentials();
+  const activityId = message.type === 'activity' ? uuid.v4() : null;
+  const outgoingMessage = activityId
+    ? Object.assign({}, message, { activityId: activityId })
+    : message;
 
   return new Promise(function (resolve, reject) {
     const socket = new WebSocket(createSocketUrl(credentials));
@@ -500,8 +498,11 @@ function sendSessionMessage(message, acknowledgementType) {
         return;
       }
       if (response.type === 'authenticated') {
-        socket.send(JSON.stringify(message));
-      } else if (response.type === acknowledgementType) {
+        socket.send(JSON.stringify(outgoingMessage));
+      } else if (
+        response.type === acknowledgementType &&
+        (!activityId || response.activityId === activityId)
+      ) {
         finish(null, { sent: true });
       } else if (response.type === 'session_cancelled') {
         const cancelledError = new Error('Composer operation was canceled by the user. Pair again.');
@@ -576,7 +577,6 @@ function executeCommand(method, params, commandTimeoutMs) {
 
       if (message.type === 'authenticated') {
         authenticated = true;
-        socket.send(JSON.stringify({ type: 'activity', message: method }));
         socket.send(JSON.stringify({ type: 'command', request: request }));
       } else if (
         message.type === 'response' &&
@@ -897,39 +897,6 @@ async function updateTable(options) {
   };
 }
 
-function saveCapture(result, outputPath) {
-  if (
-    !result ||
-    typeof result.dataUrl !== 'string' ||
-    !result.dataUrl.startsWith('data:image/png;base64,')
-  ) {
-    throw createCaptureError('CAPTURE_FAILED', 'Composer returned an invalid PNG capture');
-  }
-
-  const base64 = result.dataUrl.slice('data:image/png;base64,'.length);
-  const image = Buffer.from(base64, 'base64');
-  if (image.length === 0) {
-    throw createCaptureError('CAPTURE_FAILED', 'Composer capture is empty');
-  }
-  if (image.length > MAX_CAPTURE_BYTES) {
-    throw createCaptureError('CAPTURE_TOO_LARGE', 'Composer preview capture exceeds the 8 MB limit');
-  }
-
-  const resolvedPath = path.resolve(outputPath);
-  fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
-  fs.writeFileSync(resolvedPath, image);
-
-  return {
-    output: resolvedPath,
-    width: result.width,
-    height: result.height,
-    sizeBytes: image.length,
-    compositionId: result.compositionId,
-    editorResolution: result.editorResolution,
-    readiness: result.readiness
-  };
-}
-
 function savePreparedCaptureMeasurements(result, outputPath) {
   const snapshot = result && result.measurementSnapshot;
   if (!snapshot) {
@@ -1000,35 +967,16 @@ function validateCaptureServer(serverValue) {
 function normalizeCaptureOptions(options) {
   assertAllowedOptions(
     options,
-    ['target', 'source', 'output', 'measurements', 'timeout', 'settle', 'wait-mode', 'timeline', 'at', 'server', 'compact'],
+    ['target', 'output', 'measurements', 'timeout', 'settle', 'wait-mode', 'timeline', 'at', 'server', 'compact'],
     'capture'
   );
   validateCaptureServer(options.server);
   const target = normalizeCaptureTarget(options);
-  const source = options.source || 'standalone';
-  if (source !== 'paired' && source !== 'standalone') {
-    throw createCaptureError(
-      'INVALID_CAPTURE_SOURCE',
-      '--source must be "paired" or "standalone"'
-    );
-  }
   const waitMode = options['wait-mode'] || 'smart';
   if (waitMode !== 'smart' && waitMode !== 'timed') {
     throw createCaptureError(
       'INVALID_CAPTURE_WAIT_MODE',
       '--wait-mode must be "smart" or "timed"'
-    );
-  }
-  if (source === 'paired' && options['wait-mode'] !== undefined) {
-    throw createCaptureError(
-      'INVALID_CAPTURE_WAIT_MODE',
-      '--wait-mode is available only for standalone capture'
-    );
-  }
-  if (source === 'paired' && options.measurements !== undefined) {
-    throw createCaptureError(
-      'INVALID_CAPTURE_SOURCE',
-      '--measurements is available only for standalone capture'
     );
   }
   const hasTimeline = options.timeline !== undefined;
@@ -1047,12 +995,6 @@ function normalizeCaptureOptions(options) {
       throw createCaptureError('INVALID_CAPTURE_TIMELINE', '--timeline must be "In" or "Out"');
     }
     atSeconds = parseCaptureSeconds(options, 'at', null, true);
-    if (source !== 'standalone') {
-      throw createCaptureError(
-        'INVALID_CAPTURE_TIMELINE',
-        '--timeline and --at are available only for standalone capture'
-      );
-    }
     if (waitMode !== 'smart') {
       throw createCaptureError(
         'INVALID_CAPTURE_TIMELINE',
@@ -1062,7 +1004,6 @@ function normalizeCaptureOptions(options) {
   }
   return {
     target: target,
-    source: source,
     outputPath: requireOption(options, 'output'),
     measurementsPath: options.measurements || null,
     waitMode: waitMode,
@@ -1279,21 +1220,7 @@ async function captureStandalone(options) {
   return validateCaptureFile(result);
 }
 
-async function capturePaired(options) {
-  const pairedResult = await executeCommand('preview.capture', {
-    target: options.target,
-    timeoutMs: options.timeoutMs,
-    settleMs: options.settleMs
-  }, Math.max(DEFAULT_TIMEOUT_MS, options.timeoutMs + 5000));
-  const result = saveCapture(pairedResult, options.outputPath);
-  result.source = 'paired';
-  result.target = options.target;
-  result.fallback = null;
-  return validateCaptureFile(result);
-}
-
 async function captureWithSource(options) {
-  if (options.source === 'paired') return capturePaired(options);
   return captureStandalone(options);
 }
 
@@ -1524,14 +1451,34 @@ async function run() {
       result = await executeCommand('controlNode.inspect');
       break;
     case 'set-control-value': {
-      requireOption(parsed.options, 'value-json');
+      assertAllowedOptions(parsed.options, ['id', 'value-file', 'compact'], 'set-control-value');
       result = await executeCommand('controlNode.value.set', {
         id: requireOption(parsed.options, 'id'),
-        value: parseJsonOption(parsed.options, 'value-json')
+        value: readJsonOptionFile(
+          parsed.options,
+          'value-file',
+          'control-node value file',
+          true
+        )
+      });
+      break;
+    }
+    case 'update-control': {
+      const patch = readJsonFile(
+        requireOption(parsed.options, 'file'),
+        'control node metadata patch'
+      );
+      result = await executeCommand('controlNode.metadata.update', {
+        id: requireOption(parsed.options, 'id'),
+        patch: patch
       });
       break;
     }
     case 'create-control': {
+      assertAllowedOptions(parsed.options, [
+        'name', 'node-type', 'target', 'tile-id', 'element-type',
+        'element-id', 'property', 'value-file', 'replace', 'compact'
+      ], 'create-control');
       const type = requireOption(parsed.options, 'node-type');
       if (!['text', 'number', 'color', 'image', 'checkbox'].includes(type)) {
         throw new Error('--node-type must be "text", "number", "color", "image", or "checkbox"');
@@ -1541,7 +1488,7 @@ async function run() {
         throw new Error('--target must be "data", "layout", or "standalone"');
       }
       if (target === 'standalone') {
-        requireOption(parsed.options, 'value-json');
+        requireOption(parsed.options, 'value-file');
       }
       result = await executeCommand('controlNode.createAndLink', {
         name: requireOption(parsed.options, 'name'),
@@ -1552,7 +1499,12 @@ async function run() {
         elementId: target === 'layout' ? requireOption(parsed.options, 'element-id') : undefined,
         propertyId: target === 'standalone' ? undefined : requireOption(parsed.options, 'property'),
         value: target === 'standalone'
-          ? parseJsonOption(parsed.options, 'value-json')
+          ? readJsonOptionFile(
+            parsed.options,
+            'value-file',
+            'standalone control value file',
+            true
+          )
           : undefined,
         replace: parsed.options.replace === 'true'
       });
@@ -1606,6 +1558,7 @@ async function run() {
       }
       break;
     case 'get-many':
+      assertAllowedOptions(parsed.options, ['type', 'ids', 'compact'], 'get-many');
       result = await executeCommand('element.getMany', {
         elementType: parsed.options.type || 'tile',
         ids: parseIds(requireOption(parsed.options, 'ids'))
@@ -1630,17 +1583,20 @@ async function run() {
       break;
     }
     case 'update': {
+      assertAllowedOptions(parsed.options, [
+        'type', 'id', 'namespace', 'path', 'value-file', 'compact'
+      ], 'update');
       const params = getElementParams(parsed.options);
       params.path = requireOption(parsed.options, 'path');
       if (parsed.options.namespace) {
         params.namespace = parsed.options.namespace;
       }
-      const rawValue = requireOption(parsed.options, 'value-json');
-      try {
-        params.value = JSON.parse(rawValue);
-      } catch (err) {
-        throw new Error(`--value-json is not valid JSON: ${err.message}`);
-      }
+      params.value = readJsonOptionFile(
+        parsed.options,
+        'value-file',
+        'element update value file',
+        true
+      );
       result = await executeCommand('element.update', params);
       break;
     }
@@ -1667,8 +1623,8 @@ async function run() {
       break;
     case 'set-timeline-animation': {
       assertAllowedOptions(parsed.options, [
-        'type', 'id', 'timeline', 'effect', 'property', 'params-json',
-        'easing-json', 'start', 'duration', 'compact'
+        'type', 'id', 'timeline', 'effect', 'property', 'params-file',
+        'easing-file', 'start', 'duration', 'compact'
       ], 'set-timeline-animation');
       const params = {
         elementType: parsed.options.type || 'tile',
@@ -1679,11 +1635,19 @@ async function run() {
       if (parsed.options.property !== undefined) {
         params.property = parseAnimationProperty(parsed.options.property);
       }
-      if (parsed.options['params-json'] !== undefined) {
-        params.params = parseJsonOption(parsed.options, 'params-json');
+      if (parsed.options['params-file'] !== undefined) {
+        params.params = readJsonOptionFile(
+          parsed.options,
+          'params-file',
+          'Timeline-animation parameters file'
+        );
       }
-      if (parsed.options['easing-json'] !== undefined) {
-        params.easing = parseJsonOption(parsed.options, 'easing-json');
+      if (parsed.options['easing-file'] !== undefined) {
+        params.easing = readJsonOptionFile(
+          parsed.options,
+          'easing-file',
+          'Timeline-animation easing file'
+        );
       }
       ['start', 'duration'].forEach(function (option) {
         if (parsed.options[option] === undefined) return;
@@ -1708,7 +1672,7 @@ async function run() {
       break;
     case 'set-update-animation': {
       assertAllowedOptions(parsed.options, [
-        'id', 'phase', 'effect', 'property', 'params-json', 'easing-json',
+        'id', 'phase', 'effect', 'property', 'params-file', 'easing-file',
         'duration', 'active', 'always-execute', 'offset', 'compact'
       ], 'set-update-animation');
       const params = {
@@ -1719,11 +1683,19 @@ async function run() {
       if (parsed.options.property !== undefined) {
         params.property = parseAnimationProperty(parsed.options.property);
       }
-      if (parsed.options['params-json'] !== undefined) {
-        params.params = parseJsonOption(parsed.options, 'params-json');
+      if (parsed.options['params-file'] !== undefined) {
+        params.params = readJsonOptionFile(
+          parsed.options,
+          'params-file',
+          'Update-animation parameters file'
+        );
       }
-      if (parsed.options['easing-json'] !== undefined) {
-        params.easing = parseJsonOption(parsed.options, 'easing-json');
+      if (parsed.options['easing-file'] !== undefined) {
+        params.easing = readJsonOptionFile(
+          parsed.options,
+          'easing-file',
+          'Update-animation easing file'
+        );
       }
       if (parsed.options.active !== undefined) {
         params.active = requireBooleanOption(parsed.options, 'active');
@@ -1754,7 +1726,7 @@ async function run() {
       break;
     case 'set-behavior': {
       assertAllowedOptions(parsed.options, [
-        'id', 'property', 'effect', 'active', 'remove', 'easing-json',
+        'id', 'property', 'effect', 'active', 'remove', 'easing-file',
         'value-min', 'value-max', 'duration', 'duration-range', 'delay',
         'delay-range', 'compact'
       ], 'set-behavior');
@@ -1765,7 +1737,13 @@ async function run() {
       if (parsed.options.effect !== undefined) params.effect = parsed.options.effect;
       if (parsed.options.active !== undefined) params.active = requireBooleanOption(parsed.options, 'active');
       if (parsed.options.remove !== undefined) params.remove = parsed.options.remove;
-      if (parsed.options['easing-json'] !== undefined) params.easing = parseJsonOption(parsed.options, 'easing-json');
+      if (parsed.options['easing-file'] !== undefined) {
+        params.easing = readJsonOptionFile(
+          parsed.options,
+          'easing-file',
+          'continuous-behavior easing file'
+        );
+      }
       [
         ['value-min', 'valueMin'],
         ['value-max', 'valueMax'],
@@ -1790,17 +1768,28 @@ async function run() {
       );
       break;
     case 'create-group': {
+      assertAllowedOptions(parsed.options, ['name', 'layout-file', 'compact'], 'create-group');
       const params = { name: requireOption(parsed.options, 'name') };
-      if (parsed.options['layout-json'] !== undefined) {
-        params.layout = parseJsonOption(parsed.options, 'layout-json');
+      if (parsed.options['layout-file'] !== undefined) {
+        params.layout = readJsonOptionFile(
+          parsed.options,
+          'layout-file',
+          'group layout file'
+        );
       }
       result = await executeCommand('group.create', params);
       break;
     }
     case 'configure-group':
+      assertAllowedOptions(parsed.options, ['id', 'layout-file', 'compact'], 'configure-group');
       result = await executeCommand('group.configure', {
         id: requireOption(parsed.options, 'id'),
-        layout: JSON.parse(requireOption(parsed.options, 'layout-json'))
+        layout: readJsonOptionFile(
+          parsed.options,
+          'layout-file',
+          'group layout file',
+          true
+        )
       });
       break;
     case 'move-group': {
@@ -1918,7 +1907,7 @@ async function run() {
     }
     default:
       throw new Error(
-        'Usage: composer-agent.js <pair|pair-intent|start-work|finish-work|status|complete|inspect|script-handoff|control-composition|create-composition|orchestrate|create-revision|delete-composition|open-composition|widget-subcompositions|open-widget-subcomposition|update-table|timeline2|control-nodes|set-control-value|create-control|create-controls|delete-control|get|get-many|select|move|update|fonts|set-font|timeline-animations|set-timeline-animation|set-timeline-animations|update-animations|set-update-animation|set-update-animations|behaviors|set-behavior|set-behaviors|create-group|configure-group|move-group|delete-group|capture|prepare-capture|finalize-capture|restore-capture|primitives|ensure-group|create|delete|validate|apply> [options]'
+        'Usage: composer-agent.js <pair|pair-intent|start-work|finish-work|status|complete|inspect|script-handoff|control-composition|create-composition|orchestrate|create-revision|delete-composition|open-composition|widget-subcompositions|open-widget-subcomposition|update-table|timeline2|control-nodes|set-control-value|update-control|create-control|create-controls|delete-control|get|get-many|select|move|update|fonts|set-font|timeline-animations|set-timeline-animation|set-timeline-animations|update-animations|set-update-animation|set-update-animations|behaviors|set-behavior|set-behaviors|create-group|configure-group|move-group|delete-group|capture|prepare-capture|finalize-capture|restore-capture|primitives|ensure-group|create|delete|validate|apply> [options]'
       );
   }
 
