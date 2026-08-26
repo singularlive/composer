@@ -13,9 +13,9 @@ node scripts/composer-agent.js <command> [options]
 
 ## Pass structured CLI inputs through JSON files
 
-Never place JSON text directly in a Composer CLI process argument or pipe it through stdin. Before the first command that needs a structured value, create one uniquely named directory under the operating-system temporary directory or the agent session's temporary directory. Write each value as a descriptive UTF-8 JSON file, pass its path through `--value-file`, `--params-file`, `--easing-file`, `--layout-file`, or the command's existing `--file` option, and remove the temporary directory in finally-style cleanup after the related commands finish or fail. Relative paths resolve from the CLI working directory.
+Before the first command that needs a structured value, prefer a pre-approved agent-session temporary or scratch location that is already writable without another permission request. If none is available, fall back to the operating-system temporary directory only when it is writable under the agent's current permissions. Create one uniquely named task directory there, write each value as a descriptive UTF-8 JSON file, pass its path through `--value-file`, `--params-file`, `--easing-file`, `--layout-file`, or the command's existing `--file` option, and remove the task directory in finally-style cleanup after the related commands finish or fail. Relative paths resolve from the CLI working directory. If neither location is writable, report the blocker.
 
-JSON value files may contain any valid JSON value, including a string, number, boolean, array, or object; the command's existing type validation remains authoritative. Do not use stdin as an alternative file transport. `get-many --ids` is deliberately comma-separated text rather than JSON.
+JSON value files may contain any valid JSON value, including a string, number, boolean, array, or object; the command's existing type validation remains authoritative. `get-many --ids` is deliberately comma-separated text rather than JSON.
 
 For example, write `"Headline"` as the complete contents of a temporary `headline-value.json`, then run:
 
