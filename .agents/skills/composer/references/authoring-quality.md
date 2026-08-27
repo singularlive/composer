@@ -9,6 +9,33 @@ The standard has two equally required parts:
 
 Task-specific references define commands, schemas, and implementation mechanics. When a specialized reference repeats or illustrates an authoring principle, this document owns the principle.
 
+## Relationship to build briefs and archetypes
+
+This document remains the universal authoring and completion standard for every graphic. A Composer Build Brief and its selected archetype add task-specific requirements; neither replaces, narrows, or duplicates this standard.
+
+Use the layers together:
+
+- the user's request owns explicit content, style, behavior, assets, and scope;
+- the selected archetype defines what makes that graphic category recognizable and complete, including category-specific defaults, variations, edge cases, and acceptance checks;
+- the Composer Build Brief combines those requirements into the task-specific content, control, lifecycle, resilience, visual-thesis, and evidence contract;
+- this document governs construction quality, preservation, editability, visual quality, and the final completion gate across every category.
+
+When requirements overlap, keep the universal rule here and keep only its category-specific consequence in the archetype. For example, realistic long-value testing belongs here, while testing soccer added time such as `90+7` belongs in the soccer score-bug card. General contrast, typography, native-primitive, and settled-state requirements belong here; an archetype should state only the hierarchy, semantic slots, special failure cases, or lifecycle behavior unique to its category.
+
+Before handoff, apply the completion gate below to the complete task-specific contract:
+
+```text
+user requirements + selected archetype requirements
+                         ↓
+             compiled Composer Build Brief
+                         +
+        universal authoring-quality completion gate
+                         ↓
+                completed graphic
+```
+
+An archetype's shorter `Verify` section is additive. It does not authorize skipping an applicable completion-gate check. When no archetype applies, compile the task directly from the user's request and still apply this complete standard.
+
 ## Part 1: Effective Composer construction
 
 ### Scope and preservation
