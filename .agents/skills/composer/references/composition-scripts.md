@@ -1,26 +1,37 @@
 # Composition-script workflow
 
-Use this workflow when a paired Composer task requires persisted JavaScript runtime behavior. Composition scripting is a second phase of the `composer` skill, not a separate skill and not a paired-editor command.
+Use this workflow when a paired Composer task requires persisted JavaScript runtime behavior. Composition scripting is a second phase of the `composer` skill, not a separate skill and not a paired-editor command. The bundled CLIs are the only supported agent-facing interface: invoke `composer-agent.js script-handoff`, then pipe its output to `singularTokenScriptCli.js`. The helper calls authenticated REST endpoints internally, but agents must not treat those endpoints as an alternative workflow or construct requests to them directly.
 
 The authorities remain separate:
 
 - Composer owns composition structure, primitives, names, Control Nodes, links, and timelines.
-- The dedicated Composition API token routes own persisted script discovery and script text, and require the unexpired scene/account-scoped agent authorization.
+- The dedicated Composition API token routes own persisted script discovery and script text, and require the unexpired scene/account-scoped agent authorization. They are an internal transport reached through the bundled token CLI helper.
 - `OnairScript` and the Singular Player own runtime behavior and verification.
 
 The paired relay deliberately has no script command. Do not add script text to `graphics.apply`, write `compositionProps.scripts` through a generic update, or replace raw composition JSON.
 
 ## Source of truth by phase
 
-| Phase | Authority | Read path |
+| Phase | Authority | Supported agent path |
 | --- | --- | --- |
 | Build or change the graphic | Open Composer model | `inspect`, `get`, `control-nodes`, and the relevant primitive schemas |
 | Hand off the active composition | Open Composer model | `composer-agent.js script-handoff` |
-| Discover structure outside the handoff scope | Token content JSON | helper `summary --full` with a handoff |
-| Read script text | Dedicated token script endpoint | `--action get-script --script-id <id>` |
+| Discover structure outside the handoff scope | Token content JSON | `singularTokenScriptCli.js --handoff-file - --action summary --full` |
+| Read script text | Dedicated token script endpoint | `singularTokenScriptCli.js --handoff-file - --action get-script --script-id <id>` |
 | Prove script behavior | Singular Player runtime | The bundled Playwright verifier or a customized copy |
 
-`script-handoff` is mandatory. It packages a versioned active-scope snapshot plus the Composition API host/token, the saved agent authorization, and the active composition ID as the suggested script target. The server verifies that authorization is unexpired, has not been revoked or completed, matches the composition's scene and account, and still has an active task-level work lease before every script list/read/write request. Each request renews the same lease and editor deadline. Use `summary --full` when the requested target is global, overlay, outside the active scope, ambiguous, or requires composition-tree context absent from the handoff. Do not ask the user for a token, accept direct `--token`/`--host` operation, or use the embedded `compositionProps.scripts` blob from content JSON as the primary source of script text.
+`script-handoff` is mandatory. It packages a versioned active-scope snapshot plus the Composition API host/token, the saved agent authorization, and the active composition ID as the suggested script target. The server verifies that authorization is unexpired, has not been revoked or completed, matches the composition's scene and account, and still has an active task-level work lease before every script list/read/write request made by the helper. Each request renews the same lease and editor deadline. Use the helper's `summary --full` action when the requested target is global, overlay, outside the active scope, ambiguous, or requires composition-tree context absent from the handoff. Do not ask the user for a token, accept direct `--token`/`--host` operation, construct REST requests, or use the embedded `compositionProps.scripts` blob from content JSON as the primary source of script text.
+
+## Token helper contract
+
+The helper actions are `summary`, `list-scripts`, `get-script`, `put-script`, and `clear-script`:
+
+- `summary` uses the handoff's local active-composition context without requesting persisted content. Add `--full` only for global, overlay, ambiguous, or out-of-scope discovery.
+- `list-scripts` returns only non-empty persisted scripts; an absent entry does not mean the target cannot accept a script.
+- `get-script`, `put-script`, and `clear-script` default to the handoff's suggested script ID. Pass `--script-id` only for an intentional override discovered from the same handoff.
+- Prefer `--script-file` for multiline `put-script` content. `clear-script` persists an empty body without deleting the script record.
+
+The helper rejects direct `--token` and `--host` operation, omits both handoff credentials from normal output, and redacts token-bearing URL segments from request errors. Missing or invalid authorization returns 401; missing or expired work ownership returns 409. A revoked, completed, expired, scene-mismatched, or account-mismatched authorization cannot access scripts. `OPERATION_CANCELLED` releases the work lease without revoking the saved credential; stop the current task and discard its handoff instead of issuing another script request.
 
 ## End-to-end workflow
 
@@ -36,9 +47,9 @@ The paired relay deliberately has no script command. Do not add script text to `
      node scripts/singularTokenScriptCli.js --handoff-file - --action get-script
    ```
 
-7. Use the handoff's `suggestedScript`, active composition structure, Control Node models, `datalinks`, and `noderefs`. If those are insufficient, pipe a fresh handoff to `--action summary --full` to discover `global`, `overlay`, root, or another sub-composition. The `/scripts` list contains only non-empty scripts, so an empty list does not mean a composition cannot accept a script.
+7. Use the handoff's `suggestedScript`, active composition structure, Control Node models, `datalinks`, and `noderefs`. If those are insufficient, pipe a fresh handoff to `--action summary --full` to discover `global`, `overlay`, root, or another sub-composition.
 8. Read the target script before editing. Preserve its wrapper and signatures, and use the smallest compatible whole-body write through the helper. Prefer `--script-file` for multiline content. A token write may close any currently open Composition Script Editor because the server invalidates active script-editing IDs.
-9. Re-read the dedicated script endpoint after writing. A successful write is not proof that the code initialized or produced the intended output.
+9. Re-read the dedicated script endpoint through the helper after writing. A successful write is not proof that the code initialized or produced the intended output.
 10. Verify in the Singular Player. Ensure `@playwright/cli` and its Chrome browser are installed, then pipe a fresh handoff to `scripts/verifyComposition.mjs --handoff-file -`. The bundled verifier runs in place against `playwright-core`; copy it to `temp/` only when the script reacts to payloads, timers, external data, messages, or animation state and needs custom trigger logic. Do not use a Composer canvas screenshot as runtime proof.
 11. `composer-agent capture --wait-mode timed --settle <seconds>` opens the persisted public Player route and can provide a passive visual capture of the script result without requiring the scripted output to become still. Choose the bounded settle time from the initialization or data contract. It cannot by itself prove an event-driven path that was never triggered.
 12. If verification exposes a structural problem, return to Composer, re-inspect before mutating, fix the composition or Control Node wiring, then generate a fresh handoff before editing the script again. Use a full token summary only if the repaired target falls outside the fresh active scope.
@@ -47,7 +58,7 @@ Keep the saved authorization available for follow-up structural work unless the 
 
 ## Required references
 
-Read [composition-scripting/singular-scripting-doc.md](composition-scripting/singular-scripting-doc.md) before relying on runtime methods, listeners, or scripting patterns; read the matching `composition-scripting/widget-*.md` file before authoring a widget payload. Use [composition-scripting/token-script-api.md](composition-scripting/token-script-api.md) for the helper and endpoint contract and [composition-scripting/debugging-and-verification.md](composition-scripting/debugging-and-verification.md) for Player verification. Never guess widget APIs or payload keys.
+Read [composition-scripting/singular-scripting-doc.md](composition-scripting/singular-scripting-doc.md) before relying on runtime methods, listeners, or scripting patterns; read the matching `composition-scripting/widget-*.md` file before authoring a widget payload. Use [composition-scripting/debugging-and-verification.md](composition-scripting/debugging-and-verification.md) for Player verification. Never guess widget APIs or payload keys.
 
 ## Designing scriptable graphics
 
