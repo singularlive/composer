@@ -23,7 +23,7 @@ const {
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 2;
+const SKILL_VERSION = 3;
 const DEFAULT_TIMEOUT_MS = 15000;
 const MAX_MEASUREMENT_BYTES = 1024 * 1024;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -1498,7 +1498,8 @@ async function run() {
     case 'create-control': {
       assertAllowedOptions(parsed.options, [
         'name', 'node-type', 'target', 'tile-id', 'element-type',
-        'element-id', 'property', 'value-file', 'info-mode', 'replace', 'compact'
+        'element-id', 'property', 'value-file', 'info-mode', 'replace',
+        'source-composition', 'compact'
       ], 'create-control');
       const type = requireOption(parsed.options, 'node-type');
       if (![
@@ -1541,7 +1542,8 @@ async function run() {
           )
           : undefined,
         mode: type === 'infotext' ? parsed.options['info-mode'] : undefined,
-        replace: parsed.options.replace === 'true'
+        replace: parsed.options.replace === 'true',
+        sourceCompositionId: parsed.options['source-composition']
       });
       break;
     }
@@ -1566,7 +1568,8 @@ async function run() {
               propertyId: control.propertyId || control.property,
               value: control.value,
               mode: control.mode,
-              replace: control.replace === true
+              replace: control.replace === true,
+              sourceCompositionId: control.sourceCompositionId || control.sourceComposition
             };
           })
           : controls

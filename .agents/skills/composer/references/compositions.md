@@ -190,7 +190,7 @@ The single setter accepts `--phase in|out`, `--effect`, `--property`, `--params-
 
 A control node is a composition-level input. It may directly expose a selected widget-data or tile/group Transform/Effect property, or it may remain standalone so an external payload can trigger composition-script processing. Supported agent-created types are `text`, `textarea`, `number`, `normalizednumber`, `counter`, `color`, `image`, `checkbox`, `audio`, `video`, `data`, `jsonfile`, and `infotext`.
 
-Control nodes and their links are scoped to the active composition. Unless the user explicitly asks for a control in an ancestor or another composition, create a linked control in the **same** composition as its target and a standalone control in the composition whose script consumes it. Open that composition first, confirm it in `activeComposition.stack`, then inspect, create, and verify there. This keeps each module self-contained.
+Control fields belong to one composition, while a descendant composition may persist a link to a field defined in root or another ancestor. Targets are always resolved in the **active** composition. Unless the user explicitly asks for an ancestor-owned public control, create a linked control in the same composition as its target and a standalone control in the composition whose script consumes it. Open the target composition first, confirm it in `activeComposition.stack`, then inspect, create, and verify there. This keeps each module self-contained while still supporting intentional root-level control surfaces.
 
 ### Inspect first
 
@@ -219,12 +219,15 @@ These messages also include the active composition ID.
 
 ```bash
 node scripts/composer-agent.js create-control --name "name" --node-type text --tile-id <tile-id> --property text
+node scripts/composer-agent.js create-control --name "Brand Color" --node-type color --tile-id <tile-id> --property fillGradient --source-composition root
 node scripts/composer-agent.js create-control --name "visible" --node-type checkbox --target layout --element-type tile --element-id <tile-id> --property visible
 node scripts/composer-agent.js create-control --name "External Headline" --node-type text --target standalone --value-file <temporary-directory>/initial-headline.json
 node scripts/composer-agent.js create-controls --file <controls.json>
 ```
 
 Creation follows Composer's normal path. Linked controls initialize from the target property's current value, so linking does not change the rendered graphic. A standalone control requires an explicit `--value-file` initial value and creates only its model field and payload; it intentionally creates no widget `dataLink` or layout `nodeRef`.
+
+For an ancestor-owned linked control, leave the descendant target active and pass `--source-composition root` or the exact ID of an ancestor shown in `activeComposition.stack`. This works for ordinary descendants and widget-owned sub-compositions. The command creates the field and payload in that ancestor, writes the link in the active target composition using Composer's native `root`/ancestor location identity, and returns both `compositionId` (the defining source) and `targetCompositionId`. The source must be the active composition or one of its ancestors; sibling and unrelated compositions fail with `INVALID_CONTROL_SOURCE`. Cross-composition standalone creation is rejected because it has no active target relationship.
 
 Use a standalone control when the value is an external/script input rather than a one-to-one property binding. A Player SDK `setPayload()` call can update it, the composition script can listen for `payload_changed`, read the authoritative payload with `comp.getPayload2()`, process the value, and update one or more widgets with their scripting APIs. Do not create a hidden backing widget for that pattern.
 
@@ -263,13 +266,14 @@ Transform/Effect controls are not part of normal graphic construction or refinem
 | `checkbox` | `visible` |
 | `number` | `left`, `top`, `width`, `height`, `rotateZ`, `opacity`, `filterBrightness`, `filterBlur`, `filterContrast`, `filterGrayscale`, `filterHueRotate`, `filterInvert`, `filterSaturate`, `filterSepia` |
 
-For a related batch, layout entries use `target: "layout"`, `elementType`, `elementId`, and `propertyId`; widget-data entries keep `tileId` and `propertyId` and default to `target: "data"`; standalone entries use `target: "standalone"` and an explicit `value`.
+For a related batch, layout entries use `target: "layout"`, `elementType`, `elementId`, and `propertyId`; widget-data entries keep `tileId` and `propertyId` and default to `target: "data"`; standalone entries use `target: "standalone"` and an explicit `value`. A linked entry may add `sourceCompositionId: "root"` or an exact ancestor ID.
 
 ```json
 {
   "controls": [
     { "name": "rectangle_size_x", "type": "number", "target": "layout", "elementType": "tile", "elementId": "<rectangle-id>", "propertyId": "width" },
     { "name": "rectangle_size_y", "type": "number", "target": "layout", "elementType": "tile", "elementId": "<rectangle-id>", "propertyId": "height" },
+    { "name": "Brand Color", "type": "color", "tileId": "<descendant-rectangle-id>", "propertyId": "fillGradient", "sourceCompositionId": "root" },
     { "name": "External Headline", "type": "text", "target": "standalone", "value": "Initial headline" }
   ]
 }

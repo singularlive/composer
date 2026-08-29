@@ -182,9 +182,9 @@ See [table.md](table.md).
 | `update-control --id <control-id> --file <patch.json>` | Atomically patch supported metadata, rename the public ID with payload/link migration, or reorder one supported local control. |
 | `create-control --name <name> --node-type <type> --target standalone --value-file <value.json>` | **Targeted only:** create one unlinked composition input for external payloads or script processing. |
 | `create-control --name <name> --node-type infotext --target standalone --info-mode <static\|dynamic> --value-file <value.json>` | **Targeted only:** create one sanitized form-only data display. Static content is metadata-owned; dynamic content can be replaced through the payload. |
-| `create-control --name <name> --node-type <type> --tile-id <id> --property <field-id>` | **Targeted only:** create and link one isolated widget-data control. |
-| `create-control --name <name> --node-type <number\|checkbox> --target layout --element-type <tile\|group> --element-id <id> --property <layout-property>` | **Targeted only:** create and link one explicitly requested Transform/Effect public control; never use as a graphic-authoring default. |
-| `create-controls --file <controls.json>` | **Preferred for related controls:** validate, create, optionally link, and verify a batch atomically. |
+| `create-control --name <name> --node-type <type> --tile-id <id> --property <field-id> [--source-composition <root\|ancestor-id>]` | **Targeted only:** create and link one isolated widget-data control. The target stays in the active composition; the optional source defines the control in root or another active-stack ancestor. |
+| `create-control --name <name> --node-type <number\|checkbox> --target layout --element-type <tile\|group> --element-id <id> --property <layout-property> [--source-composition <root\|ancestor-id>]` | **Targeted only:** create and link one explicitly requested Transform/Effect public control; never use as a graphic-authoring default. The optional source follows the same ancestor rule. |
+| `create-controls --file <controls.json>` | **Preferred for related controls:** validate, create, optionally link, and verify a batch atomically. Linked entries may set `sourceCompositionId` to `root` or an active-stack ancestor ID. |
 | `delete-control --id <control-id>` | Delete one supported control through the normal cleanup path. |
 
 See [compositions.md](compositions.md).
