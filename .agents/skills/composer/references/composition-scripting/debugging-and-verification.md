@@ -56,7 +56,7 @@ node scripts/composer-agent.js script-handoff --compact |
   node scripts/verifyComposition.mjs --handoff-file -
 ```
 
-You may modify the copied script as needed to tailor verification to the specific change (e.g. adding `comp.setPayload()` calls for custom payloads, adjusting `--frames` or `--interval` logic, or querying iframe DOM for widget properties). The original stays untouched.
+Prefer a version-1 `--scenario-file` for supported payload, message, state, lifecycle, DOM, bounds, and checkpoint behavior. Modify the copied script only when the required external trigger or assertion is outside that bounded contract. The original stays untouched.
 
 ### Screenshot output
 
@@ -107,10 +107,10 @@ node temp/my-custom-verify.mjs   # finds playwright in temp/node_modules/
 
 Use `scripts/verifyComposition.mjs` for headless visual verification after writing a script. It loads the composition via the player SDK, takes screenshots, and dumps the iframe DOM summary plus console logs — the agent interprets the results.
 
-1. Pipe a fresh paired handoff into the copied verification script:
+1. Pipe a fresh paired handoff into the bundled verification script:
    ```sh
    node scripts/composer-agent.js script-handoff --compact |
-     node temp/verifyComposition.mjs --handoff-file -
+     node scripts/verifyComposition.mjs --handoff-file -
    ```
 
 2. The script outputs:
@@ -133,10 +133,61 @@ Use `scripts/verifyComposition.mjs` for headless visual verification after writi
    - `--fresh-page-per-frame` — reload the Player in a new isolated page for every sampled frame; diagnostic only because initialization restarts each time
    - `--disable-gpu` — launch Chrome with GPU acceleration disabled to isolate compositor behavior; diagnostic only
    - `--report PATH` — sanitized JSON report path (default: `<out>/verification-report.json`)
+   - `--scenario-file PATH` — optional version-1 declarative Player verification scenario
    - `--integrity-file PATH` — optional version-1 deterministic pixel-region assertions; a failure exits nonzero
    - `--no-headless` — show the browser window for debugging
 
    The verifier creates the host page in memory from the handoff and sets `window.__compositionLoaded = true` after load. It does not write either handoff credential to an HTML file. It waits for two animation frames before each image and screenshots `.onair-renderer.root-onair` directly by default so the artifact represents the complete Player target rather than the host page.
+
+### Declarative Player scenario
+
+Use a scenario when runtime proof requires public Player inputs or specific checkpoints. The verifier validates the complete file before opening Player. A scenario is limited to version 1, 50 steps, 64 KiB total, 32 KiB for each payload/message/expected-state value, ten minutes of aggregate wait budget, and 60 seconds for one lifecycle wait.
+
+```json
+{
+  "version": 1,
+  "steps": [
+    { "action": "capture", "name": "before" },
+    { "action": "setPayload", "payload": { "Score": "2" } },
+    {
+      "action": "waitForLifecycle",
+      "event": "payload_changed",
+      "minimum": 1,
+      "timeoutMs": 3000
+    },
+    {
+      "action": "assertDom",
+      "textChangedFrom": "before",
+      "minimumVisibleElementCount": 1
+    },
+    { "action": "jumpTo", "state": "In" },
+    { "action": "assertState", "equals": "In" },
+    { "action": "capture", "name": "after" }
+  ]
+}
+```
+
+Run it without placing either handoff credential on disk:
+
+```sh
+node scripts/composer-agent.js script-handoff --compact |
+  node scripts/verifyComposition.mjs --handoff-file - --scenario-file temp/scenario.json
+```
+
+Supported actions are:
+
+- `wait`: bounded `milliseconds`.
+- `setPayload` and `sendMessage`: call the public Player composition API with an object. Omit `compositionId` for the main composition or provide an intentional sub-composition ID.
+- `playTo` and `jumpTo`: call the public Player composition API with `state`; they accept the same optional `compositionId`.
+- `waitForLifecycle`: wait for an allowed lifecycle counter to reach `minimum`, with an optional `timeoutMs`.
+- `assertLifecycle`: require `equals`, `minimum`, or `maximum` for one allowed lifecycle counter.
+- `assertState`: compare `getState()` with the JSON value in `equals`.
+- `assertDom`: check a 16-character `textHash`, a text change from an earlier checkpoint, minimum element/visible-element counts, or minimum target width/height. It never exposes rendered text.
+- `capture`: save a named checkpoint. Names are unique and use up to 64 letters, digits, periods, underscores, or hyphens.
+
+Allowed lifecycle counters are `compositionLoaded`, `message`, `state_changed`, `payload_changed`, `datanode_payload_changed`, `error`, `composition_script_event`, `download_start`, and `download_complete`. A failed action reports only its step number and action type. The sanitized report includes statuses, durations, safe counters, DOM hashes, bounds, and checkpoint filenames; it never records payload/message values, expected state values, script text, rendered text, tokens, or preview URLs.
+
+When a scenario contains `capture` steps, those checkpoints replace the ordinary `--frames`/`--interval` sampler, so do not combine those flags. `--fresh-page-per-frame` is also incompatible because reloading would discard the scenario state. With no `capture` step, the normal periodic sampler runs after the scenario. A supplied integrity contract applies to every resulting screenshot.
 
 ### Optional visual-integrity contract
 

@@ -188,7 +188,7 @@ The single setter accepts `--phase in|out`, `--effect`, `--property`, `--params-
 
 ## Control nodes
 
-A control node is a composition-level input. It may directly expose a selected widget-data or tile/group Transform/Effect property, or it may remain standalone so an external payload can trigger composition-script processing. Supported agent-created types are `text`, `number`, `color`, `image`, and `checkbox`.
+A control node is a composition-level input. It may directly expose a selected widget-data or tile/group Transform/Effect property, or it may remain standalone so an external payload can trigger composition-script processing. Supported agent-created types are `text`, `textarea`, `number`, `normalizednumber`, `counter`, `color`, `image`, `checkbox`, `audio`, `video`, `data`, `jsonfile`, and `infotext`.
 
 Control nodes and their links are scoped to the active composition. Unless the user explicitly asks for a control in an ancestor or another composition, create a linked control in the **same** composition as its target and a standalone control in the composition whose script consumes it. Open that composition first, confirm it in `activeComposition.stack`, then inspect, create, and verify there. This keeps each module self-contained.
 
@@ -231,10 +231,26 @@ Use a standalone control when the value is an external/script input rather than 
 | Control type | Compatible widget field types | Initial value |
 | --- | --- | --- |
 | `text` | `text`, `textarea` | String |
+| `textarea` | `textarea`, `text` | String |
 | `number` | `number`, `normalizednumber` | Finite number |
+| `normalizednumber` | `normalizednumber`, `number` | Finite number |
+| `counter` | `counter`, `number`, `normalizednumber` | Integer |
 | `color` | `color`, `gradient` | RGBA object; gradient fields initialize from `solidColor` |
 | `image` | `image` | String image URL/value |
 | `checkbox` | `checkbox` | Boolean |
+| `audio` | `audio` | String audio URL/value |
+| `video` | `video` | String video URL/value |
+| `data` | `data` | String data URL/value |
+| `jsonfile` | `jsonfile` | String JSON-file URL/value |
+| `infotext` | Not linkable; standalone only | Sanitized HTML string |
+
+Image, Audio, Video, Data, and JSON File values follow Composer's form limit of 2,048 characters. The agent rejects longer values instead of silently truncating them.
+
+Info Text is a form-only display rather than an operator input or widget link. Creation requires `target: "standalone"`, an explicit `static` or `dynamic` mode, and an HTML string. Static mode stores visible content in field `text` metadata and keeps payload empty; change it with `update-control --file` using a `text` patch. Dynamic mode stores visible content in the payload and accepts `set-control-value`, including later external `setPayload()` updates. Changing mode atomically transfers the current visible content between metadata and payload. Info Text always starts with `hideTitle: true`, has no default/reset blobs, and cannot target widget data or Transform/Effect properties.
+
+Info Text HTML is sanitized both on agent writes and immediately before Control App rendering. Agent writes reject unsupported markup instead of silently changing it; defensive rendering strips unsupported content from legacy or external payloads. The bounded display subset includes `div`, `span`, paragraphs, basic emphasis and lists, table elements, and anchors. Inline styles support table, grid, flex, sizing, spacing, typography, color, background color, border, and overflow properties; positioning, transforms, CSS URLs, imports, variables, and executable values are excluded. Links require absolute `http://` or `https://` URLs no longer than 2,048 characters and without embedded credentials. Rendering forces `target="_blank"` and `rel="noopener noreferrer"`; relative, protocol-relative, `javascript:`, `data:`, and malformed URLs are rejected.
+
+Use `textarea` when longer free-form input or explicit line breaks are part of the public input contract; use `text` for concise single-line input. Prefer linking a textarea control to a widget field whose live schema type is `textarea`, such as the `text` field of the `metric-text-ml` primitive. A compatible `text` target accepts the same string value but does not guarantee multiline rendering. Textarea `rows` and `cols` configure the Control App input only; rendered line count, wrapping, and truncation remain properties of the target widget.
 
 When a Color control targets a Gradient field, the control initializes from the field's current `solidColor`. The existing widget gradient input accepts tinycolor2-compatible values and renders them as a solid gradient, so a driving widget can send a color string or RGBA object without reproducing the full gradient runtime object.
 
@@ -273,9 +289,9 @@ Inspect first, then pass one JSON object containing only the properties to chang
 node scripts/composer-agent.js update-control --id <control-id> --file <patch.json>
 ```
 
-All five supported types accept `id`, `title`, `index`, `defaultValue`, `resetValue`, `immediateUpdate`, `hidden`, `style`, `hideTitle`, and `displayVariantRelevance`. Number controls additionally accept `step`, `format`, `unit`, `min`, `max`, and `showSlider`. `unitName` and `unitCollection` are deprecated and intentionally neither reported nor writable. `type` and internal `keyId` are immutable.
+The common writable metadata contract applies to the twelve value controls. Textarea controls additionally accept positive-integer `rows` and `cols`; Number controls additionally accept `step`, `format`, `unit`, `min`, `max`, and `showSlider`; Normalized Number controls accept `step`, `format`, `unit`, `low`, `high`, and `showSlider`; Counter controls accept integer `min`/`max` and optional set/modify button values `s1`–`s7` and `m1`–`m7`. Info Text is the thirteenth supported type and intentionally narrows metadata to `id`, `title`, `index`, `hideTitle`, `displayVariantRelevance`, `mode`, and static `text`. `unitName` and `unitCollection` are deprecated and intentionally neither reported nor writable. `type` and internal `keyId` are immutable.
 
-New metadata values use strict current shapes: default/reset values match the control type; booleans are booleans; Number `step` is positive and finite; Number bounds are finite with `min <= max`; `showSlider: true` requires both bounds; `unit` is at most three characters; and display-variant relevance is a string or an array of non-empty strings. Existing legacy shapes remain readable and are preserved when omitted. Set an optional property to `null` to remove it; `title` cannot be removed. Omitted and unknown properties remain unchanged.
+New metadata values use strict current shapes: default/reset values match the control type; booleans are booleans; numeric `step` is positive and finite; Number bounds are finite with `min <= max`; Normalized Number output bounds are finite with `low <= high`; Counter bounds are integers with `min <= max`, and its button values are integers or signed integer strings; Number `showSlider: true` requires both `min` and `max`; `unit` is at most three characters; and display-variant relevance is a string or an array of non-empty strings. Existing legacy shapes remain readable and are preserved when omitted. Set an optional property to `null` to remove it; `title` cannot be removed. Omitted and unknown properties remain unchanged.
 
 An `id` change atomically migrates the payload key, matching local and cross-composition widget links, tile/group node references, and control-group membership. An `index` change reorders the field and normalizes every field index. The operation verifies readback and rolls back all writes on failure. Re-run `control-nodes` and verify the field, payload, links, ordering, and unrelated metadata.
 
@@ -289,7 +305,7 @@ node scripts/composer-agent.js set-control-value --id <control-id> --value-file 
 node scripts/composer-agent.js control-nodes
 ```
 
-The value must match the existing control type: string for text/image, finite number for number, boolean for checkbox, and a complete `{r,g,b,a}` object for color. Null is never a delete. The command changes only `dataSources/composition/controlNode/payload/<control-id>`, verifies the persisted value, and reports the previous value plus whether a write occurred. A failed write rolls back its batch. Re-read `control-nodes` after the mutation and confirm unrelated controls are unchanged.
+The value must match the existing control type: string for text/textarea/image/audio/video/data/jsonfile, finite number for number/normalizednumber, integer for counter, boolean for checkbox, and a complete `{r,g,b,a}` object for color. Dynamic Info Text accepts only valid sanitized HTML strings; static Info Text rejects this command and must be changed through its `text` metadata. URL-valued controls are limited to 2,048 characters. Null is never a delete. The command changes only `dataSources/composition/controlNode/payload/<control-id>`, verifies the persisted value, and reports the previous value plus whether a write occurred. A failed write rolls back its batch. Re-read `control-nodes` after the mutation and confirm unrelated controls are unchanged.
 
 ### Delete
 

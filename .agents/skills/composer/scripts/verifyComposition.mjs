@@ -2,6 +2,10 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { createRequire } from 'module';
+import {
+  executeVerificationScenario,
+  readVerificationScenario
+} from './verify-composition-scenario.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -43,6 +47,8 @@ const hasArg = (name) => args.includes(name);
 
 const frameCount = parseInt(getArg('--frames', '3'), 10);
 const intervalMs = parseInt(getArg('--interval', '3000'), 10);
+const framesExplicit = hasArg('--frames');
+const intervalExplicit = hasArg('--interval');
 const headless = hasArg('--no-headless') ? false : true;
 const handoffPath = getArg('--handoff-file', null);
 const SCREENSHOT_DIR = path.resolve(getArg('--out', defaultOutDir));
@@ -51,6 +57,7 @@ const reportPath = path.resolve(
   getArg('--report', path.join(SCREENSHOT_DIR, 'verification-report.json'))
 );
 const integrityPath = getArg('--integrity-file', null);
+const scenarioPath = getArg('--scenario-file', null);
 const freshPagePerFrame = hasArg('--fresh-page-per-frame');
 const disableGpu = hasArg('--disable-gpu');
 
@@ -136,6 +143,17 @@ function readIntegrityContract(filePath) {
 }
 
 const integrityContract = readIntegrityContract(integrityPath);
+const verificationScenario = readVerificationScenario(scenarioPath);
+const scenarioCaptureCount = verificationScenario
+  ? verificationScenario.steps.filter(step => step.action === 'capture').length
+  : 0;
+
+if (verificationScenario && freshPagePerFrame) {
+  throw new Error('--fresh-page-per-frame cannot be combined with --scenario-file');
+}
+if (scenarioCaptureCount && (framesExplicit || intervalExplicit)) {
+  throw new Error('--frames and --interval cannot be combined with scenario capture steps');
+}
 
 function sanitizeText(value) {
   return String(value).split(token).join('<redacted>');
@@ -307,6 +325,39 @@ async function prepareVerificationPage(browser, viewport, logs) {
   return { page, playerFrame, target };
 }
 
+async function sampleVerificationTarget(target) {
+  const targetBounds = await target.boundingBox();
+  if (!targetBounds || targetBounds.width <= 0 || targetBounds.height <= 0) {
+    throw new Error('Player verification target has no positive visible bounds');
+  }
+  const domState = await target.evaluate(function (root) {
+    const elements = Array.from(root.querySelectorAll('*'));
+    return {
+      text: (root.textContent || '').trim(),
+      elementCount: elements.length,
+      svgElementCount: root.querySelectorAll('svg, svg *').length,
+      canvasCount: root.querySelectorAll('canvas').length,
+      visibleElementCount: elements.filter(function (element) {
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' &&
+          Number(style.opacity || 1) > 0 && bounds.width > 0 && bounds.height > 0;
+      }).length
+    };
+  });
+  return {
+    targetBounds,
+    dom: {
+      textLength: domState.text.length,
+      textHash: hashText(domState.text),
+      elementCount: domState.elementCount,
+      svgElementCount: domState.svgElementCount,
+      canvasCount: domState.canvasCount,
+      visibleElementCount: domState.visibleElementCount
+    }
+  };
+}
+
 function summarizeLogs(logs) {
   return logs.reduce(function (summary, entry) {
     const level = entry.type === 'warn' ? 'warning' : entry.type;
@@ -336,15 +387,17 @@ async function main() {
   let playerFrame = null;
   let target = null;
 
+  const plannedFrameCount = scenarioCaptureCount || frameCount;
   const report = {
     version: 1,
     status: 'running',
     captureMode,
-    frameCount,
+    frameCount: plannedFrameCount,
     intervalMs,
     viewport,
     diagnostics: { freshPagePerFrame, disableGpu },
     runtime: { compositionLoaded: false, loadCount: 0 },
+    scenario: { requested: Boolean(verificationScenario), status: verificationScenario ? 'pending' : 'not-requested' },
     screenshot: { successfulFrames: 0 },
     visualIntegrity: { requested: Boolean(integrityContract), passed: true },
     frames: []
@@ -355,42 +408,20 @@ async function main() {
     report.runtime.compositionLoaded = true;
     report.runtime.loadCount += 1;
 
-    for (let i = 0; i < frameCount; i++) {
-      if (i > 0 && freshPagePerFrame) {
-        await page.close();
-        ({ page, playerFrame, target } = await prepareVerificationPage(browser, viewport, logs));
-        report.runtime.loadCount += 1;
-      }
+    const captureFrame = async function (checkpoint) {
       await waitForCompositor(playerFrame);
-      const targetBounds = await target.boundingBox();
-      if (!targetBounds || targetBounds.width <= 0 || targetBounds.height <= 0) {
-        throw new Error('Player verification target has no positive visible bounds');
-      }
-      const domState = await target.evaluate(function (root) {
-        const elements = Array.from(root.querySelectorAll('*'));
-        return {
-          text: (root.textContent || '').trim(),
-          elementCount: elements.length,
-          svgElementCount: root.querySelectorAll('svg, svg *').length,
-          canvasCount: root.querySelectorAll('canvas').length,
-          visibleElementCount: elements.filter(function (element) {
-            const style = getComputedStyle(element);
-            const bounds = element.getBoundingClientRect();
-            return style.display !== 'none' && style.visibility !== 'hidden' &&
-              Number(style.opacity || 1) > 0 && bounds.width > 0 && bounds.height > 0;
-          }).length
-        };
-      });
+      const sampled = await sampleVerificationTarget(target);
       const lifecycle = await page.evaluate(() => ({ ...window.__verificationLifecycle }));
       const pngBuffer = captureMode === 'target'
         ? await target.screenshot({ type: 'png' })
         : await page.screenshot({ type: 'png', fullPage: true });
       const dimensions = getPngDimensions(pngBuffer);
-      const fname = `frame-${i}.png`;
+      const index = report.frames.length;
+      const fname = `frame-${index}.png`;
       fs.writeFileSync(path.join(SCREENSHOT_DIR, fname), pngBuffer);
       const integrity = await evaluateIntegrity(page, pngBuffer, integrityContract);
-      report.frames.push({
-        index: i,
+      const frame = {
+        index,
         file: fname,
         screenshot: {
           success: true,
@@ -398,21 +429,35 @@ async function main() {
           height: dimensions.height,
           bytes: pngBuffer.length
         },
-        targetBounds,
-        dom: {
-          textLength: domState.text.length,
-          textHash: hashText(domState.text),
-          elementCount: domState.elementCount,
-          svgElementCount: domState.svgElementCount,
-          canvasCount: domState.canvasCount,
-          visibleElementCount: domState.visibleElementCount
-        },
+        targetBounds: sampled.targetBounds,
+        dom: sampled.dom,
         lifecycle,
         integrity
-      });
+      };
+      if (checkpoint) frame.checkpoint = checkpoint;
+      report.frames.push(frame);
       report.screenshot.successfulFrames += 1;
       report.visualIntegrity.passed = report.visualIntegrity.passed && integrity.passed;
       console.log(`[verify] Screenshot: ${fname}`);
+      return frame;
+    };
+
+    if (verificationScenario) {
+      report.scenario = await executeVerificationScenario({
+        scenario: verificationScenario,
+        page,
+        sample: () => sampleVerificationTarget(target),
+        capture: captureFrame
+      });
+    }
+
+    for (let i = 0; i < (scenarioCaptureCount ? 0 : frameCount); i++) {
+      if (i > 0 && freshPagePerFrame) {
+        await page.close();
+        ({ page, playerFrame, target } = await prepareVerificationPage(browser, viewport, logs));
+        report.runtime.loadCount += 1;
+      }
+      await captureFrame(null);
       if (i < frameCount - 1) await page.waitForTimeout(intervalMs);
     }
 
@@ -429,13 +474,14 @@ async function main() {
   } catch (error) {
     report.status = 'failed';
     report.error = sanitizeText(error && error.message ? error.message : error);
+    if (error && error.scenarioResult) report.scenario = error.scenarioResult;
     report.runtime.console = summarizeLogs(logs);
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf8');
     throw error;
   } finally {
     await browser.close();
   }
-  console.log(`[verify] Done. ${frameCount} screenshots in ${SCREENSHOT_DIR}`);
+  console.log(`[verify] Done. ${report.frames.length} screenshots in ${SCREENSHOT_DIR}`);
 }
 
 main().catch(err => { console.error('[verify] Error:', sanitizeText(err)); process.exit(1); });

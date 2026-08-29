@@ -8,7 +8,7 @@ List the supported primitives and their control-field schemas before creating gr
 node scripts/composer-agent.js primitives
 ```
 
-Supported primitive names are `text`, `rectangle`, `circle`, `image`, `aisvg`, and `table`. AISVG is the bounded escape hatch for sanitized arbitrary SVG paths, masks, filters, and widget-driven vector animation; use standard primitives whenever they can keep the design independently editable. See [aisvg.md](aisvg.md). When you already know which primitive you need, filter to it so the schema stays small:
+Supported primitive names are `text`, `metric-text-ml`, `rectangle`, `circle`, `image`, `aisvg`, and `table`. Use `metric-text-ml` when explicit line breaks or wrapping must render as multiline text; its live schema remains authoritative for content and line-layout properties. AISVG is the bounded escape hatch for sanitized arbitrary SVG paths, masks, filters, and widget-driven vector animation; use standard primitives whenever they can keep the design independently editable. See [aisvg.md](aisvg.md). When you already know which primitive you need, filter to it so the schema stays small:
 
 ```bash
 node scripts/composer-agent.js primitives --primitive text
@@ -312,7 +312,7 @@ Validation errors retain authored paths, including style, region, template, repe
 
 The first apply creates and verifies the control and its link. Reapplying the stable key preserves the same tile and link. A different existing link, type, or control identity is a validation error.
 
-Declarative widget-data controls support `text`, `number`, `color`, `image`, and `checkbox` when the primitive's widget field has the compatible type. Tile/group Transform and Effect controls are native node references rather than widget-data links; keyed managed graphics may declare them at the specification root, while ordinary Composer-ID targets use `create-control` or `create-controls` as described in [compositions.md](compositions.md). Their availability is not an authoring default: create them only when the user explicitly asks to expose the exact Transform/Effect property as a Control Node.
+Declarative widget-data controls support `text`, `textarea`, `number`, `normalizednumber`, `counter`, `color`, `image`, `checkbox`, `audio`, `video`, `data`, and `jsonfile` when the primitive's widget field has the compatible type. Tile/group Transform and Effect controls are native node references rather than widget-data links; keyed managed graphics may declare them at the specification root, while ordinary Composer-ID targets use `create-control` or `create-controls` as described in [compositions.md](compositions.md). Their availability is not an authoring default: create them only when the user explicitly asks to expose the exact Transform/Effect property as a Control Node.
 
 When the user explicitly requests public Transform/Effect inputs, declare them at the specification root and target stable declarative keys rather than transient tile IDs:
 

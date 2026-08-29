@@ -37,10 +37,10 @@ List only independently cued compositions and their lifecycle boundaries. Use on
 
 For every visible semantic item, record:
 
-- supported primitive: `text`, `rectangle`, `circle`, `image`, `aisvg`, or `table`;
+- supported primitive: `text`, `metric-text-ml`, `rectangle`, `circle`, `image`, `aisvg`, or `table`;
 - realistic initial sample value;
 - data mode: `Static`, `Configurable`, `Live`, `Operator-controlled`, or `Derived`;
-- public Control Node type when needed: `text`, `number`, `color`, `image`, or `checkbox`;
+- public Control Node type when needed: `text`, `textarea`, `number`, `normalizednumber`, `counter`, `color`, `image`, `checkbox`, `audio`, `video`, `data`, `jsonfile`, or `infotext`;
 - whether formatting, coordination, timing, or other persisted runtime logic is required.
 
 Expose externally meaningful values, not decorative internals. Use direct controls for one-to-one values. Mark a script only when Composer structure, links, Timeline, Update, and Behavior cannot express the required behavior.

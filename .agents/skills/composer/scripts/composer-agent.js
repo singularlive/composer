@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const tinycolor = require('tinycolor2');
 const uuid = require('uuid');
 const WebSocket = require('ws');
+const credentialSelection = require('./credential-selection');
 const {
   captureCompositionPreview,
   createCaptureError,
@@ -22,11 +23,11 @@ const {
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
+const SKILL_VERSION = 2;
 const DEFAULT_TIMEOUT_MS = 15000;
 const MAX_MEASUREMENT_BYTES = 1024 * 1024;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
-const PAIRING_ACKNOWLEDGEMENT = 'AI Agent is connected and ready for your next instruction.';
 const CREDENTIALS_OVERRIDE_PATH = process.env.COMPOSER_AGENT_CREDENTIALS || null;
 const DEFAULT_CREDENTIALS_PATH = path.join(os.homedir(), '.singular', 'composer-agent.json');
 const CREDENTIALS_SCOPE_PATH = path.resolve(__dirname, '..', '..', '..', '..');
@@ -36,6 +37,7 @@ const TEMPORARY_CREDENTIALS_PATH = path.join(
   crypto.createHash('sha256').update(CREDENTIALS_SCOPE_PATH).digest('hex').slice(0, 16) + '.json'
 );
 let activeCredentialsPath = CREDENTIALS_OVERRIDE_PATH || DEFAULT_CREDENTIALS_PATH;
+let skillUpdateWarningWritten = false;
 const TABLE_WIDGET_ID = 1182;
 const MAX_TABLE_ROWS = 1000;
 const MAX_TABLE_CONTENT_BYTES = 32 * 1024;
@@ -225,8 +227,9 @@ function readCredentials() {
   const candidates = CREDENTIALS_OVERRIDE_PATH
     ? [CREDENTIALS_OVERRIDE_PATH]
     : [DEFAULT_CREDENTIALS_PATH, TEMPORARY_CREDENTIALS_PATH];
-  let credentials = null;
+  const availableCredentials = [];
   let expiredCredentialsFound = false;
+  let incompleteCredentialsFound = false;
   for (const candidate of candidates) {
     let candidateCredentials;
     try {
@@ -256,21 +259,25 @@ function readCredentials() {
       continue;
     }
 
-    credentials = candidateCredentials;
-    activeCredentialsPath = candidate;
-    break;
+    if (!credentialSelection.isCompleteCredential(candidateCredentials)) {
+      incompleteCredentialsFound = true;
+      continue;
+    }
+    availableCredentials.push({ path: candidate, credentials: candidateCredentials });
   }
-  if (!credentials) {
+  const selected = credentialSelection.selectNewestCredentialCandidate(availableCredentials);
+  if (!selected) {
     if (expiredCredentialsFound) {
       throw new Error('Stored Composer credentials have expired. Pair again.');
+    }
+    if (incompleteCredentialsFound) {
+      throw new Error('Stored Composer credentials are incomplete. Pair again.');
     }
     throw new Error('Composer is not paired. Run the pair command first.');
   }
 
-  if (!credentials.server || !credentials.accessToken || !credentials.socketPath) {
-    throw new Error('Stored Composer credentials are incomplete. Pair again.');
-  }
-  return credentials;
+  activeCredentialsPath = selected.path;
+  return selected.credentials;
 }
 
 function isCredentialPermissionError(error) {
@@ -430,10 +437,7 @@ async function finishPairing(server, pairing) {
 
   let acknowledged = false;
   try {
-    await sendSessionMessage({
-      type: 'activity',
-      message: PAIRING_ACKNOWLEDGEMENT
-    }, 'activity_sent');
+    await sendSessionMessage(null, 'pairing_acknowledged');
     acknowledged = true;
   } catch (err) {
     // Pair credentials are still useful if the editor is reconnecting. The
@@ -457,9 +461,24 @@ function createSocketUrl(credentials) {
   return socketUrl.toString();
 }
 
+function warnIfSkillUpdateAvailable(authentication) {
+  const serverVersion = authentication && authentication.composerAgentVersion;
+  if (
+    skillUpdateWarningWritten ||
+    !Number.isInteger(serverVersion) ||
+    serverVersion <= SKILL_VERSION
+  ) {
+    return;
+  }
+  skillUpdateWarningWritten = true;
+  console.error(
+    `COMPOSER_SKILL_UPDATE_AVAILABLE: Composer server version ${serverVersion} is newer than downloaded skill version ${SKILL_VERSION}. Download the latest Composer skill.`
+  );
+}
+
 function sendSessionMessage(message, acknowledgementType) {
   const credentials = readCredentials();
-  const activityId = message.type === 'activity' ? uuid.v4() : null;
+  const activityId = message && message.type === 'activity' ? uuid.v4() : null;
   const outgoingMessage = activityId
     ? Object.assign({}, message, { activityId: activityId })
     : message;
@@ -498,7 +517,8 @@ function sendSessionMessage(message, acknowledgementType) {
         return;
       }
       if (response.type === 'authenticated') {
-        socket.send(JSON.stringify(outgoingMessage));
+        warnIfSkillUpdateAvailable(response);
+        if (outgoingMessage) socket.send(JSON.stringify(outgoingMessage));
       } else if (
         response.type === acknowledgementType &&
         (!activityId || response.activityId === activityId)
@@ -577,6 +597,7 @@ function executeCommand(method, params, commandTimeoutMs) {
 
       if (message.type === 'authenticated') {
         authenticated = true;
+        warnIfSkillUpdateAvailable(message);
         socket.send(JSON.stringify({ type: 'command', request: request }));
       } else if (
         message.type === 'response' &&
@@ -1477,11 +1498,18 @@ async function run() {
     case 'create-control': {
       assertAllowedOptions(parsed.options, [
         'name', 'node-type', 'target', 'tile-id', 'element-type',
-        'element-id', 'property', 'value-file', 'replace', 'compact'
+        'element-id', 'property', 'value-file', 'info-mode', 'replace', 'compact'
       ], 'create-control');
       const type = requireOption(parsed.options, 'node-type');
-      if (!['text', 'number', 'color', 'image', 'checkbox'].includes(type)) {
-        throw new Error('--node-type must be "text", "number", "color", "image", or "checkbox"');
+      if (![
+        'text', 'textarea', 'number', 'normalizednumber', 'counter', 'color',
+        'image', 'checkbox', 'audio', 'video', 'data', 'jsonfile', 'infotext'
+      ].includes(type)) {
+        throw new Error(
+          '--node-type must be "text", "textarea", "number", "normalizednumber", ' +
+          '"counter", "color", "image", "checkbox", "audio", "video", "data", ' +
+          '"jsonfile", or "infotext"'
+        );
       }
       const target = parsed.options.target || (parsed.options['element-id'] ? 'layout' : 'data');
       if (!['data', 'layout', 'standalone'].includes(target)) {
@@ -1489,6 +1517,12 @@ async function run() {
       }
       if (target === 'standalone') {
         requireOption(parsed.options, 'value-file');
+      }
+      if (type === 'infotext') {
+        if (target !== 'standalone') throw new Error('Info Text requires --target standalone');
+        requireOption(parsed.options, 'info-mode');
+      } else if (parsed.options['info-mode'] !== undefined) {
+        throw new Error('--info-mode is only supported for Info Text controls');
       }
       result = await executeCommand('controlNode.createAndLink', {
         name: requireOption(parsed.options, 'name'),
@@ -1506,6 +1540,7 @@ async function run() {
             true
           )
           : undefined,
+        mode: type === 'infotext' ? parsed.options['info-mode'] : undefined,
         replace: parsed.options.replace === 'true'
       });
       break;
@@ -1530,6 +1565,7 @@ async function run() {
               elementId: control.elementId,
               propertyId: control.propertyId || control.property,
               value: control.value,
+              mode: control.mode,
               replace: control.replace === true
             };
           })

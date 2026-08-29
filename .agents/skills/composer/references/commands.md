@@ -26,7 +26,7 @@ Structured JSON inputs use files. Prefer a pre-approved agent-session temporary 
 
 | Command | Purpose |
 | --- | --- |
-| `pair [--server <url>] --code <code>` | Claim a one-time pairing code, store a 30-day scene/user JWT authorization, and automatically acknowledge it in Composer. `acknowledged: true` requires a correlated receipt from the editor through the Redis relay. The editor resumes this authorization after reload. The server defaults to `https://beta.singular.live/`; output reports `acknowledged` and the sanitized `credentialStorage` category. |
+| `pair [--server <url>] --code <code>` | Claim a one-time pairing code, store a 30-day scene/user JWT authorization, and automatically acknowledge it in Composer. `acknowledged: true` requires the editor to apply the retryable connection status and return its correlated receipt through the Redis relay. The editor resumes this authorization after reload. The server defaults to `https://beta.singular.live/`; output reports `acknowledged` and the sanitized `credentialStorage` category. |
 | `pair-intent [--server <url>] --intent-id <id> [--intent-secret -] [--device-name <name>]` | Orchestrator-only automatic pairing. Claim an authenticated short-lived intent after Composer binds it. Supply the secret through `COMPOSER_AGENT_INTENT_SECRET` or pipe it on stdin with `--intent-secret -`; literal secret arguments are rejected. The command waits up to two minutes across valid-but-unbound `409` responses and shared-rate-limit `429` responses, then stores and acknowledges credentials like `pair`. Normal runtime users should use the visible-code `pair` flow. |
 | `start-work` | Acquire or renew the ten-minute task-level work lease. Run once before the first editor command in every task; Composer remains locked across individual command sockets. |
 | `finish-work` | Release the current work lease and Composer input while preserving the reusable JWT authorization. Run before every final handoff or wait for user input. |
@@ -181,6 +181,7 @@ See [table.md](table.md).
 | `set-control-value --id <control-id> --value-file <value.json>` | Set one existing supported local control value after type validation and authoritative readback. |
 | `update-control --id <control-id> --file <patch.json>` | Atomically patch supported metadata, rename the public ID with payload/link migration, or reorder one supported local control. |
 | `create-control --name <name> --node-type <type> --target standalone --value-file <value.json>` | **Targeted only:** create one unlinked composition input for external payloads or script processing. |
+| `create-control --name <name> --node-type infotext --target standalone --info-mode <static\|dynamic> --value-file <value.json>` | **Targeted only:** create one sanitized form-only data display. Static content is metadata-owned; dynamic content can be replaced through the payload. |
 | `create-control --name <name> --node-type <type> --tile-id <id> --property <field-id>` | **Targeted only:** create and link one isolated widget-data control. |
 | `create-control --name <name> --node-type <number\|checkbox> --target layout --element-type <tile\|group> --element-id <id> --property <layout-property>` | **Targeted only:** create and link one explicitly requested Transform/Effect public control; never use as a graphic-authoring default. |
 | `create-controls --file <controls.json>` | **Preferred for related controls:** validate, create, optionally link, and verify a batch atomically. |
@@ -193,7 +194,7 @@ See [compositions.md](compositions.md).
 | Command | Purpose |
 | --- | --- |
 | `primitives` | List supported primitive widgets and their field schemas. |
-| `primitives --primitive text` | List only one primitive: `text`, `rectangle`, `circle`, `image`, `aisvg`, or `table`. |
+| `primitives --primitive text` | List only one primitive: `text`, `metric-text-ml`, `rectangle`, `circle`, `image`, `aisvg`, or `table`. |
 | `ensure-group` | Return or create the `AI Generated` group. |
 | `create --primitive <name> --name <label>` | **Targeted only:** create one unkeyed managed primitive for diagnosis or an isolated edit that cannot be represented declaratively. |
 | `delete --id <tile-id>` | Delete one primitive. |
