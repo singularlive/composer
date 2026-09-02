@@ -20,6 +20,8 @@ node scripts/composer-agent.js widget-subcompositions --id <widget-tile-id>
 - `mode: "static"` or `"dynamic"`;
 - the dynamic template's ordered `controls`, including each control's `id`, `title`, `type`, current value, and model key.
 
+The relationship mode describes Control Nodes only. A template with `mode: "static"` can still have changing [Widget Node](widget-nodes.md) outputs. Run `widget-nodes` inside it to discover those separate owner-supplied fields and native links.
+
 A template is **dynamic** when its composition exposes Control Nodes. The widget may pass instance-specific values into those controls. A **static** template has no exposed controls; the widget can still instantiate it repeatedly, but there is no per-instance control contract.
 
 Dynamic templates may expose a Rectangle or other Gradient-backed fill as a `color` control. The control initializes from the field's current `solidColor`; instance data may then supply a tinycolor2-compatible string or color object because the existing gradient input converts it to a solid gradient.
@@ -39,6 +41,10 @@ node scripts/composer-agent.js open-widget-subcomposition --id <widget-tile-id> 
 Do not use `create-composition` to initialize a widget field. That command intentionally creates an ordinary scene sub-composition tile in a group; it is a different ownership model and will render as a parent layer unless separately hidden.
 
 By design, Composer rebuilds a widget sub-composition when its standalone edit session ends: it copies the composition to a new ID, removes the old one, and updates the owning widget field. This copy-on-exit lifecycle makes the composition ID an ephemeral handle for the current template-edit session, not the template's durable identity. The stable relationship is the owning widget tile plus its composition-valued field. After returning to root or otherwise exiting template editing, discard the old ID and re-read the owner or use `open-widget-subcomposition` before every later operation.
+
+The lifetime boundary covers every identity read from inside that template, not only its composition ID. Treat descendant tile/group IDs, Control Node model keys, Widget Node `keyId` values, and recorded link locations as handles for the current uninterrupted edit session. They may remain textually equal after a copy, but an agent must not rely on that. Once the template closes, discard them; reopen through the owner tile plus field, then rediscover the descendants, nodes, and links before another command or diagnosis. Do not use differences between cached and current internal IDs as proof that a runtime link is broken.
+
+Opening or fully inspecting the active template returns `identityScope.sessionToken`. Every later command that reads or changes this template must pass `--template-session <token>`. Composer validates the opaque token against the active owner/template session before executing the command. A missing token returns `WIDGET_TEMPLATE_SESSION_REQUIRED`; a token retained across close, copy, reopen, or another template returns `WIDGET_TEMPLATE_SESSION_STALE`. Use token-free full `inspect` to recover the current token, and token-free `open-composition --id root` to leave safely. The token is not a substitute for rediscovering element and node identities.
 
 Once open, ordinary active-composition commands apply: `inspect`, `get`, `apply`, `control-nodes`, and the other scoped composition operations. Read the Control Nodes before changing a dynamic template. Commands within the same uninterrupted edit session may use the active ID reported by `inspect`. Return to root with `open-composition --id root`, then immediately invalidate that ID and re-read the owner to obtain the rebuilt relationship.
 

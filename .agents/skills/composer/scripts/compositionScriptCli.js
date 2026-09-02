@@ -1,4 +1,7 @@
 const fs = require("fs");
+const {
+  createWidgetReferencesFromContent,
+} = require("./widget-script-references");
 
 function extractModelsDataLinksNodeRefs(json) {
   const result = [];
@@ -401,6 +404,8 @@ function summarizeHandoff(handoff, host) {
     scriptNames: handoff.scriptNames || {},
     suggestedScript: handoff.suggestedScript || null,
     compositionStructure: handoff.compositionStructure || null,
+    widgetReferences: handoff.widgetReferences || [],
+    widgetNodes: handoff.widgetNodes || null,
     modelsDataLinksNodeRefs: handoff.modelsDataLinksNodeRefs || [],
     animation: handoff.animation || null,
   };
@@ -524,6 +529,7 @@ async function summarize(host, token, accessToken) {
     scriptIds: discoveredScriptIds,
     scriptNames: info.scriptNames,
     compositionStructure: info.compositionStructure,
+    widgetReferences: createWidgetReferencesFromContent(content),
     modelsDataLinksNodeRefs: modelsDataLinksNodeRefs,
     animation: extractAnimationInfo(content),
   };
@@ -554,11 +560,11 @@ function printJson(value) {
 function getUsage() {
   return [
     "Usage:",
-    "  node composer-agent.js script-handoff --compact | node singularTokenScriptCli.js --handoff-file - --action summary",
-    "  node composer-agent.js script-handoff --compact | node singularTokenScriptCli.js --handoff-file - --action summary --full",
-    "  node composer-agent.js script-handoff --compact | node singularTokenScriptCli.js --handoff-file - --action get-script",
-    "  node composer-agent.js script-handoff --compact | node singularTokenScriptCli.js --handoff-file - --action put-script --script-file <path>",
-    "  node composer-agent.js script-handoff --compact | node singularTokenScriptCli.js --handoff-file - --action clear-script",
+    "  node composer-agent.js script-handoff --compact | node compositionScriptCli.js --handoff-file - --action summary",
+    "  node composer-agent.js script-handoff --compact | node compositionScriptCli.js --handoff-file - --action summary --full",
+    "  node composer-agent.js script-handoff --compact | node compositionScriptCli.js --handoff-file - --action get-script",
+    "  node composer-agent.js script-handoff --compact | node compositionScriptCli.js --handoff-file - --action put-script --script-file <path>",
+    "  node composer-agent.js script-handoff --compact | node compositionScriptCli.js --handoff-file - --action clear-script",
   ].join("\n");
 }
 

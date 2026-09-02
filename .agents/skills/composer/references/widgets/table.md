@@ -25,6 +25,8 @@ The Table widget creates one host box per visible item. It instantiates and resi
 
 The widget accepts a direct array or an object with a `content` property, where `content` may itself be an array or a JSON string. The agent writes the canonical object form as a JSON string: `{ "content": [...] }`.
 
+A Table Control Node payload is a direct JSON row array, so it may be linked to the widget's `tableContent` JSON field with `link-table-control`. The row keys and values must still match the widget-owned template's exposed controls. When linked, update the defining Table Control Node rather than calling `update-table`; the stored `tableContent` value remains the unlinked fallback and does not represent the effective linked value.
+
 ## Update a table
 
 Use `update-table` for row data and table options instead of manually updating `tableContent`:

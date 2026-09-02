@@ -2,6 +2,8 @@
 
 Payload reference for `widget.setPayload(...)` on Rectangle widgets.
 
+For paired Composer construction, layout, bevels, outlines, and declarative specifications, use [Rectangle authoring](../widgets/rectangle.md). This document owns the scripting payload contract; the live instance and schema remain authoritative for its loaded version.
+
 ## Usage
 
 ```javascript
@@ -14,14 +16,14 @@ rect.setPayload({ fillGradient: "yellow" });
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `fillGradient` | string, object | `#cccccc` | Fill color or gradient. See [Color & Gradient Formats](#color--gradient-formats) below. |
-| `strokeGradient` | string, object | `"black"` | Outline stroke color or gradient. Same formats as `fillGradient`. |
+| `strokeGradient` | string, object | `#cccccc` | Outline stroke color or gradient. Same formats as `fillGradient`. The fallback is visible only when `strokeWidth` is greater than `0`. |
 | `strokeWidth` | number | `0` | Stroke width in pixels (does not use a unit property — always px). |
 | `bevelSize` | number | `0` | Bevel/chamfer corner cut size. |
 | `bevelSizeUnit` | string | `"%"` | Unit for `bevelSize`: `"%"` (percent of layout width) or `"px"`. |
-| `bevelStyle` | string | — | Corner treatment: `"flat"` (chamfer), `"outside"` (rounded out), `"inside"` (rounded in). |
+| `bevelStyle` | string | `"flat"` | Corner treatment: `"flat"` (chamfer), `"outside"` (rounded out), `"inside"` (rounded in). |
 | `outlineWidth` | number | `0` | Width of the outline ring (used when `renderStyle` is `"outline"`). |
 | `outlineWidthUnit` | string | `"%"` | Unit for `outlineWidth`: `"%"` or `"px"`. |
-| `renderStyle` | string | `"fill"` | Render mode: `"fill"` (solid filled shape) or `"outline"` (hollow ring). |
+| `renderStyle` | string | `"filled"` | Render mode: `"filled"` (solid filled shape) or `"outline"` (hollow ring). Use the live schema value `"filled"`; although the renderer treats any value other than `"outline"` as filled, undocumented aliases are not part of the payload contract. |
 | `width` | number | `100` | Rectangle width as a percentage of the layout width (`0`–`100`). |
 | `height` | number | `100` | Rectangle height as a percentage of the layout height (`0`–`100`). |
 | `pivotX` | string | — | Horizontal anchor: `"left"`, `"center"`, `"right"`. |

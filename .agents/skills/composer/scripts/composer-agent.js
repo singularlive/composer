@@ -20,10 +20,11 @@ const {
   failManifest,
   writeExistingManifest
 } = require('./browser-capture-artifact');
+const { createWidgetReferences } = require('./widget-script-references');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 3;
+const SKILL_VERSION = 49;
 const DEFAULT_TIMEOUT_MS = 15000;
 const MAX_MEASUREMENT_BYTES = 1024 * 1024;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -39,6 +40,7 @@ const TEMPORARY_CREDENTIALS_PATH = path.join(
 let activeCredentialsPath = CREDENTIALS_OVERRIDE_PATH || DEFAULT_CREDENTIALS_PATH;
 let skillUpdateWarningWritten = false;
 const TABLE_WIDGET_ID = 1182;
+const GRID_WIDGET_ID = 3284;
 const MAX_TABLE_ROWS = 1000;
 const MAX_TABLE_CONTENT_BYTES = 32 * 1024;
 const TABLE_OPTION_FIELDS = [
@@ -50,6 +52,10 @@ const TABLE_OPTION_FIELDS = [
   'pageTransitionOffset',
   'showLayout',
   'currentPage'
+];
+const GRID_OPTION_FIELDS = [
+  'cols', 'rows', 'colsSpacing', 'rowsSpacing', 'updateStyle',
+  'pageTransitionStyle', 'pageTransitionOffset', 'showLayout', 'currentPage'
 ];
 
 // Flags that may be passed with no value (default true) or with an explicit
@@ -63,9 +69,12 @@ const BOOLEAN_OPTIONS = new Set([
   'underline',
   'always-execute',
   'create',
-  'remove'
+  'remove',
+  'preview',
+  'replace'
 ]);
-const GLOBAL_COMMAND_OPTIONS = ['server', 'compact'];
+const GLOBAL_COMMAND_OPTIONS = ['server', 'compact', 'template-session'];
+let activeTemplateSessionToken = null;
 
 function parseArguments(argv) {
   const command = argv[0];
@@ -144,6 +153,8 @@ function compactResult(command, result) {
       },
       values: result.data,
       fields: (result.widget.fields || []).map(function (field) {
+        // Dynamic effect choices/ranges cannot be recovered from primitives.
+        if (result.widget.id === 4706 || result.widget.id === 4758) return field;
         return {
           id: field.id,
           title: field.title,
@@ -154,6 +165,46 @@ function compactResult(command, result) {
       subCompositions: result.widget.subCompositions || []
     };
   }
+  return result;
+}
+
+function createWidgetTemplateIdentityScope(options) {
+  const scope = {
+    kind: 'widget-template-edit-session',
+    lifetime: 'current-open-template-only',
+    discardAfter: ['leave-template', 'reopen-template', 'later-task-or-turn'],
+    internalIds: [
+      'compositionId',
+      'descendantElementIds',
+      'controlNodeKeyIds',
+      'widgetNodeKeyIds',
+      'linkLocations'
+    ],
+    widgetNodeAddressing: 'declared-field-id'
+  };
+  if (options && options.compositionId) {
+    scope.sessionCompositionId = options.compositionId;
+  }
+  if (options && options.sessionToken) {
+    scope.sessionToken = options.sessionToken;
+    scope.requiredOption = '--template-session';
+    scope.enforcement = {
+      missing: 'WIDGET_TEMPLATE_SESSION_REQUIRED',
+      stale: 'WIDGET_TEMPLATE_SESSION_STALE'
+    };
+  }
+  if (options && options.widgetTileId && options.widgetFieldId) {
+    scope.durableLocator = {
+      widgetTileId: options.widgetTileId,
+      widgetFieldId: options.widgetFieldId
+    };
+  }
+  return scope;
+}
+
+function addWidgetTemplateIdentityScope(result, options) {
+  if (!result || typeof result !== 'object') return result;
+  result.identityScope = createWidgetTemplateIdentityScope(options || {});
   return result;
 }
 
@@ -559,6 +610,9 @@ function executeCommand(method, params, commandTimeoutMs) {
     method: method,
     params: params || {}
   };
+  if (activeTemplateSessionToken) {
+    request.templateSessionToken = activeTemplateSessionToken;
+  }
 
   return new Promise(function (resolve, reject) {
     const socket = new WebSocket(createSocketUrl(credentials));
@@ -719,26 +773,29 @@ async function openWidgetSubComposition(options) {
     id: id
   }), id);
   const subComposition = selectWidgetSubComposition(result, options, options.create === true);
-  if (!subComposition.compositionId) {
-    return executeCommand('composition.open', {
-      widgetTileId: result.element.id,
-      fieldId: subComposition.fieldId,
-      createIfMissing: true
-    });
-  }
-  return {
-    widgetSubComposition: subComposition,
-    navigation: await executeCommand('composition.open', { id: subComposition.compositionId })
-  };
+  const opened = await executeCommand('composition.open', {
+    widgetTileId: result.element.id,
+    fieldId: subComposition.fieldId,
+    createIfMissing: true
+  });
+  const relationship = opened && opened.widgetSubComposition;
+  const scoped = addWidgetTemplateIdentityScope(opened, {
+    compositionId: relationship && relationship.compositionId,
+    widgetTileId: result.element.id,
+    widgetFieldId: subComposition.fieldId,
+    sessionToken: relationship && relationship.sessionToken
+  });
+  if (relationship) delete relationship.sessionToken;
+  return scoped;
 }
 
 function isPlainObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value);
 }
 
-function validateTableControlValue(control, value, pathLabel) {
+function validateTableControlValue(control, value, pathLabel, widgetLabel = 'table') {
   if (!['text', 'image', 'number', 'color'].includes(control.type)) {
-    throw new Error(`table template control "${control.id}" has unsupported type "${control.type}"`);
+    throw new Error(`${widgetLabel} template control "${control.id}" has unsupported type "${control.type}"`);
   }
   if ((control.type === 'text' || control.type === 'image') && typeof value !== 'string') {
     throw new Error(`${pathLabel} must be a string for ${control.type} control "${control.id}"`);
@@ -790,38 +847,70 @@ function validateTableOption(name, value) {
   }
 }
 
-function normalizeTableOption(currentValue, value, name) {
-  validateTableOption(name, value);
+function validateGridOption(name, value) {
+  if (name === 'showLayout' || name === 'updateStyle') {
+    return validateTableOption(name, value);
+  }
+  if (name === 'pageTransitionStyle') {
+    if (!['topToBottom', 'bottomToTop', 'leftToRight', 'rightToLeft', 'random'].includes(value)) {
+      throw new Error('options.pageTransitionStyle is invalid');
+    }
+    return;
+  }
+  if (typeof value === 'string' && Buffer.byteLength(JSON.stringify(value), 'utf8') > MAX_TABLE_CONTENT_BYTES) {
+    throw new Error(`options.${name} exceeds the 32 KB widget-data limit`);
+  }
+  const numeric = Number(value);
+  if (!['string', 'number'].includes(typeof value) ||
+      (typeof value === 'string' && !value.trim()) || !Number.isFinite(numeric)) {
+    throw new Error(`options.${name} must be a finite number or numeric string`);
+  }
+  const limits = {
+    cols: [1, 100], rows: [1, 100], colsSpacing: [-100, 100], rowsSpacing: [-100, 100],
+    pageTransitionOffset: [0, 30], currentPage: [0, 99]
+  };
+  const range = limits[name];
+  if (!range || numeric < range[0] || numeric > range[1] ||
+      (['cols', 'rows', 'currentPage'].includes(name) && !Number.isInteger(numeric))) {
+    throw new Error(`options.${name} is outside the supported Grid range`);
+  }
+}
+
+function normalizeTableOption(currentValue, value, name, isGrid) {
+  (isGrid ? validateGridOption : validateTableOption)(name, value);
   if (typeof currentValue === 'string') return String(value);
   if (typeof currentValue === 'boolean' && typeof value === 'boolean') return value;
   if (typeof currentValue === 'number' && typeof value === 'number' && Number.isFinite(value)) {
     return value;
   }
-  throw new Error(`options.${name} must preserve the table widget's current runtime type`);
+  throw new Error(`options.${name} must preserve the ${isGrid ? 'grid' : 'table'} widget's current runtime type`);
 }
 
-async function updateTable(options) {
+async function updateTable(options, isGrid = false) {
+  const widgetTitle = isGrid ? 'Grid' : 'Table';
+  const widgetLabel = widgetTitle.toLowerCase();
   const id = requireOption(options, 'id');
-  const specification = readJsonFile(requireOption(options, 'file'), 'table specification');
+  const specification = readJsonFile(requireOption(options, 'file'), `${widgetLabel} specification`);
   if (!isPlainObject(specification) || !Array.isArray(specification.rows)) {
-    throw new Error('table specification must contain a rows array');
+    throw new Error(`${widgetLabel} specification must contain a rows array`);
   }
   if (specification.rows.length > MAX_TABLE_ROWS) {
-    throw new Error(`table specification supports at most ${MAX_TABLE_ROWS} rows`);
+    throw new Error(`${widgetLabel} specification supports at most ${MAX_TABLE_ROWS} rows`);
   }
   const table = requireWidgetTile(await executeCommand('element.get', {
     elementType: 'tile',
     id: id
   }), id);
-  if (!table.widget || (table.widget.id !== TABLE_WIDGET_ID && table.widget.name !== 'Table')) {
-    throw new Error(`widget tile "${id}" is not a supported Table widget`);
+  if (!table.widget || (isGrid ? table.widget.id !== GRID_WIDGET_ID :
+    (table.widget.id !== TABLE_WIDGET_ID && table.widget.name !== 'Table'))) {
+    throw new Error(`widget tile "${id}" is not a supported ${widgetTitle} widget`);
   }
   const subComposition = selectWidgetSubComposition(table, { field: 'composition' });
   const controls = Array.isArray(subComposition.controls) ? subComposition.controls : [];
   const controlsById = new Map();
   controls.forEach(function (control) {
     if (!control.id || controlsById.has(control.id)) {
-      throw new Error('the table template exposes duplicate or unnamed control nodes');
+      throw new Error(`the ${widgetLabel} template exposes duplicate or unnamed control nodes`);
     }
     controlsById.set(control.id, control);
   });
@@ -832,9 +921,9 @@ async function updateTable(options) {
     const keys = Object.keys(row);
     keys.forEach(function (key) {
       if (!controlsById.has(key)) {
-        throw new Error(`rows[${rowIndex}].${key} is not exposed by the table template`);
+        throw new Error(`rows[${rowIndex}].${key} is not exposed by the ${widgetLabel} template`);
       }
-      validateTableControlValue(controlsById.get(key), row[key], `rows[${rowIndex}].${key}`);
+      validateTableControlValue(controlsById.get(key), row[key], `rows[${rowIndex}].${key}`, widgetLabel);
     });
     controls.forEach(function (control) {
       if (!Object.prototype.hasOwnProperty.call(row, control.id)) {
@@ -845,27 +934,43 @@ async function updateTable(options) {
 
   const tableContent = JSON.stringify({ content: specification.rows }, null, 2);
   if (Buffer.byteLength(tableContent, 'utf8') > MAX_TABLE_CONTENT_BYTES) {
-    throw new Error('serialized table content exceeds the 32 KB widget-data limit');
+    throw new Error(`serialized ${widgetLabel} content exceeds the 32 KB widget-data limit`);
   }
   const requestedOptions = specification.options === undefined ? {} : specification.options;
   if (!isPlainObject(requestedOptions)) {
-    throw new Error('table specification options must be an object');
+    throw new Error(`${widgetLabel} specification options must be an object`);
   }
   Object.keys(requestedOptions).forEach(function (name) {
-    if (!TABLE_OPTION_FIELDS.includes(name)) {
-      throw new Error(`unsupported table option "${name}"`);
+    if (!(isGrid ? GRID_OPTION_FIELDS : TABLE_OPTION_FIELDS).includes(name)) {
+      throw new Error(`unsupported ${widgetLabel} option "${name}"`);
     }
   });
   const updates = Object.keys(requestedOptions).map(function (name) {
     if (!Object.prototype.hasOwnProperty.call(table.data, name)) {
-      throw new Error(`table widget has no data field "${name}"`);
+      throw new Error(`${widgetLabel} widget has no data field "${name}"`);
     }
     return {
       name: name,
       previous: table.data[name],
-      value: normalizeTableOption(table.data[name], requestedOptions[name], name)
+      value: normalizeTableOption(table.data[name], requestedOptions[name], name, isGrid)
     };
   });
+  if (isGrid) {
+    const cols = requestedOptions.cols === undefined ? table.data.cols : requestedOptions.cols;
+    const rows = requestedOptions.rows === undefined ? table.data.rows : requestedOptions.rows;
+    validateGridOption('cols', cols);
+    validateGridOption('rows', rows);
+    if (Number(cols) * Number(rows) > 1000) {
+      throw new Error('Grid supports at most 1,000 visible cells (options.cols * options.rows)');
+    }
+    // A dimension swap may otherwise briefly exceed the renderer's allocation
+    // cap. Apply shrinking dimensions before growing dimensions.
+    updates.sort((a, b) => {
+      const rank = update => ['cols', 'rows'].includes(update.name)
+        ? (Number(update.value) <= Number(update.previous) ? -1 : 1) : 0;
+      return rank(a) - rank(b);
+    });
+  }
   updates.push({
     name: 'tableContent',
     previous: table.data.tableContent,
@@ -907,7 +1012,7 @@ async function updateTable(options) {
 
   const verified = await executeCommand('element.get', { elementType: 'tile', id: id });
   return {
-    table: { id: id, name: verified.element.name, widget: verified.widget.id },
+    [isGrid ? 'grid' : 'table']: { id: id, name: verified.element.name, widget: verified.widget.id },
     widgetSubComposition: subComposition,
     rows: specification.rows.length,
     options: Object.keys(requestedOptions).reduce(function (result, name) {
@@ -1221,6 +1326,25 @@ async function captureStandalone(options) {
   const activeTarget = options.target === 'active'
     ? getActiveCaptureTarget(inspection)
     : { compositionId: null, widgetTileId: null };
+  if (activeTarget.widgetTileId) {
+    const widgetScope = inspection.activeComposition &&
+      inspection.activeComposition.widgetSubComposition;
+    const currentToken = widgetScope && widgetScope.sessionToken;
+    if (!activeTemplateSessionToken) {
+      const error = new Error(
+        'The active widget-owned template requires --template-session from its current inspect or open-widget-subcomposition result'
+      );
+      error.code = 'WIDGET_TEMPLATE_SESSION_REQUIRED';
+      throw error;
+    }
+    if (!currentToken || activeTemplateSessionToken !== currentToken) {
+      const error = new Error(
+        'The supplied widget-template session does not match the active edit session; inspect the template and use its current token'
+      );
+      error.code = 'WIDGET_TEMPLATE_SESSION_STALE';
+      throw error;
+    }
+  }
   const result = await captureCompositionPreview({
     endpoint: preview.endpoint,
     width: preview.width,
@@ -1311,13 +1435,18 @@ function createScriptControlContext(inspection, controlInspection) {
   };
 }
 
-async function createScriptHandoff() {
-  const credentials = readCredentials();
-  const inspection = await executeCommand('composition.inspect', {
-    scriptHandoff: true
-  });
+async function buildScriptHandoff(credentials, inspection) {
   const preview = inspection && inspection.preview;
-  const activeComposition = inspection && inspection.activeComposition;
+  const inspectedActiveComposition = inspection && inspection.activeComposition;
+  const activeComposition = inspectedActiveComposition && {
+    ...inspectedActiveComposition,
+    widgetSubComposition: inspectedActiveComposition.widgetSubComposition && {
+      ...inspectedActiveComposition.widgetSubComposition
+    }
+  };
+  if (activeComposition && activeComposition.widgetSubComposition) {
+    delete activeComposition.widgetSubComposition.sessionToken;
+  }
   if (!preview || !preview.endpoint || !preview.compositionToken) {
     throw new Error('The open composition does not expose a Composition API token');
   }
@@ -1357,6 +1486,8 @@ async function createScriptHandoff() {
     scriptIds: [activeComposition.id],
     scriptNames: scriptNames,
     compositionStructure: createActiveCompositionStructure(inspection),
+    widgetReferences: createWidgetReferences(inspection.tiles),
+    widgetNodes: inspection.scriptWidgetContext || null,
     modelsDataLinksNodeRefs: [
       createScriptControlContext(inspection, controlInspection)
     ],
@@ -1364,11 +1495,100 @@ async function createScriptHandoff() {
   };
 }
 
+async function createScriptHandoff(options) {
+  const credentials = readCredentials();
+  const requestedOption = options && options['composition-id'];
+  if (!requestedOption) {
+    return buildScriptHandoff(credentials, await executeCommand('composition.inspect', {
+      scriptHandoff: true
+    }));
+  }
+
+  const originalInspection = await executeCommand('composition.inspect', {});
+  const originalComposition = originalInspection && originalInspection.activeComposition;
+  if (!originalComposition || !originalComposition.id) {
+    throw new Error('Composer did not report an active composition before scoped script handoff');
+  }
+  if (originalComposition.widgetSubComposition) {
+    throw new Error(
+      '--composition-id cannot preserve a widget-owned editing scope because its composition ID ' +
+      'may change on exit; return to root or an ordinary sub-composition first'
+    );
+  }
+  const originalStack = Array.isArray(originalComposition.stack)
+    ? originalComposition.stack
+    : [];
+  const requestedCompositionId = requestedOption === 'root'
+    ? originalStack[0] && originalStack[0].id
+    : requestedOption;
+  if (!requestedCompositionId) {
+    throw new Error('Composer did not report a root composition for scoped script handoff');
+  }
+
+  const shouldRestore = requestedCompositionId !== originalComposition.id;
+  let handoff;
+  let handoffError = null;
+  let restoreError = null;
+
+  try {
+    if (shouldRestore) {
+      const navigation = await executeCommand('composition.open', {
+        id: requestedCompositionId,
+        ordinaryOnly: true
+      });
+      const openedId = navigation && navigation.activeComposition && navigation.activeComposition.id;
+      if (openedId !== requestedCompositionId) {
+        throw new Error(`Composer did not open ordinary composition "${requestedCompositionId}"`);
+      }
+    }
+
+    const inspection = await executeCommand('composition.inspect', {
+      scriptHandoff: true
+    });
+    const activeComposition = inspection && inspection.activeComposition;
+    if (!activeComposition || activeComposition.id !== requestedCompositionId) {
+      throw new Error(`Composer did not inspect requested composition "${requestedCompositionId}"`);
+    }
+    if (activeComposition.widgetSubComposition) {
+      throw new Error(
+        '--composition-id supports root and ordinary sub-compositions only; ' +
+        'use open-widget-subcomposition for widget-owned templates'
+      );
+    }
+    handoff = await buildScriptHandoff(credentials, inspection);
+  } catch (error) {
+    handoffError = error;
+  }
+
+  if (shouldRestore) {
+    try {
+      const restoreTarget = originalStack.length === 1 ? 'root' : originalComposition.id;
+      const restoration = await executeCommand('composition.open', { id: restoreTarget });
+      const restoredId = restoration && restoration.activeComposition && restoration.activeComposition.id;
+      if (restoredId !== originalComposition.id) {
+        throw new Error(`Composer did not restore composition "${originalComposition.id}"`);
+      }
+    } catch (error) {
+      restoreError = error;
+    }
+  }
+
+  if (handoffError) {
+    if (restoreError) {
+      handoffError.message += `; navigation restoration also failed: ${restoreError.message}`;
+    }
+    throw handoffError;
+  }
+  if (restoreError) throw restoreError;
+  return handoff;
+}
+
 let invokedCommand;
 
 async function run() {
   const parsed = parseArguments(process.argv.slice(2));
   invokedCommand = parsed.command;
+  activeTemplateSessionToken = parsed.options['template-session'] || null;
   let result;
   if (!['pair', 'pair-intent', 'capture'].includes(parsed.command)) {
     validatePairedServerOption(parsed.options);
@@ -1408,11 +1628,25 @@ async function run() {
         result = { selection: result.selection };
       } else if (parsed.options.summary && result && result.summary) {
         result = { summary: result.summary };
+      } else if (
+        result && result.activeComposition &&
+        result.activeComposition.widgetSubComposition
+      ) {
+        const owner = result.activeComposition.widgetSubComposition;
+        const sessionToken = owner.sessionToken;
+        result.activeComposition.identityScope = createWidgetTemplateIdentityScope({
+          compositionId: result.activeComposition.id,
+          widgetTileId: owner.widgetTileId,
+          widgetFieldId: owner.widgetFieldId,
+          sessionToken: sessionToken
+        });
+        delete owner.sessionToken;
       }
       break;
     }
     case 'script-handoff':
-      result = await createScriptHandoff();
+      assertAllowedOptions(parsed.options, ['composition-id', 'compact'], 'script-handoff');
+      result = await createScriptHandoff(parsed.options);
       break;
     case 'control-composition': {
       const state = requireOption(parsed.options, 'state').toLowerCase();
@@ -1444,6 +1678,29 @@ async function run() {
         description: requireOption(parsed.options, 'description')
       });
       break;
+    case 'list-revisions':
+      result = await executeCommand('composition.revision.list', {});
+      break;
+    case 'read-revision':
+      result = await executeCommand('composition.revision.read', {
+        revisionId: requireOption(parsed.options, 'revision-id')
+      });
+      break;
+    case 'compare-revision':
+      result = await executeCommand('composition.revision.compare', {
+        revisionId: requireOption(parsed.options, 'revision-id')
+      });
+      break;
+    case 'restore-revision':
+      result = await executeCommand('composition.revision.restore', {
+        revisionId: requireOption(parsed.options, 'revision-id')
+      });
+      break;
+    case 'delete-revision':
+      result = await executeCommand('composition.revision.delete', {
+        revisionId: requireOption(parsed.options, 'revision-id')
+      });
+      break;
     case 'delete-composition':
       result = await executeCommand('composition.delete', {
         id: requireOption(parsed.options, 'id')
@@ -1463,6 +1720,9 @@ async function run() {
     case 'update-table':
       result = await updateTable(parsed.options);
       break;
+    case 'update-grid':
+      result = await updateTable(parsed.options, true);
+      break;
     case 'timeline2':
       result = await executeCommand('composition.timeline2.set', {
         active: requireBooleanOption(parsed.options, 'active')
@@ -1471,6 +1731,38 @@ async function run() {
     case 'control-nodes':
       result = await executeCommand('controlNode.inspect');
       break;
+    case 'metric-fonts': {
+      assertAllowedOptions(parsed.options, ['source', 'family', 'compact'], 'metric-fonts');
+      result = await executeCommand('metricFonts.list', {
+        source: parsed.options.source,
+        family: parsed.options.family
+      });
+      break;
+    }
+    case 'widget-nodes': {
+      assertAllowedOptions(parsed.options, ['source-composition', 'compact'], 'widget-nodes');
+      result = await executeCommand('widgetNode.inspect', {
+        sourceCompositionId: parsed.options['source-composition']
+      });
+      addWidgetTemplateIdentityScope(result, {
+        compositionId: result && result.compositionId,
+        sessionToken: activeTemplateSessionToken
+      });
+      break;
+    }
+    case 'link-widget-nodes':
+    case 'unlink-widget-nodes': {
+      assertAllowedOptions(parsed.options, ['file', 'compact'], parsed.command);
+      const manifest = readJsonFile(requireOption(parsed.options, 'file'), 'Widget Node link specification');
+      result = await executeCommand(parsed.command === 'link-widget-nodes' ? 'widgetNode.linkMany' : 'widgetNode.unlinkMany', {
+        links: Array.isArray(manifest) ? manifest : manifest && manifest.links
+      });
+      addWidgetTemplateIdentityScope(result, {
+        compositionId: result && result.compositionId,
+        sessionToken: activeTemplateSessionToken
+      });
+      break;
+    }
     case 'set-control-value': {
       assertAllowedOptions(parsed.options, ['id', 'value-file', 'compact'], 'set-control-value');
       result = await executeCommand('controlNode.value.set', {
@@ -1481,6 +1773,101 @@ async function run() {
           'control-node value file',
           true
         )
+      });
+      break;
+    }
+    case 'press-control': {
+      assertAllowedOptions(parsed.options, ['id', 'compact'], 'press-control');
+      result = await executeCommand('controlNode.button.press', {
+        id: requireOption(parsed.options, 'id')
+      });
+      break;
+    }
+    case 'timer-action':
+    case 'control-time': {
+      assertAllowedOptions(parsed.options, ['id', 'action', 'compact'], parsed.command);
+      const action = requireOption(parsed.options, 'action');
+      if (!['start', 'play', 'pause', 'reset'].includes(action)) {
+        throw new Error('--action must be "start", "play", "pause", or "reset"');
+      }
+      result = await executeCommand('controlNode.timeControl.control', {
+        id: requireOption(parsed.options, 'id'),
+        action: action
+      });
+      break;
+    }
+    case 'set-control-font': {
+      assertAllowedOptions(parsed.options, [
+        'id', 'family', 'weight', 'style', 'subset', 'font-source', 'compact'
+      ], 'set-control-font');
+      result = await executeCommand('controlNode.metricFont.set', {
+        id: requireOption(parsed.options, 'id'),
+        family: parsed.options.family,
+        weight: parsed.options.weight,
+        style: parsed.options.style,
+        subset: parsed.options.subset,
+        source: parsed.options['font-source']
+      });
+      break;
+    }
+    case 'create-table-control': {
+      assertAllowedOptions(parsed.options, ['file', 'source-composition', 'compact'], 'create-table-control');
+      const tableSpecification = readJsonFile(
+        requireOption(parsed.options, 'file'),
+        'Table Control Node specification'
+      );
+      result = await executeCommand(
+        'controlNode.table.create',
+        {
+          ...tableSpecification,
+          sourceCompositionId: parsed.options['source-composition']
+        }
+      );
+      break;
+    }
+    case 'set-table-control': {
+      assertAllowedOptions(parsed.options, ['id', 'file', 'compact'], 'set-table-control');
+      const tableRows = readJsonFile(requireOption(parsed.options, 'file'), 'Table Control Node rows');
+      result = await executeCommand('controlNode.table.set', {
+        id: requireOption(parsed.options, 'id'),
+        rows: Array.isArray(tableRows) ? tableRows : tableRows && tableRows.rows
+      });
+      break;
+    }
+    case 'update-table-control': {
+      assertAllowedOptions(parsed.options, ['id', 'file', 'preview', 'compact'], 'update-table-control');
+      const tableUpdate = readJsonFile(
+        requireOption(parsed.options, 'file'),
+        'Table Control Node update specification'
+      );
+      if (!tableUpdate || Array.isArray(tableUpdate) || typeof tableUpdate !== 'object') {
+        throw new Error('Table Control Node update specification must be a JSON object');
+      }
+      result = await executeCommand('controlNode.table.update', {
+        ...tableUpdate,
+        id: requireOption(parsed.options, 'id'),
+        preview: parsed.options.preview === true
+      });
+      break;
+    }
+    case 'link-table-control': {
+      assertAllowedOptions(parsed.options, [
+        'id', 'tile-id', 'property', 'source-composition', 'replace', 'compact'
+      ], 'link-table-control');
+      result = await executeCommand('controlNode.table.link', {
+        id: requireOption(parsed.options, 'id'),
+        tileId: requireOption(parsed.options, 'tile-id'),
+        propertyId: requireOption(parsed.options, 'property'),
+        sourceCompositionId: parsed.options['source-composition'],
+        replace: parsed.options.replace === true
+      });
+      break;
+    }
+    case 'unlink-table-control': {
+      assertAllowedOptions(parsed.options, ['tile-id', 'property', 'compact'], 'unlink-table-control');
+      result = await executeCommand('controlNode.table.unlink', {
+        tileId: requireOption(parsed.options, 'tile-id'),
+        propertyId: requireOption(parsed.options, 'property')
       });
       break;
     }
@@ -1495,35 +1882,103 @@ async function run() {
       });
       break;
     }
+    case 'create-control-container': {
+      assertAllowedOptions(parsed.options, ['file', 'compact'], 'create-control-container');
+      result = await executeCommand('controlNode.container.create', readJsonFile(
+        requireOption(parsed.options, 'file'), 'Control Node container specification'
+      ));
+      break;
+    }
+    case 'configure-control-container': {
+      assertAllowedOptions(parsed.options, ['id', 'file', 'compact'], 'configure-control-container');
+      result = await executeCommand('controlNode.container.configure', {
+        ...readJsonFile(requireOption(parsed.options, 'file'), 'Control Node container configuration'),
+        id: requireOption(parsed.options, 'id')
+      });
+      break;
+    }
+    case 'delete-control-container': {
+      assertAllowedOptions(parsed.options, ['id', 'compact'], 'delete-control-container');
+      result = await executeCommand('controlNode.container.delete', {
+        id: requireOption(parsed.options, 'id')
+      });
+      break;
+    }
     case 'create-control': {
       assertAllowedOptions(parsed.options, [
         'name', 'node-type', 'target', 'tile-id', 'element-type',
         'element-id', 'property', 'value-file', 'info-mode', 'replace',
-        'source-composition', 'compact'
+        'source-composition', 'options-file', 'options-url', 'use-reload',
+        'family', 'weight', 'style', 'subset', 'font-source', 'compact'
       ], 'create-control');
       const type = requireOption(parsed.options, 'node-type');
       if (![
         'text', 'textarea', 'number', 'normalizednumber', 'counter', 'color',
-        'image', 'checkbox', 'audio', 'video', 'data', 'jsonfile', 'infotext'
+        'image', 'checkbox', 'audio', 'video', 'data', 'jsonfile', 'json', 'datetime', 'location', 'selection', 'button', 'timecontrol', 'infotext', 'metricfont'
       ].includes(type)) {
         throw new Error(
           '--node-type must be "text", "textarea", "number", "normalizednumber", ' +
           '"counter", "color", "image", "checkbox", "audio", "video", "data", ' +
-          '"jsonfile", or "infotext"'
+          '"jsonfile", "json", "datetime", "location", "selection", "button", "timecontrol", "infotext", or "metricfont"'
         );
       }
       const target = parsed.options.target || (parsed.options['element-id'] ? 'layout' : 'data');
       if (!['data', 'layout', 'standalone'].includes(target)) {
         throw new Error('--target must be "data", "layout", or "standalone"');
       }
-      if (target === 'standalone') {
+      if (target === 'standalone' && !['button', 'timecontrol', 'metricfont'].includes(type)) {
         requireOption(parsed.options, 'value-file');
+      }
+      const metricFontOptions = ['family', 'weight', 'style', 'subset', 'font-source'];
+      const hasMetricFontOptions = metricFontOptions.some(function (option) {
+        return parsed.options[option] !== undefined;
+      });
+      if (type === 'metricfont') {
+        if (parsed.options['value-file'] !== undefined) {
+          throw new Error('Metric Font creation accepts font flags instead of --value-file');
+        }
+        if (target !== 'standalone' && hasMetricFontOptions) {
+          throw new Error('Linked Metric Font controls copy the target value and do not accept font flags');
+        }
+      } else if (hasMetricFontOptions) {
+        throw new Error('Metric Font flags require a Metric Font control');
+      }
+      if (type === 'button' && target !== 'standalone') {
+        throw new Error('Button requires --target standalone');
+      }
+      if (type === 'button' && parsed.options['value-file'] !== undefined) {
+        throw new Error('Button creation does not accept --value-file');
+      }
+      if (type === 'timecontrol' && target === 'standalone' && parsed.options['value-file'] !== undefined) {
+        throw new Error('Time Control creation does not accept --value-file');
       }
       if (type === 'infotext') {
         if (target !== 'standalone') throw new Error('Info Text requires --target standalone');
         requireOption(parsed.options, 'info-mode');
       } else if (parsed.options['info-mode'] !== undefined) {
         throw new Error('--info-mode is only supported for Info Text controls');
+      }
+      if (type === 'selection') {
+        const hasOptionsFile = parsed.options['options-file'] !== undefined;
+        const hasOptionsUrl = parsed.options['options-url'] !== undefined;
+        if (target === 'standalone' && hasOptionsFile === hasOptionsUrl) {
+          throw new Error('standalone Selection requires exactly one of --options-file or --options-url');
+        }
+        if (target !== 'standalone' && hasOptionsFile && hasOptionsUrl) {
+          throw new Error('linked Selection accepts at most one of --options-file or --options-url');
+        }
+        if (target === 'layout' && (hasOptionsFile || hasOptionsUrl)) {
+          throw new Error('Selection option-source flags are not supported for layout controls');
+        }
+        if (parsed.options['use-reload'] !== undefined && !hasOptionsUrl) {
+          throw new Error('--use-reload requires --options-url');
+        }
+      } else if (
+        parsed.options['options-file'] !== undefined ||
+        parsed.options['options-url'] !== undefined ||
+        parsed.options['use-reload'] !== undefined
+      ) {
+        throw new Error('Selection option-source flags require a Selection control');
       }
       result = await executeCommand('controlNode.createAndLink', {
         name: requireOption(parsed.options, 'name'),
@@ -1534,15 +1989,44 @@ async function run() {
         elementId: target === 'layout' ? requireOption(parsed.options, 'element-id') : undefined,
         propertyId: target === 'standalone' ? undefined : requireOption(parsed.options, 'property'),
         value: target === 'standalone'
+          ? type === 'button'
+            ? { __singularButton: true, ts: 0 }
+            : type === 'timecontrol'
+            ? undefined
+            : type === 'metricfont'
+            ? undefined
+            : readJsonOptionFile(
+              parsed.options,
+              'value-file',
+              'standalone control value file',
+              true
+            )
+          : undefined,
+        font: type === 'metricfont' && target === 'standalone'
+          ? {
+            family: parsed.options.family,
+            weight: parsed.options.weight,
+            style: parsed.options.style,
+            subset: parsed.options.subset,
+            source: parsed.options['font-source']
+          }
+          : undefined,
+        mode: type === 'infotext' ? parsed.options['info-mode'] : undefined,
+        selections: type === 'selection' && parsed.options['options-file'] !== undefined
           ? readJsonOptionFile(
             parsed.options,
-            'value-file',
-            'standalone control value file',
+            'options-file',
+            'selection options file',
             true
           )
           : undefined,
-        mode: type === 'infotext' ? parsed.options['info-mode'] : undefined,
-        replace: parsed.options.replace === 'true',
+        sourceUrl: type === 'selection'
+          ? parsed.options['options-url']
+          : undefined,
+        useReload: parsed.options['use-reload'] === undefined
+          ? undefined
+          : requireBooleanOption(parsed.options, 'use-reload'),
+        replace: parsed.options.replace === true,
         sourceCompositionId: parsed.options['source-composition']
       });
       break;
@@ -1568,6 +2052,9 @@ async function run() {
               propertyId: control.propertyId || control.property,
               value: control.value,
               mode: control.mode,
+              selections: control.selections,
+              sourceUrl: control.sourceUrl,
+              useReload: control.useReload,
               replace: control.replace === true,
               sourceCompositionId: control.sourceCompositionId || control.sourceComposition
             };
@@ -1946,7 +2433,7 @@ async function run() {
     }
     default:
       throw new Error(
-        'Usage: composer-agent.js <pair|pair-intent|start-work|finish-work|status|complete|inspect|script-handoff|control-composition|create-composition|orchestrate|create-revision|delete-composition|open-composition|widget-subcompositions|open-widget-subcomposition|update-table|timeline2|control-nodes|set-control-value|update-control|create-control|create-controls|delete-control|get|get-many|select|move|update|fonts|set-font|timeline-animations|set-timeline-animation|set-timeline-animations|update-animations|set-update-animation|set-update-animations|behaviors|set-behavior|set-behaviors|create-group|configure-group|move-group|delete-group|capture|prepare-capture|finalize-capture|restore-capture|primitives|ensure-group|create|delete|validate|apply> [options]'
+      'Usage: composer-agent.js <pair|pair-intent|start-work|finish-work|status|complete|inspect|script-handoff|control-composition|create-composition|orchestrate|create-revision|list-revisions|read-revision|compare-revision|restore-revision|delete-revision|delete-composition|open-composition|widget-subcompositions|open-widget-subcomposition|update-table|update-grid|timeline2|control-nodes|metric-fonts|widget-nodes|link-widget-nodes|unlink-widget-nodes|set-control-value|set-control-font|create-table-control|set-table-control|update-table-control|link-table-control|unlink-table-control|press-control|timer-action|control-time|update-control|create-control-container|configure-control-container|delete-control-container|create-control|create-controls|delete-control|get|get-many|select|move|update|fonts|set-font|timeline-animations|set-timeline-animation|set-timeline-animations|update-animations|set-update-animation|set-update-animations|behaviors|set-behavior|set-behaviors|create-group|configure-group|move-group|delete-group|capture|prepare-capture|finalize-capture|restore-capture|primitives|ensure-group|create|delete|validate|apply> [options]'
       );
   }
 

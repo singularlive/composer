@@ -2,6 +2,8 @@
 
 Payload reference for `widget.setPayload(...)` on Image widgets.
 
+For paired Composer construction, image-slot layout, asset and placeholder policy, fit, and declarative specifications, use [Image authoring](../widgets/image.md). This document owns the scripting payload contract; the live instance and schema remain authoritative for its loaded version.
+
 ## Usage
 
 ```javascript
@@ -13,7 +15,7 @@ img.setPayload({ image: "https://example.com/logo.png" });
 
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `image` | string | `""` | URL of the image to display. Supports automatic resolution selection for `assets.singular.live` URLs. |
+| `image` | string | `""` | URL of the image to display. Supports automatic resolution selection for eligible `image.singular.live` URLs. |
 | `objectFit` | string | `"contain"` | How the image fits the layout: `"contain"` (fit entirely, letterbox) or `"cover"` (fill entirely, crop). |
 | `shift` | number | `0` | Horizontal/vertical shift as a percentage. Shifts the image alignment when it doesn't perfectly fit the layout. Range `-100` to `100`. |
 | `flipX` | boolean | `false` | If `true`, flips the image horizontally. |
@@ -41,7 +43,7 @@ img.setPayload({
 
 ### Resolution Selection
 
-For images hosted on `assets.singular.live`, the widget automatically selects an appropriate resolution based on the layout dimensions.
+For `image.singular.live` URLs that do not already contain a `fit-in` path and are not GIFs, the widget inserts an appropriate bounded `fit-in` resolution based on the layout dimensions. Other URLs are left unchanged. A separate `assets.singular.live` SVG fallback can recover dimensions when the browser reports a zero intrinsic size; it is not the automatic resolution-selection path.
 
 ### Image Loading
 

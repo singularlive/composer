@@ -2,6 +2,8 @@
 
 Single-line text widget using Font 2.0 (FontStore2 / SingularMetricFont).
 
+For paired Composer creation, use `metric-text` and the [Metric Text authoring guide](../widgets/metric-text.md). Inspect an existing instance with `get`; ordinary Text font commands do not support its `metricfont` field. This document owns the scripting payload contract; the live instance and schema remain authoritative for its loaded version. Defaults below describe renderer fallbacks, not guaranteed catalog defaults.
+
 ## Usage
 
 ```javascript
@@ -13,10 +15,10 @@ mt.setPayload({ text: "Hello", color: "yellow" });
 
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `text` | string | `""` | Text content. Wrap with `<html>...</html>` to render HTML. Single-line only — newlines are stripped. |
+| `text` | string | `""` | Text content. Only content before the first newline is rendered. Empty or whitespace-only text is hidden. Optional `<html>...</html>` markup is unsanitized; use trusted display markup only. |
 | `font` | object | — | Font definition (see [Font Object](#font-object) below). |
 | `color` | string, object | `"white"` | Text color. Same formats as Rectangle's `fillGradient`. |
-| `alignment` | string | `"left"` | Horizontal alignment: `"left"`, `"center"`, `"right"`, or `"align."` + character (e.g. `"align."` aligns on the last `.`). |
+| `alignment` | string | `"left"` | Horizontal alignment: `"left"`, `"center"`, `"right"`, or `"align"` + character (e.g. `"align."` aligns on the last `.`). |
 | `overflow` | string | `"none"` | Overflow behavior: `"none"`, `"clip"` (clips horizontally), `"fitScale"` (uniform scale to fit width), `"fitWidth"` (scale X only to fit width). |
 | `letterSpacing` | number | `0` | Letter spacing as percentage of widget height. |
 | `wordSpacing` | number | `0` | Word spacing as percentage of widget height. |
@@ -51,7 +53,7 @@ mt.setPayload({ text: "Hello", color: "yellow" });
 
 ### Character Alignment
 
-Use `alignment: "align."` with a trailing separator character to align text on the last occurrence of that character:
+Use `alignment: "align" + separator` to align text on the last occurrence of that character. `align.` selects the decimal point; a missing separator falls back to centered text:
 
 ```javascript
 mt.setPayload({
@@ -73,6 +75,10 @@ mt.setPayload({ text: "Long text", overflow: "fitWidth" });
 // clip — horizontally clipped at widget bounds
 mt.setPayload({ text: "Long text", overflow: "clip" });
 ```
+
+## Runtime verification
+
+Use a complete inspected `font.fontData`, including valid `mg` metrics, rather than fabricating the schematic font object above. `setPayload({ text: ... })` uses the normal merged widget payload path and preserves that font. For `emitEvents: true`, the renderer sends `event: "bounds"` with `leftPx`, `topPx`, `widthPx`, `heightPx` and percentage `left`, `top`, `width`, `height`. Empty text returns before this message, so clearing does not promise a zero-bounds event. Verify payload changes, clearing, font readiness and resize in the Player; stored values alone are insufficient evidence.
 
 ## Source reference
 

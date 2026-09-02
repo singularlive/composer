@@ -36,9 +36,9 @@ try {
 
 ## Artifact storage convention
 
-Any artifacts generated during debugging or verification (HTML copies, JS snippets, screenshots, log dumps, extracted JSON, etc.) must be saved to the `temp/` subfolder of the current working directory (the repository root). This keeps the workspace clean and prevents accidental commits of generated files.
+Save working artifacts generated during debugging or verification (HTML copies, JS snippets, screenshots, log dumps, extracted JSON, etc.) to the `temp/` subfolder of the current working directory (the repository root).
 
-The `temp/` directory is git-ignored — do not commit its contents.
+Do not assume `temp/` is git-ignored: the Singular repository ignores `tmp/`, not `temp/`. Keep generated artifacts out of commits and report retained artifact paths explicitly. Keep handoffs and credentials in memory throughout.
 
 ## Playwright installation
 
@@ -129,7 +129,8 @@ Use `scripts/verifyComposition.mjs` for headless visual verification after writi
    - `--frames N` — number of screenshots (default: 3)
    - `--interval MS` — milliseconds between screenshots (default: 3000)
    - `--out DIR` — output directory for screenshots and temp files (default: `./temp` relative to cwd)
-   - `--capture-mode target|page` — capture the Player renderer (`target`, default) or retain the old full-page path for boundary diagnosis
+   - `--composition-id root|active|<id>` — select the root (default), the handoff's active composition, or an ordinary sub-composition by ID; selects both the renderer and the default scenario action target
+   - `--capture-mode target|page` — capture the selected Player renderer (`target`, default) or retain the full-page path for boundary diagnosis; page mode keeps the selected scope isolated but does not crop to its bounds
    - `--fresh-page-per-frame` — reload the Player in a new isolated page for every sampled frame; diagnostic only because initialization restarts each time
    - `--disable-gpu` — launch Chrome with GPU acceleration disabled to isolate compositor behavior; diagnostic only
    - `--report PATH` — sanitized JSON report path (default: `<out>/verification-report.json`)
@@ -137,7 +138,18 @@ Use `scripts/verifyComposition.mjs` for headless visual verification after writi
    - `--integrity-file PATH` — optional version-1 deterministic pixel-region assertions; a failure exits nonzero
    - `--no-headless` — show the browser window for debugging
 
-   The verifier creates the host page in memory from the handoff and sets `window.__compositionLoaded = true` after load. It does not write either handoff credential to an HTML file. It waits for two animation frames before each image and screenshots `.onair-renderer.root-onair` directly by default so the artifact represents the complete Player target rather than the host page.
+   The verifier creates the host page in memory from the handoff and accepts only a successful Player load callback. It does not write either handoff credential to an HTML file. It waits for the requested SDK composition and exactly one matching renderer, then waits for two animation frames before each image. Root remains the default.
+
+   For an ordinary sub-composition, unrelated sibling branches are hidden only inside the private Player page, including siblings added later. Target descendants, layout, transforms, opacity, and ancestor state are preserved. No saved composition or editor state changes. Isolation is restored when the page is replaced or closed. The verifier does **not** automatically jump the target or its ancestors to In: drive the intended states explicitly in a scenario. Parent backgrounds, clipping and transforms still affect the result.
+
+   `active` requires active-composition metadata in a fresh handoff; active root selects root. Widget-owned templates are unsupported because they require instance-aware targeting. Missing SDK compositions or renderers fail with `PLAYER_TARGET_NOT_FOUND`; multiple matching renderers fail with `PLAYER_TARGET_AMBIGUOUS`. The verifier never falls back to root or chooses the first visible instance. Load failure, timeout and unavailable main SDK have separate `PLAYER_LOAD_FAILED`, `PLAYER_LOAD_TIMEOUT` and `PLAYER_SDK_NOT_READY` errors. The sanitized report's `target` records requested mode, resolved kind/ID, isolation and readiness status. Fresh-page sampling resolves and isolates the same target on every page.
+
+   Verify a known ordinary sub-composition without changing the user's editor scope:
+
+   ```sh
+   node scripts/composer-agent.js script-handoff --composition-id <id> --compact |
+     node scripts/verifyComposition.mjs --handoff-file - --composition-id active --scenario-file temp/scenario.json
+   ```
 
 ### Declarative Player scenario
 
@@ -177,15 +189,17 @@ node scripts/composer-agent.js script-handoff --compact |
 Supported actions are:
 
 - `wait`: bounded `milliseconds`.
-- `setPayload` and `sendMessage`: call the public Player composition API with an object. Omit `compositionId` for the main composition or provide an intentional sub-composition ID.
+- `setPayload` and `sendMessage`: call the public Player composition API with an object. Omit `compositionId` for the selected verification target (root by default), or provide an explicit SDK composition ID to override it. An override changes only that action, not capture or DOM scope.
 - `playTo` and `jumpTo`: call the public Player composition API with `state`; they accept the same optional `compositionId`.
 - `waitForLifecycle`: wait for an allowed lifecycle counter to reach `minimum`, with an optional `timeoutMs`.
 - `assertLifecycle`: require `equals`, `minimum`, or `maximum` for one allowed lifecycle counter.
-- `assertState`: compare `getState()` with the JSON value in `equals`.
+- `assertState`: compare the selected target's `getState()` with the JSON value in `equals`; accepts the same optional `compositionId` override.
 - `assertDom`: check a 16-character `textHash`, a text change from an earlier checkpoint, minimum element/visible-element counts, or minimum target width/height. It never exposes rendered text.
 - `capture`: save a named checkpoint. Names are unique and use up to 64 letters, digits, periods, underscores, or hyphens.
 
 Allowed lifecycle counters are `compositionLoaded`, `message`, `state_changed`, `payload_changed`, `datanode_payload_changed`, `error`, `composition_script_event`, `download_start`, and `download_complete`. A failed action reports only its step number and action type. The sanitized report includes statuses, durations, safe counters, DOM hashes, bounds, and checkpoint filenames; it never records payload/message values, expected state values, script text, rendered text, tokens, or preview URLs.
+
+Lifecycle counters remain page-wide even with a scoped target. Use target state and DOM assertions for scope-specific proof; sibling scripts continue running. DOM sampling covers the selected renderer's same-document descendants, not the internals of child widget iframes.
 
 When a scenario contains `capture` steps, those checkpoints replace the ordinary `--frames`/`--interval` sampler, so do not combine those flags. `--fresh-page-per-frame` is also incompatible because reloading would discard the scenario state. With no `capture` step, the normal periodic sampler runs after the scenario. A supplied integrity contract applies to every resulting screenshot.
 

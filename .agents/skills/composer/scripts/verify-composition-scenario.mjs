@@ -229,7 +229,7 @@ function stableJson(value) {
   return JSON.stringify(value);
 }
 
-async function runPlayerAction(page, step) {
+async function runPlayerAction(page, step, defaultCompositionId) {
   return page.evaluate(async function (input) {
     if (!window.player || typeof window.player.getMainComposition !== 'function') {
       throw new Error('Player composition API is unavailable');
@@ -250,7 +250,7 @@ async function runPlayerAction(page, step) {
     else if (input.action === 'jumpTo') await target.jumpTo(input.state);
     else throw new Error('Unsupported Player scenario action');
     return true;
-  }, step);
+  }, { ...step, compositionId: step.compositionId === undefined ? defaultCompositionId : step.compositionId });
 }
 
 function lifecycleAssertion(step, actual) {
@@ -288,7 +288,7 @@ export async function executeVerificationScenario(options) {
       if (step.action === 'wait') {
         await page.waitForTimeout(step.milliseconds);
       } else if (['setPayload', 'sendMessage', 'playTo', 'jumpTo'].includes(step.action)) {
-        await runPlayerAction(page, step);
+        await runPlayerAction(page, step, options.defaultCompositionId);
       } else if (step.action === 'waitForLifecycle') {
         await page.waitForFunction(function (input) {
           return window.__verificationLifecycle &&
@@ -303,7 +303,7 @@ export async function executeVerificationScenario(options) {
         const actual = await runPlayerAction(page, {
           action: 'getState',
           compositionId: step.compositionId
-        });
+        }, options.defaultCompositionId);
         if (stableJson(actual) !== stableJson(step.equals)) throw new Error('state assertion failed');
       } else if (step.action === 'assertDom') {
         const actual = await sample();

@@ -2,6 +2,8 @@
 
 Payload reference for `widget.setPayload(...)` on Text widgets.
 
+For paired Composer construction, font discovery, formatting, and declarative authoring, use [Text authoring](../widgets/text.md). This document owns the scripting payload contract; the live instance and schema remain authoritative for its loaded version.
+
 ## Usage
 
 ```javascript
@@ -66,7 +68,7 @@ text.setPayload({ color: "#FF00FF" });
 text.setPayload({ color: { r: 255, g: 255, b: 0 } });
 ```
 
-See `references/widget-rectangle.md#color--gradient-formats` for details.
+See [Rectangle color and gradient formats](widget-rectangle.md#color--gradient-formats) for details.
 
 ### HTML Text
 

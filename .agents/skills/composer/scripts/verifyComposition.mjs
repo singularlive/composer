@@ -6,6 +6,9 @@ import {
   executeVerificationScenario,
   readVerificationScenario
 } from './verify-composition-scenario.mjs';
+import {
+  resolveVerificationTarget, prepareVerificationTarget, restoreVerificationTarget
+} from './verify-composition-target.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -102,6 +105,7 @@ function readHandoff(filePath) {
 const handoff = readHandoff(handoffPath);
 const token = handoff.compositionToken;
 const host = String(handoff.host).replace(/\/+$/, '');
+const targetRequest = resolveVerificationTarget(getArg('--composition-id', 'root'), handoff);
 
 function readIntegrityContract(filePath) {
   if (!filePath) return null;
@@ -156,7 +160,9 @@ if (scenarioCaptureCount && (framesExplicit || intervalExplicit)) {
 }
 
 function sanitizeText(value) {
-  return String(value).split(token).join('<redacted>');
+  let text = String(value).split(token).join('<redacted>');
+  if (handoff.composerAgentAccessToken) text = text.split(handoff.composerAgentAccessToken).join('<redacted>');
+  return text;
 }
 
 function getPngDimensions(buffer) {
@@ -209,9 +215,11 @@ function buildHtml() {
         });
       });
       player.loadComposition(compositionToken, function (obj) {
-        console.log('INFO: Composition loaded :' + obj.success);
+        var loaded = Boolean(obj && obj.success === true);
+        console.log('INFO: Composition loaded :' + loaded);
         window.__verificationLifecycle.compositionLoaded += 1;
-        window.__compositionLoaded = true;
+        window.__compositionLoaded = loaded;
+        window.__compositionLoadFailed = !loaded;
       });
     };
     document.addEventListener('DOMContentLoaded', function () {
@@ -310,22 +318,31 @@ async function evaluateIntegrity(page, pngBuffer, contract) {
   };
 }
 
-async function prepareVerificationPage(browser, viewport, logs) {
+async function prepareVerificationPage(browser, viewport, logs, runtime) {
   const page = await browser.newPage({ viewport });
   page.on('console', msg => logs.push({ type: msg.type(), text: sanitizeText(msg.text()) }));
   await page.setContent(buildHtml(), { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => window.__compositionLoaded === true, { timeout: 30000 });
+  try {
+    await page.waitForFunction(() => window.__compositionLoaded === true || window.__compositionLoadFailed === true,
+      null, { timeout: 30000 });
+  } catch (error) {
+    throw new Error('PLAYER_LOAD_TIMEOUT: composition load did not complete before the deadline');
+  }
+  if (await page.evaluate(() => window.__compositionLoadFailed === true)) {
+    throw new Error('PLAYER_LOAD_FAILED: the Player rejected the composition load');
+  }
+  runtime.compositionLoaded = true;
+  runtime.loadCount += 1;
   await page.waitForTimeout(2000);
   const playerFrame = await waitForPlayerFrame(page);
-  const target = playerFrame.locator('.onair-renderer.root-onair');
-  await target.waitFor({ state: 'visible', timeout: 30000 });
-  if (await target.count() !== 1) {
-    throw new Error('Player verification expected exactly one root renderer');
-  }
-  return { page, playerFrame, target };
+  const { target, identity } = await prepareVerificationTarget(page, playerFrame, targetRequest);
+  return { page, playerFrame, target, identity };
 }
 
 async function sampleVerificationTarget(target) {
+  if (await target.count() !== 1) {
+    throw new Error('PLAYER_TARGET_AMBIGUOUS: target renderer disappeared or became ambiguous');
+  }
   const targetBounds = await target.boundingBox();
   if (!targetBounds || targetBounds.width <= 0 || targetBounds.height <= 0) {
     throw new Error('Player verification target has no positive visible bounds');
@@ -386,6 +403,7 @@ async function main() {
   let page = null;
   let playerFrame = null;
   let target = null;
+  let identity = null;
 
   const plannedFrameCount = scenarioCaptureCount || frameCount;
   const report = {
@@ -396,6 +414,7 @@ async function main() {
     intervalMs,
     viewport,
     diagnostics: { freshPagePerFrame, disableGpu },
+    target: { ...targetRequest, status: 'pending' },
     runtime: { compositionLoaded: false, loadCount: 0 },
     scenario: { requested: Boolean(verificationScenario), status: verificationScenario ? 'pending' : 'not-requested' },
     screenshot: { successfulFrames: 0 },
@@ -404,9 +423,8 @@ async function main() {
   };
 
   try {
-    ({ page, playerFrame, target } = await prepareVerificationPage(browser, viewport, logs));
-    report.runtime.compositionLoaded = true;
-    report.runtime.loadCount += 1;
+    ({ page, playerFrame, target, identity } = await prepareVerificationPage(browser, viewport, logs, report.runtime));
+    report.target = { ...identity, status: 'ready' };
 
     const captureFrame = async function (checkpoint) {
       await waitForCompositor(playerFrame);
@@ -446,6 +464,7 @@ async function main() {
       report.scenario = await executeVerificationScenario({
         scenario: verificationScenario,
         page,
+        defaultCompositionId: identity.kind === 'composition' ? identity.compositionId : null,
         sample: () => sampleVerificationTarget(target),
         capture: captureFrame
       });
@@ -453,9 +472,13 @@ async function main() {
 
     for (let i = 0; i < (scenarioCaptureCount ? 0 : frameCount); i++) {
       if (i > 0 && freshPagePerFrame) {
+        await restoreVerificationTarget(playerFrame);
         await page.close();
-        ({ page, playerFrame, target } = await prepareVerificationPage(browser, viewport, logs));
-        report.runtime.loadCount += 1;
+        const previousIdentity = identity;
+        ({ page, playerFrame, target, identity } = await prepareVerificationPage(browser, viewport, logs, report.runtime));
+        if (identity.kind !== previousIdentity.kind || identity.compositionId !== previousIdentity.compositionId) {
+          throw new Error('PLAYER_TARGET_CHANGED: the resolved composition changed after reload');
+        }
       }
       await captureFrame(null);
       if (i < frameCount - 1) await page.waitForTimeout(intervalMs);
@@ -473,12 +496,14 @@ async function main() {
     }
   } catch (error) {
     report.status = 'failed';
+    if (report.target.status === 'pending') report.target.status = 'failed';
     report.error = sanitizeText(error && error.message ? error.message : error);
     if (error && error.scenarioResult) report.scenario = error.scenarioResult;
     report.runtime.console = summarizeLogs(logs);
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf8');
     throw error;
   } finally {
+    await restoreVerificationTarget(playerFrame);
     await browser.close();
   }
   console.log(`[verify] Done. ${report.frames.length} screenshots in ${SCREENSHOT_DIR}`);

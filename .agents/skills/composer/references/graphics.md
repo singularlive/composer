@@ -2,13 +2,17 @@
 
 ## Primitives
 
+Video and embedded-page primitives additionally include `video-animation`, `video-background`, `video-clip`, `video-clip-with-audio`, and `web-page`; use their dedicated authoring guides from [widgets.md](widgets.md).
+
+Use [widgets.md](widgets.md) to find the matching widget authoring reference. This document owns shared schema discovery, color, layout, and declarative-specification rules; widget-specific behavior and examples belong in the linked guides. Runtime payload updates belong to the separate composition-script workflow.
+
 List the supported primitives and their control-field schemas before creating graphics:
 
 ```bash
 node scripts/composer-agent.js primitives
 ```
 
-Supported primitive names are `text`, `metric-text-ml`, `rectangle`, `circle`, `image`, `aisvg`, and `table`. Use `metric-text-ml` when explicit line breaks or wrapping must render as multiline text; its live schema remains authoritative for content and line-layout properties. AISVG is the bounded escape hatch for sanitized arbitrary SVG paths, masks, filters, and widget-driven vector animation; use standard primitives whenever they can keep the design independently editable. See [aisvg.md](aisvg.md). When you already know which primitive you need, filter to it so the schema stays small:
+Supported primitive names are `text`, `text-ticker`, `metric-text`, `metric-text-ticker`, `metric-text-style`, `metric-text-animation`, `metric-text-ml`, `rectangle`, `circle`, `gradient`, `html`, `image`, `aisvg`, `bodymovin`, `bodymovin-loop`, `sound`, `timer`, `date-time-countdown`, `current-date-time`, `grid`, and `table`. Use [Text Ticker](widgets/text-ticker.md) for legacy-font horizontal crawls and [Metric Text Ticker](widgets/metric-text-ticker.md) for Font 2.0 crawls. Use [Metric Text](widgets/metric-text.md) for single-line Font 2.0 text, or [Metric Text Animation](widgets/metric-text-animation.md) for native character/word effects. Use [Metric Text ML](widgets/metric-text-ml.md) (`metric-text-ml`) for explicit line breaks, wrapping, line limits and ellipsis; its live schema remains authoritative. Use [Metric Text Style](widgets/metric-text-style.md) for gradient-filled SVG text, outline, glow and looping sheen; configure dynamic style fields through inspected updates after base creation. Use [Sound](widgets/sound.md) for audio tied to In/Out transitions and [Timer](widgets/timer.md) for operator-controlled elapsed/count-up/count-down displays. AISVG is the bounded escape hatch for sanitized arbitrary SVG paths, masks, filters, and widget-driven vector animation; use standard primitives whenever they can keep the design independently editable. See [aisvg.md](widgets/aisvg.md). When you already know which primitive you need, filter to it so the schema stays small:
 
 ```bash
 node scripts/composer-agent.js primitives --primitive text
@@ -16,73 +20,27 @@ node scripts/composer-agent.js primitives --primitive text
 
 Never assume a control value shape. Read each field's schema and `runtime` object from `primitives`; for non-color fields, the runtime value reports the exact type and a complete accepted value. For an existing tile, `get` returns current `data` plus the same schema populated from current values.
 
-Color is the deliberate exception to runtime-shape preservation. For any widget field whose schema type is `color` or `gradient`, use an RGBA object as the primary solid-color format:
+Datetime fields are schema-aware: an unset empty string may become an integer Unix millisecond timestamp within the JavaScript Date range, and an empty string may unset it again. Other strings and fractional or out-of-range numbers are rejected. This applies to direct data updates and declarative properties; Date Time Control Nodes require a configured numeric timestamp. See [Date / Time Countdown](widgets/date-time-countdown.md) for its widget-owned template and ticking behavior.
+
+The [Gradient widget](widgets/gradient.md) uses a `css_string` textarea containing CSS declarations. It is distinct from schema fields typed `gradient` and from the unsupported native Gradient Control Node.
+
+Color is another deliberate exception to runtime-shape preservation. For any widget field whose schema type is `color` or `gradient`, use an RGBA object as the primary solid-color format:
 
 ```json
 { "r": 0, "g": 74, "b": 173, "a": 1 }
 ```
 
-RGBA is tinycolor2-compatible and Composer renders it directly as a color or converts it to a solid gradient as required by the widget. Do not copy a structured gradient from `get` or `primitives` merely because that is how Composer stores or reports the field. Use a complete structured gradient runtime object only when the user explicitly asks for a linear, radial, multi-stop, or otherwise non-solid gradient. Tinycolor2-compatible strings may be accepted by underlying widget paths, but RGBA remains the agent's default format.
+RGBA is tinycolor2-compatible and Composer renders it directly as a color or converts it to a solid gradient as required by the widget. Do not copy a structured gradient from `get` or `primitives` merely because that is how Composer stores or reports the field. Use a complete structured gradient runtime object only when the user explicitly asks for a linear, radial, multi-stop, or otherwise non-solid gradient. Author that object directly on the compatible widget field; do not create a Gradient Control Node for it. Native Gradient controls are intentionally outside agent support because their complex payload is not a suitable external-control contract. Tinycolor2-compatible strings may be accepted by underlying widget paths, but RGBA remains the agent's default format.
 
-Other shape-sensitive values still follow readback exactly: Text `font` is an object containing `fontData` and formatting, for example. Use the catalog-backed commands in [text.md](text.md) for font changes.
+Other shape-sensitive values still follow readback exactly: Text `font` is an object containing `fontData` and formatting, for example. Use the catalog-backed commands in [text.md](widgets/text.md) for font changes.
 
-Table is an approved widget primitive rather than a flat shape. Creating it adds widget `1182` through Composer's normal widget path. Before adding rows, ensure its `composition` field points to a valid row-template composition, inspect that relationship with `widget-subcompositions`, and populate it with `update-table`; see [table.md](table.md). Do not guess a template ID or reuse one after leaving template edit mode.
+Table is an approved widget primitive rather than a flat shape. Creating it adds widget `1182` through Composer's normal widget path. Before adding rows, ensure its `composition` field points to a valid row-template composition, inspect that relationship with `widget-subcompositions`, and populate it with `update-table`; see [table.md](widgets/table.md). Do not guess a template ID or reuse one after leaving template edit mode.
 
-Rounded corners are a configuration of the `rectangle` primitive, not a separate primitive. When the prompt or reference calls for them, set `bevelStyle: "outside"` and choose an explicit positive `bevelSize`, then refine it through capture. Composer interprets the default `%` unit relative to the tile width and clamps the rendered radius to half the rectangle dimensions, so do not reuse one fixed percentage across different aspect ratios.
+Grid (`3284`) similarly repeats a hidden cell template, using `cols`/`rows`, spacing, pagination and validated `update-grid` content. See [Grid](widgets/grid.md). This widget is separate from the declarative `grids` layout definitions below, which place ordinary primitives at authoring time.
 
-```json
-{
-  "key": "rounded-panel",
-  "primitive": "rectangle",
-  "properties": {
-    "bevelStyle": "outside",
-    "bevelSize": 6
-  }
-}
-```
+Bodymovin (`3367`) loads a hosted Lottie JSON URL and uses the Composer `widget` Timeline effect. For continuous playback with speed and direction controls, use `bodymovin-loop` (`3783`). See [Bodymovin](widgets/bodymovin.md) and [Bodymovin Loop](widgets/bodymovin-loop.md) for their separate asset, playback, and verification requirements.
 
-Run `primitives --primitive rectangle` before authoring to confirm the active Rectangle field shapes. Prefer a keyed declarative specification when setting bevel properties so the intended radius is explicit and repeatable.
-
-### Image and logo placeholders
-
-Whenever a requested graphic includes a logo, photo, headshot, sponsor mark, or other image, create an `image` primitive for that intended slot. Do not replace the slot with a Rectangle, omit it, or invent a logo from text and shapes just because the final asset is unavailable.
-
-Before authoring it, run:
-
-```bash
-node scripts/composer-agent.js primitives --primitive image
-```
-
-Use the returned runtime schema for optional Image fields such as `objectFit`, `shift`, `flipX`, and `flipY`. The asset URL belongs in the Image widget's `image` property. Unless the user explicitly asks for another image URL, always use this default placeholder and no other external URL:
-
-```text
-https://app.singular.live/images/default-asset-icon.png
-```
-
-For example:
-
-```json
-{
-  "version": 2,
-  "elements": [{
-    "key": "team-logo",
-    "primitive": "image",
-    "name": "Team logo placeholder",
-    "placement": {
-      "unit": "percent",
-      "left": 5,
-      "top": 5,
-      "width": 10,
-      "height": 10
-    },
-    "properties": {
-      "image": "https://app.singular.live/images/default-asset-icon.png"
-    }
-  }]
-}
-```
-
-Keep the placeholder's stable key and intended final bounds across refinement passes so the user can replace the `image` value later without rebuilding the layout. A URL supplied by the user, or an explicit request to use a named external URL, authorizes that URL for the requested slot; it does not authorize searching for or substituting unrelated assets.
+For widget-supplied template output, build the target primitives first, then use a bounded [Widget Node link batch](widget-nodes.md). These links are separate from declarative public `control` declarations. Reapply stable-keyed graphics carefully: avoid explicitly resetting a field whose current value is driven by a Widget Node; inspect its native link first.
 
 ## Managed group and one-off primitives
 
@@ -312,7 +270,7 @@ Validation errors retain authored paths, including style, region, template, repe
 
 The first apply creates and verifies the control and its link. Reapplying the stable key preserves the same tile and link. A different existing link, type, or control identity is a validation error.
 
-Declarative widget-data controls support `text`, `textarea`, `number`, `normalizednumber`, `counter`, `color`, `image`, `checkbox`, `audio`, `video`, `data`, and `jsonfile` when the primitive's widget field has the compatible type. Tile/group Transform and Effect controls are native node references rather than widget-data links; keyed managed graphics may declare them at the specification root, while ordinary Composer-ID targets use `create-control` or `create-controls` as described in [compositions.md](compositions.md). Their availability is not an authoring default: create them only when the user explicitly asks to expose the exact Transform/Effect property as a Control Node.
+Declarative widget-data controls support `text`, `textarea`, `number`, `normalizednumber`, `counter`, `color`, `image`, `checkbox`, `audio`, `video`, `data`, `jsonfile`, `json`, `datetime`, `location`, `selection`, and `timecontrol` when the primitive's widget field has the compatible type. Tile/group Transform and Effect controls are native node references rather than widget-data links; keyed managed graphics may declare them at the specification root, while ordinary Composer-ID targets use `create-control` or `create-controls` as described in [compositions.md](compositions.md). Their availability is not an authoring default: create them only when the user explicitly asks to expose the exact Transform/Effect property as a Control Node.
 
 When the user explicitly requests public Transform/Effect inputs, declare them at the specification root and target stable declarative keys rather than transient tile IDs:
 

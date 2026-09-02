@@ -1,6 +1,8 @@
 # Video Clip Widget (widgetId 812)
 
-Payload reference for `widget.setPayload(...)` and `widget.onSingularButton(...)` on Video Clip widgets.
+Payload reference for `widget.setPayload(...)` and `widget.click(...)` on Video Clip widgets. `onSingularButton(...)` is an internal renderer callback and is not exposed on the composition-script widget object.
+
+For paired Composer work, use the dedicated [Video Clip authoring guide](../widgets/video-clip.md) and shared [Graphics guidance](../graphics.md). Widget `812` is available as the `video-clip` primitive. This document owns the scripting payload and button contract; the live instance and schema remain authoritative for its loaded version.
 
 ## Usage
 
@@ -53,8 +55,10 @@ The Video Clip widget supports button actions via button control nodes:
 Trigger from a composition script:
 
 ```javascript
-// in response to a button_clicked listener:
-// the action object is the button control node model id/field key
+video.click("start");
+video.click("play");
+video.click("pause");
+video.click("seek0");
 ```
 
 ## Video Events (via sendCustomMessage)

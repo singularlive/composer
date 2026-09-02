@@ -2,6 +2,8 @@
 
 Multi-line text widget using Font 2.0 (FontStore2 / SingularMetricFont). Supports automatic line-count selection, word-wrap, and truncation.
 
+For paired Composer construction, use `metric-text-ml` and [Metric Text ML authoring](../widgets/metric-text-ml.md). Preserve its inspected `metricfont` object; ordinary Text font commands do not apply. This document owns the scripting payload contract; the live instance and schema remain authoritative for its loaded version.
+
 ## Usage
 
 ```javascript
@@ -20,7 +22,8 @@ ml.setPayload({ text: "Line 1\nLine 2\nLine 3", color: "yellow" });
 | `lineHeight` | number | `100` | Line height as percentage (e.g. `120` = 1.2× line spacing). |
 | `minLines` | number | `1` | Minimum number of lines to reserve space for. |
 | `maxLines` | number | — | Maximum number of lines before truncation. Defaults to `minLines`. |
-| `verticalAlignment` | string | `"top"` | Vertical alignment: `"top"`, `"middle"` (centered), `"bottom"`. |
+| `ellipsis` | boolean | `false` | When truncation is required at `maxLines`, append an ellipsis (`…`) to the last surviving text run. |
+| `verticalAlignment` | string | `"top"` | Vertical alignment: `"top"`, `"center"`, `"bottom"`; `"middle"` is a renderer compatibility alias. |
 | `letterSpacing` | number | `0` | Letter spacing as percentage of widget height. |
 | `wordSpacing` | number | `0` | Word spacing as percentage of widget height. |
 | `transform` | string | — | Text transform: `"uppercase"`, `"lowercase"`, `"capitalize"`, `"small-caps"`. |
@@ -55,7 +58,7 @@ ml.setPayload({ text: "Line 1\nLine 2\nLine 3", color: "yellow" });
 The widget automatically selects the number of lines between `minLines` and `maxLines`:
 
 1. Counts explicit newline segments in the text
-2. Starts at `max(minLines, segmentCount)`
+2. Starts at `min(maxLines, max(minLines, segmentCount))`
 3. Sizes the font so text fills the available height
 4. If text wraps beyond the current line count and `lineCount < maxLines`, increments `lineCount`
 5. Once settled, any content beyond the last allowed line is removed from the DOM
@@ -68,6 +71,10 @@ ml.setPayload({
   lineHeight: 120
 });
 ```
+
+Empty or whitespace-only text hides the element. The renderer preserves the saved payload when truncating the displayed DOM. HTML is unsanitized and can change measurement; prefer plain text and never interpolate untrusted markup. Renderer fallbacks above are not guaranteed catalog defaults. Keep line limits positive integers with `minLines <= maxLines` and `lineHeight > 0`.
+
+`emitEvents` sends `{ event: "bounds", leftPx, topPx, widthPx, heightPx, left, top, width, height }` through the widget custom-message channel for nonempty text. Percentage values are relative to widget dimensions; these are DOM box measurements, not glyph-ink bounds. Verify messages and persisted script consumers separately in the Player.
 
 ## Source reference
 

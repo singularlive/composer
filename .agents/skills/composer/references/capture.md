@@ -90,6 +90,7 @@ Standalone is the unified CLI capture path. It uses a private headless Chrome wo
 ```bash
 node scripts/composer-agent.js capture \
   --target <root|active> \
+  [--template-session <token>] \
   [--wait-mode <smart|timed>] \
   [--timeline <In|Out> --at <seconds>] \
   [--measurements <path.json>] \
@@ -99,7 +100,7 @@ node scripts/composer-agent.js capture \
   --output <path.png>
 ```
 
-- `--target` defaults to `root`. `active` captures the active scene or widget-owned sub-composition when one is open and otherwise resolves to root.
+- `--target` defaults to `root`. `active` captures the active scene or widget-owned sub-composition when one is open and otherwise resolves to root. An active widget-owned target requires the current opaque `--template-session <token>` from full `inspect` or `open-widget-subcomposition`; missing or stale tokens fail before capture preparation or standalone Player startup.
 - `--wait-mode` applies only to standalone capture and defaults to `smart`. `smart` waits for finite Singular timelines and a short target-scoped visual quiet window. `timed` waits for core lifecycle and assets, then captures after `--settle` without requiring the output to stop moving.
 - `--timeline` and `--at` capture an exact paused position of the root or an ordinary active composition's `In` or `Out` timeline. They must be supplied together, require standalone `smart` mode, do not support widget-owned active compositions, and reject positions beyond the selected timeline duration instead of silently clamping them.
 - `--measurements` is standalone-only and writes an optional version-1 Player measurement snapshot immediately before the screenshot. Use it for a named geometry question, not as a default sidecar for every capture.
@@ -202,11 +203,25 @@ Write output to the session artifacts directory when one is available.
 
 Use `smart` when the target is script-free and its intended Singular Timeline animations are finite. It normally avoids the former unconditional two-second quiet wait: once downloads, scripts, payload propagation, fonts, images, finite timelines, and 350 ms of visual stability complete, capture proceeds.
 
-Use `timed` when the target has any known persisted composition, global, or overlay script; continuous Behavior; a ticker; timer; polling; live data; video; or another output that may never become visually still. Also use it when script presence cannot be ruled out. Choose `--settle` from the intended capture moment rather than increasing the overall timeout. The unified command defaults timed settling to two seconds; specify a different bounded value when the script or data contract requires one.
+Use `timed` when the target has any known persisted composition, global, or overlay script; continuous Behavior; Bodymovin Loop; a ticker; timer; polling; live data; video; or another output that may never become visually still. Also use it when script presence cannot be ruled out. Choose `--settle` from the intended capture moment rather than increasing the overall timeout. The unified command defaults timed settling to two seconds; specify a different bounded value when the script or data contract requires one.
 
 Use a fresh timed Browser preparation for one sampled state of continuous output. When the acceptance question requires more than one frame, use a separate restored preparation for each bounded sample; use standalone timed capture when private Player isolation is preferable, and use the Player-verification workflow when the frame sequence must prove composition-script or runtime behavior. Never treat one Browser screenshot as timing evidence by itself.
 
-When starting from a paired workflow and script presence is unknown, pipe `script-handoff` to the bundled token helper's read-only `list-scripts` path. Because that endpoint can be empty even when a composition script is readable, probe the suggested active/root script target when necessary. Do not expose script text or move script inspection into the paired relay. If smart mode reports ongoing timeline or visual activity, inspect the target and retry once with timed mode; do not make a continuously moving composition satisfy smart mode by extending `--timeout`.
+When starting from a paired workflow and script presence is unknown, pipe `script-handoff` to the bundled composition-script helper's read-only `list-scripts` path. Because that endpoint can be empty even when a composition script is readable, probe the suggested active/root script target when necessary. Do not expose script text or move script inspection into the paired relay. If smart mode reports ongoing timeline or visual activity, inspect the target and retry once with timed mode; do not make a continuously moving composition satisfy smart mode by extending `--timeout`.
+
+### Temporal evidence for animated and live output
+
+For continuous animation, clocks, timers, tickers, video, polling, and live data, the acceptance target is a behavior over time rather than one globally stable frame. Timed readiness proves that lifecycle and resources reached a sampleable state; it does not prove that the chosen instant is representative or that a screenshot backend did not sample during a compositor update.
+
+Define the invariant before sampling—for example, a clock always presents one complete formatted value while its seconds advance, or a ticker remains clipped to its viewport while moving. Then:
+
+1. Allow bounded warm-up until runtime/DOM evidence shows the first meaningful state. Initial blank frames before that state are readiness evidence, not automatically rendering failures.
+2. When the relevant DOM or payload change can be observed, allow the browser at least two animation frames before the visual checkpoint. This is a synchronization aid, not a promise that continuous output becomes still.
+3. Collect a small bounded sequence at phase-offset times appropriate to the behavior. If one sample differs sharply from the invariant, retry at a deliberately shifted offset instead of repeating the same cadence against the same update boundary.
+4. Compare screenshot evidence with current runtime/DOM state, lifecycle evidence, Composer readback, and adjacent frames. Do not weaken the invariant or select only favorable frames.
+5. Report `pass` when the required behavior has representative visual and semantic evidence; `fail` when the same violation persists across adjacent or phase-shifted samples beyond any intended transition, or semantic evidence also fails; and `inconclusive` when pixel and semantic evidence conflict after the bounded retry.
+
+An isolated anomalous frame is useful diagnostic evidence but is not sufficient by itself to identify a broken link, stale identity, incorrect runtime value, or visible user-facing defect. Pausing or disabling animation can answer a static layout question, but it changes the runtime contract and cannot serve as the sole proof of animated behavior. Use the Player-verification workflow for multi-frame behavior; keep ordinary Browser preparation as a one-screenshot transaction.
 
 ## Isolating a sub-composition
 
