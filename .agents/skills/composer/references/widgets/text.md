@@ -1,5 +1,7 @@
 # Text and fonts
 
+Text is the legacy Font 1.0 widget. Prefer the matching Metric Text family widget when creating text in a new composition. Continue to use this guide to inspect, understand, and edit existing Text widgets; adding another Text widget is appropriate when an existing composition already uses legacy Text and matching its typography keeps the design consistent. Do not migrate existing Text widgets solely to enforce the new-composition default.
+
 Text widget `font` data is one structured value. Use the dedicated font commands instead of assembling that object from memory: they resolve the selected family against Composer's user and account font catalogs, validate its available weight, and preserve the widget's other font formatting.
 
 ## Inspect before changing text
@@ -66,6 +68,6 @@ Before reapplying, reconcile any deliberate post-apply `set-font` change: update
 
 Other Text properties, including `overflow`, `verticalAlignment`, spacing, line-height, transform, shadow, and padding fields, remain ordinary typed widget data. Read their current schema/runtime values and update only the requested field.
 
-## Verified rendering behavior
+## Legacy scope
 
-Live Composer verification on 2026-08-09 used Text widget `1032`. Its default font value was Open Sans weight `400` with left alignment. A scoped raw-value discovery change to Lato weight `700` established that family, weight, italic, underline, and alignment map to the expected computed render styles. After implementation, `fonts` reported the live user and account catalogs; `set-font` resolved the account font Proxima Nova weight `900`, supplied its custom metadata internally, and rendered it italic, underlined, and centered. An unavailable weight was rejected without mutation. The original Open Sans value was restored exactly after both checks.
+Prefer Metric Text for new authoring. Use this legacy Text workflow when matching an existing composition or when a required legacy font behavior has no Metric Text equivalent.

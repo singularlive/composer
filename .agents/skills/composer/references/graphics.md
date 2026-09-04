@@ -12,10 +12,10 @@ List the supported primitives and their control-field schemas before creating gr
 node scripts/composer-agent.js primitives
 ```
 
-Supported primitive names are `text`, `text-ticker`, `metric-text`, `metric-text-ticker`, `metric-text-style`, `metric-text-animation`, `metric-text-ml`, `rectangle`, `circle`, `gradient`, `html`, `image`, `aisvg`, `bodymovin`, `bodymovin-loop`, `sound`, `timer`, `date-time-countdown`, `current-date-time`, `grid`, and `table`. Use [Text Ticker](widgets/text-ticker.md) for legacy-font horizontal crawls and [Metric Text Ticker](widgets/metric-text-ticker.md) for Font 2.0 crawls. Use [Metric Text](widgets/metric-text.md) for single-line Font 2.0 text, or [Metric Text Animation](widgets/metric-text-animation.md) for native character/word effects. Use [Metric Text ML](widgets/metric-text-ml.md) (`metric-text-ml`) for explicit line breaks, wrapping, line limits and ellipsis; its live schema remains authoritative. Use [Metric Text Style](widgets/metric-text-style.md) for gradient-filled SVG text, outline, glow and looping sheen; configure dynamic style fields through inspected updates after base creation. Use [Sound](widgets/sound.md) for audio tied to In/Out transitions and [Timer](widgets/timer.md) for operator-controlled elapsed/count-up/count-down displays. AISVG is the bounded escape hatch for sanitized arbitrary SVG paths, masks, filters, and widget-driven vector animation; use standard primitives whenever they can keep the design independently editable. See [aisvg.md](widgets/aisvg.md). When you already know which primitive you need, filter to it so the schema stays small:
+The `primitives` response is the authoritative supported-name inventory for the loaded editor. Use [widgets.md](widgets.md) to choose the matching authoring guide. Prefer [Metric Text](widgets/metric-text.md) for single-line text, [Metric Text ML](widgets/metric-text-ml.md) for multiline text, [Metric Text Animation](widgets/metric-text-animation.md) for native character/word effects, [Metric Text Style](widgets/metric-text-style.md) for styled SVG text, and [Metric Text Ticker](widgets/metric-text-ticker.md) for Font 2.0 crawls. Use [Text Ticker](widgets/text-ticker.md) only for legacy-font crawls or consistency with an existing legacy composition. AISVG remains the bounded escape hatch for vector geometry or motion that standard primitives cannot express. When you know the primitive, filter to it so the schema stays small:
 
 ```bash
-node scripts/composer-agent.js primitives --primitive text
+node scripts/composer-agent.js primitives --primitive metric-text
 ```
 
 Never assume a control value shape. Read each field's schema and `runtime` object from `primitives`; for non-color fields, the runtime value reports the exact type and a complete accepted value. For an existing tile, `get` returns current `data` plus the same schema populated from current values.
@@ -46,15 +46,15 @@ For widget-supplied template output, build the target primitives first, then use
 
 `graphics.apply` is a reconciler: it deletes and reorders whatever it finds in the group it manages. That group, named `AI Generated`, is the boundary of the diff, not a permission boundary. Keep generated content in it so `apply` never reaches the rest of the scene.
 
-Create primitives elsewhere when they are meant to be part of the user's own structure rather than reconciled output.
+`create` always places its unkeyed primitive in `AI Generated`. Use it only for one isolated edit or diagnosis inside an ordinary graphic sub-composition:
 
 ```bash
 node scripts/composer-agent.js ensure-group
-node scripts/composer-agent.js create --primitive text --name "Team name"
+node scripts/composer-agent.js create --primitive metric-text --name "Team name"
 node scripts/composer-agent.js delete --id <tile-id>
 ```
 
-Primitives are created with no In or Out animation. Read the returned tile before setting layout or control data.
+To release that primitive from reconciliation ownership, create or identify the intended ordinary group, then run `move --id <tile-id> --group-id <group-id>` after readback. Do not use this sequence to place new visual primitives directly in root. Primitives are created with no In or Out animation.
 
 Prefer declarative `apply` over one-off `create` for anything beyond a single scratch element.
 
@@ -112,6 +112,7 @@ node scripts/composer-agent.js apply --file <spec.json>
 
 ```json
 {
+  "version": 2,
   "elements": [
     {
       "key": "score-background",
@@ -159,6 +160,8 @@ A version-2 specification may configure the bounds of its existing `AI Generated
 
 The group definition is optional and idempotent. It accepts the same constrained fields as `configure-group`; image masks remain unavailable because Composer's mask renderer is disabled. `groupClipChildren` is the supported masking primitive and renders as bounded overflow clipping. The apply response includes the authoritative managed-group ID and layout so it can be targeted by group animation or inspected afterward.
 
+Prefer group-owned geometry for a coherent visual unit. Give the group its canvas-level `left`, `top`, `width`, and `height`, then express children relative to that frame: backgrounds commonly use `left: 0`, `top: 0`, `width: 100`, and `height: 100`, while text and accents use local percentage insets. Avoid duplicating the unit's absolute canvas bounds across its widgets. This keeps moving and resizing the complete unit understandable in Composer while preserving independent child geometry where the design requires it.
+
 Reconciliation:
 
 - Reapplying a key with the same primitive updates the same tile and preserves matching Control Node links.
@@ -183,7 +186,7 @@ Version 2 compiles semantic declarations into the same flat keyed reconciler bef
   "canvas": { "width": 1920, "height": 1080 },
   "styles": [{
     "key": "roster.text",
-    "primitive": "text",
+    "primitive": "metric-text",
     "layout": { "anchor": { "x": 0, "y": 0 } },
     "properties": { "color": { "r": 245, "g": 245, "b": 245, "a": 1 } }
   }],
@@ -197,7 +200,7 @@ Version 2 compiles semantic declarations into the same flat keyed reconciler bef
   }],
   "elements": [{
     "key": "title",
-    "primitive": "text",
+    "primitive": "metric-text",
     "style": "roster.text",
     "placement": {
       "region": "roster",
@@ -258,7 +261,7 @@ Validation errors retain authored paths, including style, region, template, repe
 ```json
 {
   "key": "visalia-runs",
-  "primitive": "text",
+  "primitive": "metric-text",
   "properties": { "text": "1" },
   "control": {
     "name": "Visalia R",
@@ -322,7 +325,7 @@ Define named percentage-based grids at the specification root and place elements
   }],
   "elements": [{
     "key": "inning-1-visalia",
-    "primitive": "text",
+    "primitive": "metric-text",
     "cell": { "grid": "scoreboard", "row": 1, "column": 1 },
     "properties": { "text": "1" }
   }]
@@ -361,7 +364,7 @@ Version 2 templates are non-recursive arrays of primitive definitions. Each temp
     "key": "roster-row",
     "elements": [{
       "key": "name",
-      "primitive": "text",
+      "primitive": "metric-text",
       "style": "roster.text",
       "box": { "left": 12, "top": 0, "width": 72, "height": 100 },
       "bind": { "properties.text": "name" }

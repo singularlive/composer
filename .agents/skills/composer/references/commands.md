@@ -14,9 +14,9 @@ The client preserves stdout for command JSON and pipelines. After every relevant
 
 `--server <url>` is a global paired-command selector. When supplied, it must match the server stored during pairing; it never retargets credentials. This applies consistently to single and batch commands, including `set-timeline-animations`.
 
-`--template-session <token>` is the global widget-template edit-session guard. Obtain the opaque token from `open-widget-subcomposition` or a full `inspect` while that template is active, then pass it on every command that reads or mutates the template or its descendants. Missing tokens fail with `WIDGET_TEMPLATE_SESSION_REQUIRED`; tokens from a closed, copied, reopened, or different template fail with `WIDGET_TEMPLATE_SESSION_STALE` before the operation runs. Do not derive, cache beyond the current edit session, or treat the token as a template identity. Full `inspect`, catalog reads, owner-relative template opening, root navigation, and capture restoration are recovery-safe exceptions.
+`--template-session <token>` is the global widget-template edit-session guard. Obtain the opaque token from `open-widget-subcomposition` or a full `inspect` while that template is active, then pass it on every command that reads or mutates the template or its descendants. Missing tokens fail with `WIDGET_TEMPLATE_SESSION_REQUIRED`; tokens from a closed, copied, reopened, or different template fail with `WIDGET_TEMPLATE_SESSION_STALE` before the operation runs. Do not derive, cache beyond the current edit session, or treat the token as a template identity. Full `inspect`, catalog reads, root navigation, and owner-relative opening from an ordinary composition are recovery-safe exceptions. Opening a nested widget template while already inside another widget template requires that active parent template's token because owner discovery reads the parent scope first.
 
-The flags `--compact`, `--selection`, `--summary`, `--selected`, `--italic`, `--underline`, `--always-execute`, `--create`, and `--remove` are booleans: pass them with no value (enabled) or with an explicit `true`/`false`. `--remove` applies to `set-behavior`. `--active` always takes an explicit `true` or `false` value.
+The flags `--compact`, `--selection`, `--summary`, `--selected`, `--italic`, `--underline`, `--always-execute`, `--create`, `--remove`, `--preview`, and `--replace` are booleans: pass them with no value (enabled) or with an explicit `true`/`false`. `--remove` applies to `set-behavior`. `--active` always takes an explicit `true` or `false` value.
 
 Structured JSON inputs use files. Prefer a pre-approved agent-session temporary or scratch location that is already writable without another permission request; fall back to the operating-system temporary directory only when current permissions already allow it. Create one unique task directory in the selected location, write descriptive UTF-8 JSON files there, pass their paths with `--value-file`, `--params-file`, `--easing-file`, `--layout-file`, or an existing `--file` option, and remove the task directory in finally-style cleanup after success or failure. Relative paths resolve from the CLI working directory. If neither location is writable, stop and report the blocker. Value files may contain any valid JSON value; existing command validation still determines which shapes and types are accepted. `get-many --ids` accepts comma-separated text only and rejects JSON-array syntax.
 
@@ -61,7 +61,10 @@ Widget Nodes are owner-supplied template outputs, not public Control Nodes. See 
 | --- | --- |
 | `get --type <tile\|group> --id <id>` | Read one complete tile or group. Tiles include layout, widget control data, and the widget field schema. |
 | `get --selected` | Read the currently selected tile or group in full, without a separate `inspect` first. Fails with a clear error when nothing is selected. |
-| `get-many --type <tile\|group> --ids <id-1,id-2>` | **Preferred for related targets:** validate every ID first, then read all of them. Returns no partial result. |
+| `get-many --type <tile\|group> --ids <id-1,id-2>` | Read complete related tiles or groups, including widget schemas for tiles. Validates every ID first and returns no partial result. |
+| `get-layouts --type <tile\|group> --ids <id-1,id-2>` | **Preferred for homogeneous layout reads:** return only identity, name, and supported layout fields for up to 100 elements. |
+| `get-layouts --file <targets.json>` | **Preferred for mixed layout reads:** read tiles and groups together from one `{ "elements": [{ "type", "id" }] }` file. |
+| `set-layouts --file <assignments.json>` | **Preferred for coordinated geometry:** validate and atomically update up to 100 mixed tile/group layouts from one file. |
 | `select --type <tile\|group> --id <id>` | Select an existing element in Composer. The `selected` result includes its `id`, `name`, and `elementType`. |
 | `move --id <tile-id> --group-id <group-id> [--index <n>]` | Move a tile into another group in the active composition, or reorder it within its group. |
 | `update --type <tile\|group> --id <id> --path <path> --value-file <value.json>` | Update one existing property. The `updated` result includes `id`, `name`, `elementType`, `namespace`, `path`, `previousValue`, and the applied `value`. |
@@ -70,6 +73,19 @@ Widget Nodes are owner-supplied template outputs, not public Control Nodes. See 
 | `set-font --id <tile-id> [...]` | Set catalog-backed Text family, weight, italic, underline, or alignment properties. |
 
 `--value-file` must point to a readable valid JSON file whose value preserves the existing property's type. Exact widget fields with schema type `datetime` additionally allow a native unset empty string to become an integer Unix millisecond timestamp within the JavaScript Date range, or return to the empty-string sentinel. Other date strings, fractional timestamps, and out-of-range timestamps are rejected. Null and undefined are rejected, so `update` can never act as a delete.
+
+`get-layouts` is the context-efficient read path when complete widget data and schemas are unnecessary. Its homogeneous form uses `--type` plus comma-separated `--ids`; its mixed form uses `--file`. Do not combine those forms. Every result entry is `{ "type", "id", "name", "layout" }` and preserves request order.
+
+`set-layouts` accepts `{ "elements": [{ "type": "tile|group", "id": "...", "layout": { ... } }] }`. Each target may appear once and each partial `layout` must be non-empty. Supported shared fields are `left`, `top`, `width`, `height`, `rotateX/Y/Z`, `anchor`, and the Effect-property set below; groups additionally support clipping and border-radius fields. The complete batch and projected response size are preflighted before mutation. Missing elements, missing tile properties, invalid values, duplicate targets, and Control Node or Widget Node layout links reject the whole operation; supported optional group fields follow `configure-group` and may be added. Successful writes share one editor batch; an unexpected write failure rolls back every target. Results contain each target's previous requested values, complete supported resulting layout, and `changed` status.
+
+```json
+{
+	"elements": [
+		{ "type": "group", "id": "<group-id>", "layout": { "left": 7, "top": 2.5, "width": 76, "height": 7.2 } },
+		{ "type": "tile", "id": "<tile-id>", "layout": { "left": 0, "top": 0, "width": 100, "height": 100 } }
+	]
+}
+```
 
 ```bash
 node scripts/composer-agent.js update --type tile --id <id> --path layout.left --value-file <temporary-directory>/left.json
@@ -331,12 +347,9 @@ The CLI commands are `apply` and `validate`; `graphics.apply` and `graphics.vali
 
 | Command | Purpose |
 | --- | --- |
-| `prepare-capture [--target <root\|active>] [--wait-mode <smart\|timed>] [--timeline <In\|Out> --at <seconds>] [--measurements <path.json>] [--artifact-manifest <path.json>] [--timeout <seconds>] [--settle <seconds>] [--restore-after <seconds>]` | Prepare the existing Composer canvas for a full-resolution Browser screenshot. It returns a capture ID, authoritative marked selector, diagnostic clip, editor resolution, readiness state, optional Timeline/measurement metadata, and optional prepared artifact-manifest metadata; defaults to smart readiness and automatic restoration after 30 seconds. A manifest path is created exclusively and cannot equal the measurement path. Browser must measure the marked element before capture. |
-| `finalize-capture --capture-id <id> --artifact-manifest <path.json> --output <image.png\|image.jpg> --evidence <path.json> [--browser <display-name>]` | Validate one Browser screenshot against its prepared transaction and version-1 geometry evidence, record PNG/JPEG dimensions, bytes, SHA-256, capture mode, and pixel scale, then restore Composer. Success changes the manifest to `complete`; validation failure writes `failed` with a stable sanitized error and still restores. Manifest, image, and evidence paths must be distinct. |
-| `restore-capture --capture-id <id>` | Restore Composer zoom, overlays, scrolling, canvas layout, and target isolation after Browser capture. |
-| `capture --target <root\|active> [--wait-mode <smart\|timed>] [--measurements <path.json>] --output <path.png> [--timeout <seconds>] [--settle <seconds>] [--server <url>]` | Capture the root or active renderer through the standalone Player. `smart` is the default for script-free, finite output; use `timed` for scripts or continuous motion. `--measurements` writes a bounded version-1 Player geometry snapshot immediately before the PNG. Optional `--server` must match the server stored by pairing; it cannot retarget existing credentials. |
+| `capture --target <root\|active> [--template-session <token>] [--wait-mode <smart\|timed>] [--timeline <In\|Out> --at <seconds>] [--measurements <path.json>] --output <path.png> [--timeout <seconds>] [--settle <seconds>] [--server <url>]` | Capture the root or active renderer through the standalone Player. `smart` is the default for script-free, finite output; use `timed` for scripts or continuous motion. A widget-owned active target requires its current template token. Timeline position flags must be supplied together and require `smart`. `--measurements` writes a bounded version-1 Player geometry snapshot immediately before the PNG. Optional `--server` must match the server stored by pairing; it cannot retarget existing credentials. |
 
-Use Browser preparation only when Browser controls the already-open authenticated Composer tab; Composer pairing alone is not browser ownership. Browser and standalone accept the same `smart`/`timed`, settling, exact Timeline-position, and measurement evidence choices, although Browser still owns the actual screenshot bytes. Complete Browser captures through `finalize-capture`; use `restore-capture` only when finalization cannot be invoked. The agent workflow is Browser-owned canvas first and standalone second. See [capture.md](capture.md).
+Use standalone capture for rendered visual evidence. See [capture.md](capture.md).
 
 ## Composition scripts
 

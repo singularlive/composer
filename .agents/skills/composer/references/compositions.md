@@ -8,12 +8,15 @@ Every command operates on the **currently active composition**. Run `inspect` an
 
 ## Structuring graphics with sub-compositions
 
-The structural decision standard for tiles, groups, and sub-compositions lives in [authoring-quality.md](authoring-quality.md). This section describes the Composer-specific mechanics for applying it. When recreating a reference graphic, create one root-level sub-composition for each complete region a user is likely to take in or out, animate, edit, or reuse independently — for example a location/time bug, a story list, a centered lower third, and a bottom ticker.
+The structural decision standard for tiles, groups, and sub-compositions lives in [authoring-quality.md](authoring-quality.md). This section describes the Composer-specific mechanics for applying it. Root is the scene's orchestration and shared-control layer. For every newly authored graphic, create one root-level ordinary sub-composition for each complete unit a user is likely to take in or out, animate, edit, or reuse independently — for example a location/time bug, a story list, a centered lower third, and a bottom ticker. Do not place newly authored visual primitives directly in root.
 
 - Build each module's primitives inside its sub-composition; do not place all reference elements directly in the root.
+- Keep controls used only by one graphic inside that graphic's sub-composition.
+- Keep controls shared by several graphic sub-compositions in root. With the descendant target active, create or link each shared font, color, or theme input using `--source-composition root`; do not duplicate the shared control in every child.
 - Position primitives in scene coordinates. A sub-composition keeps the full Composer canvas coordinate system; it is not cropped to the module's bounds.
 - Keep a separate declarative specification with its own stable keys per sub-composition. `apply` reconciles only the active composition.
 - After assembly, return to the root and verify that every intended module appears as a separate composition tile and can be controlled independently.
+- Preserve pre-existing root visuals unless the user explicitly requests migration; this architecture constrains new authoring rather than granting permission to reorganize unrelated content.
 
 ## Creating, opening, and deleting
 

@@ -2,11 +2,11 @@
 
 Use this index to choose a reference for building or editing widgets in paired Composer. Widget-specific authoring guides live in `widgets/`; this index stays at `references/widgets.md`. Read only the document matching the task, alongside [graphics.md](graphics.md) for shared layout, color, and declarative-specification rules.
 
-Selection follows the creation-default policy in the runtime skill: prefer fully inspectable native text and shape primitives. Do not introduce Bodymovin, Sound, Video, or Web Page content unless the request or supplied material identifies that external runtime dependency. Image, HTML, AISVG, tickers, clocks, timers, Table, and Grid are conditional on their actual semantic need rather than default decoration. Existing specialized widgets may still be inspected, preserved, or edited when the user targets them.
+Selection follows the creation-default policy in the runtime skill: use the matching Metric Text family primitive for newly authored text. Legacy `text` and `text-ticker` remain supported for inspection, editing, and additions that preserve an existing composition's legacy typography. Do not introduce Bodymovin, Sound, Video, or Web Page content unless the request or supplied material identifies that external runtime dependency. Image, HTML, AISVG, tickers, clocks, timers, Table, and Grid are conditional on their actual semantic need rather than default decoration. Existing specialized widgets may still be inspected, preserved, or edited when the user targets them.
 
 | Primitive | Authoring reference | Read it for |
 | --- | --- | --- |
-| `text` | [Text and fonts](widgets/text.md) | Font discovery, structured font values, formatting, and Text edits. |
+| `text` | [Text and fonts](widgets/text.md) | Existing legacy Text inspection and edits, plus consistency-preserving additions. |
 | `metric-text` | [Metric Text](widgets/metric-text.md) | Single-line Font 2.0 text, character alignment, fitting, spacing, and insets. |
 | `metric-text-ticker` | [Metric Text Ticker](widgets/metric-text-ticker.md) | Horizontal Font 2.0 message crawl with speed, direction and image separators. |
 | `text-ticker` | [Text Ticker](widgets/text-ticker.md) | Legacy-font horizontal message crawl with speed, direction and image separators. |

@@ -17,6 +17,10 @@ Plan the required structure, public inputs, lifecycle, and acceptance checks in 
 
 Apply the construction rules, visual-quality requirements, and completion gate below to the user's requirements and the task-specific choices. They remain the standard for every graphic, including work created from a sparse prompt.
 
+## Capture budget
+
+Use zero captures for nonvisual or model-only work and normally one for a straightforward visual build or fix. For reference-driven work, allow up to five successful refinement captures by default; baseline, settled In, settled Out, and required animation-state evidence are verification captures and do not consume that budget. Continue past five only while each pass addresses a concrete discrepancy, with ten successful refinement captures as the emergency ceiling. Failed captures do not count. Never recapture unchanged output. Stop when the result is close enough, the latest pass makes no meaningful improvement, two consecutive passes fail to reduce the discrepancy, or Composer returns a non-recoverable apply or capture error.
+
 ## Part 1: Effective Composer construction
 
 ### Scope and preservation
@@ -28,16 +32,18 @@ Apply the construction rules, visual-quality requirements, and completion gate b
 
 ### Choose the right structural unit
 
+- Treat the **root composition** as an orchestration and shared-control layer. New visual graphics belong in root-level ordinary sub-compositions, not as Rectangle, Text, Image, or other visual tiles directly in root.
 - Use a **tile** for one independently editable visual or widget, such as a background shape, text value, image, divider, or table. Do not combine separately aligned or separately controlled values into one tile merely to reduce element count.
-- Use a **group** when elements in the same composition need shared clipping, bounds, layer movement, or a genuinely shared animation lifecycle. Do not group persistent and transient elements under one hiding animation.
+- Use a **group** when elements in the same composition need shared clipping, bounds, layer movement, or a genuinely shared animation lifecycle. Put the unit's canvas position and size on that group; make its children fill the group or use simple local insets so a human can move and resize the complete unit from one place. Position a child independently only when its role genuinely requires geometry outside that shared frame. Do not group persistent and transient elements under one hiding animation.
 - Use a **sub-composition** for a complete module the user is likely to take in or out, animate, edit, reuse, or control independently. Examples include a score bug, lower third, story list, or ticker.
 - Keep sibling modules in sibling sub-compositions even when they normally appear together. Nest only when a module contains another independently controlled module.
 - Group by control and lifecycle intent, not by primitive type. A module's background, accents, images, primary text, and supporting text should remain operationally coherent.
 - Remember that ordinary sub-compositions retain the full Composer canvas coordinate system; they are control boundaries, not cropped layout regions.
+- Preserve existing root visuals unless the user explicitly asks to migrate or replace them; the sub-composition rule governs new authoring and does not authorize unrelated restructuring.
 
 ### Prefer editable native structure
 
-- Prefer standard Text, Rectangle, Circle, Image, and supported widget primitives when they can express the design cleanly.
+- Prefer Metric Text family widgets, Rectangle, Circle, Image, and other supported native primitives when they can express the design cleanly. Use legacy Text for new elements only when extending a composition that already uses it and consistency is more important than introducing Font 2.0; continue to understand and preserve existing Text widgets.
 - Use Table for genuinely repeated tabular content rather than manually duplicating rows.
 - Use AISVG only for the bounded vector, mask, filter, path, or motion portion that standard primitives cannot represent faithfully. Keep ordinary text and images as native elements when independent editing is valuable.
 - Add composition scripts only when persisted runtime logic is required. Do not use a script to replace structure, links, timelines, or widget behavior that Composer already represents directly.
@@ -54,7 +60,8 @@ Apply the construction rules, visual-quality requirements, and completion gate b
 ### Design the public control contract
 
 - Identify values the user or an external system is expected to change, and give those values stable widget or Control Node contracts.
-- Keep a control in the same module as the element it drives unless inherited or cross-composition control is intentional.
+- Keep graphic-specific controls in the same sub-composition as the elements they drive.
+- Put a font, color palette, or other theme Control Node in root when it is intentionally shared by some or all root-level graphic sub-compositions, then link each descendant target to that one root-owned source through the native ancestor-control path.
 - Use a direct link when one public input maps directly to one widget property. Use a script only when an input must be interpreted, combined, formatted, or routed.
 - Do not expose Transform or Effect properties as Control Nodes merely because they are technically linkable. Expose them only when the user asks for those exact public controls.
 - Once a script relies on a composition or widget name, treat that name as part of the runtime contract and change the structure and script together.

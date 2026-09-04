@@ -9,7 +9,7 @@ node scripts/composer-agent.js get --type tile --id <grid-tile-id>
 node scripts/composer-agent.js open-widget-subcomposition --id <grid-tile-id> --field composition --create
 ```
 
-Prefer a stable-keyed `apply` for a complete graphic. Build the cell inside the native hidden template; never substitute `create-composition`. Expose its per-cell fields as Control Nodes, then return to the owning scope and read the Grid again. Template IDs change on exit; use the owner tile plus `composition` field to reopen. Grid sends each item to the template's Control Nodes, not Widget Nodes.
+Prefer a stable-keyed `apply` for a complete graphic. Build the cell inside the native hidden template; never substitute `create-composition`. Retain the returned `identityScope.sessionToken` and pass `--template-session <token>` on every later template read or mutation. Expose its per-cell fields as Control Nodes, then return to the owning scope and read the Grid again. Template IDs change on exit; use the owner tile plus `composition` field to reopen. Grid sends each item to the template's Control Nodes, not Widget Nodes.
 
 ## Content and options
 

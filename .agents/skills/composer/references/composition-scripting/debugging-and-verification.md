@@ -42,21 +42,21 @@ Do not assume `temp/` is git-ignored: the Singular repository ignores `tmp/`, no
 
 ## Playwright installation
 
-The bundled verifier uses the `playwright-core` library installed with `@playwright/cli`, matching standalone capture. It can run in place; copy it to `temp/` only when a task needs custom trigger or inspection logic.
+The bundled verifier uses the `playwright-core` library installed with `@playwright/cli`, matching standalone capture. Run it in place. Put scenario files and any genuinely custom harness in `temp/`; do not copy the verifier for behavior its declarative scenario contract already supports.
 
 ```powershell
 playwright-cli --version
 playwright-cli install-browser chrome
 ```
 
-Copy the verify script to `temp/` and run it from there:
+Run the bundled verifier from its repository location:
 
 ```powershell
 node scripts/composer-agent.js script-handoff --compact |
   node scripts/verifyComposition.mjs --handoff-file -
 ```
 
-Prefer a version-1 `--scenario-file` for supported payload, message, state, lifecycle, DOM, bounds, and checkpoint behavior. Modify the copied script only when the required external trigger or assertion is outside that bounded contract. The original stays untouched.
+Prefer a version-1 `--scenario-file` for supported payload, message, state, lifecycle, DOM, bounds, and checkpoint behavior. Create a separate custom harness under `temp/` only when the required external trigger or assertion is outside that bounded contract. Keep the bundled verifier untouched.
 
 ### Screenshot output
 
@@ -64,7 +64,7 @@ The Playwright verification script saves frame screenshots to `temp/` by default
 
 ### Programmatic widget-property verification
 
-When an AI agent cannot visually interpret screenshots, verify widget layout properties (position, size) by querying the player iframe DOM programmatically using Playwright. The player renders widgets as SVG elements inside a cross-origin iframe.
+When an AI agent cannot visually interpret screenshots, prefer the capture command's bounded measurement snapshot for widget layout properties. For a custom Player assertion, query the exact inspected Singular wrapper or target element and use its `getBoundingClientRect()`; the Player may render widget internals as SVG inside a cross-origin iframe.
 
 **Accessing the player iframe** — use Playwright's `page.frames().find()` which works across origins:
 
@@ -72,7 +72,7 @@ When an AI agent cannot visually interpret screenshots, verify widget layout pro
 const playerFrame = page.frames().find(f => f.url().includes('singularplayer/output'));
 ```
 
-**Querying widget position and size from the iframe** — inspect SVG `rect` elements and their bounding boxes inside the player frame:
+**Inspecting SVG internals from the iframe** — query SVG `rect` elements only when the requested question concerns those vector shapes:
 
 ```js
 const rectInfo = await playerFrame.evaluate(() => {
@@ -93,12 +93,12 @@ const rectInfo = await playerFrame.evaluate(() => {
 });
 ```
 
-The bounding rectangle values are relative to the player viewport. Use these to compute percentages and confirm expected layout (e.g. "bottom edge near 720px on a 720px canvas" = positioned at bottom).
+The bounding rectangle values are relative to the player viewport, but an SVG `<rect>`'s `x`, `y`, `width`, and `height` attributes are local vector geometry. Generic `<rect>` matches do not establish their owning widget's layout or identity. Use the exact inspected wrapper or a measurement snapshot for placement claims.
 
-**Custom scripts**: Any custom Playwright ESM script must be placed or copied into `temp/`. The script finds Playwright in `temp/node_modules/` via ESM upward resolution. You may modify copied scripts as needed to tailor verification logic.
+**Custom scripts**: Place custom Playwright ESM harnesses in `temp/` and keep them out of commits. A custom harness must implement explicit module resolution for the installed `@playwright/cli` environment as the bundled verifier does; its location under `temp/` does not provide `temp/node_modules`.
 
 ```powershell
-node temp/my-custom-verify.mjs   # finds playwright in temp/node_modules/
+node temp/my-custom-verify.mjs
 ```
 
 ## Verification workflow

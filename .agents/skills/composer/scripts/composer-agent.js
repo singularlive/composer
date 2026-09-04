@@ -13,20 +13,12 @@ const {
   createCaptureError,
   MAX_CAPTURE_BYTES
 } = require('./capture-composition-preview');
-const {
-  createPreparedManifest,
-  readPreparedManifest,
-  finalizeManifest,
-  failManifest,
-  writeExistingManifest
-} = require('./browser-capture-artifact');
 const { createWidgetReferences } = require('./widget-script-references');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 49;
+const SKILL_VERSION = 56;
 const DEFAULT_TIMEOUT_MS = 15000;
-const MAX_MEASUREMENT_BYTES = 1024 * 1024;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
 const CREDENTIALS_OVERRIDE_PATH = process.env.COMPOSER_AGENT_CREDENTIALS || null;
@@ -1023,43 +1015,6 @@ async function updateTable(options, isGrid = false) {
   };
 }
 
-function savePreparedCaptureMeasurements(result, outputPath) {
-  const snapshot = result && result.measurementSnapshot;
-  if (!snapshot) {
-    throw createCaptureError(
-      'MEASUREMENT_WRITE_FAILED',
-      'Browser capture preparation did not return the requested measurement snapshot'
-    );
-  }
-  const serialized = `${JSON.stringify(snapshot, null, 2)}\n`;
-  const sizeBytes = Buffer.byteLength(serialized, 'utf8');
-  if (sizeBytes > MAX_MEASUREMENT_BYTES) {
-    throw createCaptureError(
-      'MEASUREMENT_TOO_LARGE',
-      'Browser capture measurement snapshot exceeds the 1 MB limit'
-    );
-  }
-  const resolvedPath = path.resolve(outputPath);
-  try {
-    fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
-    fs.writeFileSync(resolvedPath, serialized);
-  } catch (error) {
-    throw createCaptureError(
-      'MEASUREMENT_WRITE_FAILED',
-      'Unable to write the Browser capture measurement snapshot'
-    );
-  }
-  delete result.measurementSnapshot;
-  result.measurements = {
-    output: resolvedPath,
-    schemaVersion: snapshot.schemaVersion,
-    elementCount: snapshot.summary && snapshot.summary.elementCount || 0,
-    truncated: snapshot.summary && snapshot.summary.truncated === true,
-    sizeBytes: sizeBytes
-  };
-  return result;
-}
-
 function parseCaptureSeconds(options, name, defaultValue, allowZero) {
   if (options[name] === undefined) return defaultValue;
   const value = Number(options[name]);
@@ -1145,146 +1100,6 @@ function normalizeCaptureOptions(options) {
   };
 }
 
-function normalizePreparedCaptureOptions(options) {
-  assertAllowedOptions(
-    options,
-    ['target', 'restore-after', 'measurements', 'artifact-manifest', 'timeout', 'settle', 'wait-mode', 'timeline', 'at', 'compact'],
-    'prepare-capture'
-  );
-  const target = normalizeCaptureTarget(options);
-  const waitMode = options['wait-mode'] || 'smart';
-  if (waitMode !== 'smart' && waitMode !== 'timed') {
-    throw createCaptureError(
-      'INVALID_CAPTURE_WAIT_MODE',
-      '--wait-mode must be "smart" or "timed"'
-    );
-  }
-  const hasTimeline = options.timeline !== undefined;
-  const hasAt = options.at !== undefined;
-  if (hasTimeline !== hasAt) {
-    throw createCaptureError(
-      'INVALID_CAPTURE_TIMELINE',
-      '--timeline and --at must be provided together'
-    );
-  }
-  let timeline = null;
-  let atSeconds = null;
-  if (hasTimeline) {
-    timeline = options.timeline;
-    if (timeline !== 'In' && timeline !== 'Out') {
-      throw createCaptureError('INVALID_CAPTURE_TIMELINE', '--timeline must be "In" or "Out"');
-    }
-    if (waitMode !== 'smart') {
-      throw createCaptureError(
-        'INVALID_CAPTURE_TIMELINE',
-        'Timeline-position capture requires --wait-mode smart'
-      );
-    }
-    atSeconds = parseCaptureSeconds(options, 'at', null, true);
-  }
-  const restoreAfter = parseCaptureSeconds(options, 'restore-after', 30, false);
-  if (restoreAfter < 5 || restoreAfter > 120) {
-    throw new Error('--restore-after must be between 5 and 120 seconds');
-  }
-  if (
-    options.measurements &&
-    options['artifact-manifest'] &&
-    path.resolve(options.measurements) === path.resolve(options['artifact-manifest'])
-  ) {
-    throw createCaptureError(
-      'CAPTURE_ARTIFACT_INVALID',
-      '--measurements and --artifact-manifest must use different paths'
-    );
-  }
-  return {
-    target: target,
-    restoreAfterMs: restoreAfter * 1000,
-    measurementsPath: options.measurements || null,
-    artifactManifestPath: options['artifact-manifest'] || null,
-    waitMode: waitMode,
-    timeoutMs: parseCaptureSeconds(options, 'timeout', 30, false) * 1000,
-    settleMs: parseCaptureSeconds(
-      options,
-      'settle',
-      waitMode === 'timed' ? 2 : 0,
-      true
-    ) * 1000,
-    timeline: timeline,
-    atSeconds: atSeconds
-  };
-}
-
-async function finalizePreparedCapture(options) {
-  assertAllowedOptions(
-    options,
-    ['capture-id', 'artifact-manifest', 'output', 'evidence', 'browser', 'compact'],
-    'finalize-capture'
-  );
-  const captureId = requireOption(options, 'capture-id');
-  const manifestPath = requireOption(options, 'artifact-manifest');
-  const outputPath = requireOption(options, 'output');
-  const evidencePath = requireOption(options, 'evidence');
-  const distinctPaths = [manifestPath, outputPath, evidencePath].map(function (value) {
-    return path.resolve(value);
-  });
-  let prepared;
-  try {
-    if (new Set(distinctPaths).size !== distinctPaths.length) {
-      throw createCaptureError(
-        'CAPTURE_ARTIFACT_INVALID',
-        '--artifact-manifest, --output, and --evidence must use different paths'
-      );
-    }
-    prepared = readPreparedManifest(manifestPath, captureId);
-  } catch (error) {
-    try {
-      await executeCommand('preview.restoreCapture', { captureId });
-    } catch (restoreError) {
-      // The manifest error remains authoritative; automatic recovery is the final fallback.
-    }
-    throw error;
-  }
-  let artifact;
-  let artifactError = null;
-  try {
-    artifact = finalizeManifest(prepared.manifest, {
-      outputPath,
-      evidencePath,
-      browser: options.browser
-    });
-  } catch (error) {
-    artifactError = error;
-    artifact = failManifest(prepared.manifest, error);
-  }
-
-  let restoration;
-  try {
-    restoration = await executeCommand('preview.restoreCapture', { captureId });
-  } catch (error) {
-    restoration = {
-      restored: false,
-      error: {
-        code: error.code || 'CAPTURE_RESTORE_FAILED',
-        message: 'Composer capture restoration failed'
-      }
-    };
-    if (!artifactError) artifactError = error;
-  }
-  artifact.restoration = restoration;
-  writeExistingManifest(prepared.resolvedPath, artifact);
-  if (artifactError) throw artifactError;
-  return {
-    artifactManifest: {
-      output: prepared.resolvedPath,
-      schemaVersion: artifact.schemaVersion,
-      status: artifact.status
-    },
-    screenshot: artifact.screenshot,
-    evidence: artifact.evidence,
-    restoration: artifact.restoration
-  };
-}
-
 function getActiveCaptureTarget(inspection) {
   const activeComposition = inspection && inspection.activeComposition;
   const stack = activeComposition && activeComposition.stack;
@@ -1363,10 +1178,6 @@ async function captureStandalone(options) {
   });
   result.editorResolution = { width: preview.width, height: preview.height };
   return validateCaptureFile(result);
-}
-
-async function captureWithSource(options) {
-  return captureStandalone(options);
 }
 
 function createActiveCompositionStructure(inspection) {
@@ -2090,6 +1901,35 @@ async function run() {
         ids: parseIds(requireOption(parsed.options, 'ids'))
       });
       break;
+    case 'get-layouts': {
+      assertAllowedOptions(parsed.options, ['type', 'ids', 'file', 'compact'], 'get-layouts');
+      let elements;
+      if (parsed.options.file !== undefined) {
+        if (parsed.options.type !== undefined || parsed.options.ids !== undefined) {
+          throw new Error('get-layouts accepts either --file or --type/--ids, not both');
+        }
+        const specification = readJsonFile(parsed.options.file, 'layout target specification');
+        elements = Array.isArray(specification) ? specification : specification.elements;
+      } else {
+        const elementType = parsed.options.type || 'tile';
+        elements = parseIds(requireOption(parsed.options, 'ids')).map(function (id) {
+          return { type: elementType, id: id };
+        });
+      }
+      result = await executeCommand('element.layouts.getMany', { elements: elements });
+      break;
+    }
+    case 'set-layouts': {
+      assertAllowedOptions(parsed.options, ['file', 'compact'], 'set-layouts');
+      const specification = readJsonFile(
+        requireOption(parsed.options, 'file'),
+        'layout assignment specification'
+      );
+      result = await executeCommand('element.layouts.setMany', {
+        elements: Array.isArray(specification) ? specification : specification.elements
+      });
+      break;
+    }
     case 'select':
       result = await executeCommand('element.select', getElementParams(parsed.options));
       break;
@@ -2335,55 +2175,7 @@ async function run() {
       });
       break;
     case 'capture':
-      result = await captureWithSource(normalizeCaptureOptions(parsed.options));
-      break;
-    case 'prepare-capture': {
-      const captureOptions = normalizePreparedCaptureOptions(parsed.options);
-      result = await executeCommand('preview.prepareCapture', {
-        target: captureOptions.target,
-        restoreAfterMs: captureOptions.restoreAfterMs,
-        waitMode: captureOptions.waitMode,
-        timeoutMs: captureOptions.timeoutMs,
-        settleMs: captureOptions.settleMs,
-        timeline: captureOptions.timeline,
-        atSeconds: captureOptions.atSeconds,
-        includeMeasurements: Boolean(captureOptions.measurementsPath)
-      }, Math.max(DEFAULT_TIMEOUT_MS, captureOptions.timeoutMs + 5000));
-      if (captureOptions.measurementsPath) {
-        try {
-          result = savePreparedCaptureMeasurements(result, captureOptions.measurementsPath);
-        } catch (error) {
-          try {
-            await executeCommand('preview.restoreCapture', { captureId: result && result.captureId });
-          } catch (restoreError) {
-            // The editor's automatic deadline remains the final recovery path.
-          }
-          throw error;
-        }
-      }
-      if (captureOptions.artifactManifestPath) {
-        try {
-          const preparedArtifact = createPreparedManifest(result, captureOptions.artifactManifestPath);
-          result.artifactManifest = preparedArtifact.metadata;
-        } catch (error) {
-          try {
-            await executeCommand('preview.restoreCapture', { captureId: result && result.captureId });
-          } catch (restoreError) {
-            // The editor's automatic deadline remains the final recovery path.
-          }
-          throw error;
-        }
-      }
-      break;
-    }
-    case 'finalize-capture':
-      result = await finalizePreparedCapture(parsed.options);
-      break;
-    case 'restore-capture':
-      assertAllowedOptions(parsed.options, ['capture-id', 'compact'], 'restore-capture');
-      result = await executeCommand('preview.restoreCapture', {
-        captureId: requireOption(parsed.options, 'capture-id')
-      });
+      result = await captureStandalone(normalizeCaptureOptions(parsed.options));
       break;
     case 'primitives':
       result = await executeCommand('primitives.list');
@@ -2433,7 +2225,7 @@ async function run() {
     }
     default:
       throw new Error(
-      'Usage: composer-agent.js <pair|pair-intent|start-work|finish-work|status|complete|inspect|script-handoff|control-composition|create-composition|orchestrate|create-revision|list-revisions|read-revision|compare-revision|restore-revision|delete-revision|delete-composition|open-composition|widget-subcompositions|open-widget-subcomposition|update-table|update-grid|timeline2|control-nodes|metric-fonts|widget-nodes|link-widget-nodes|unlink-widget-nodes|set-control-value|set-control-font|create-table-control|set-table-control|update-table-control|link-table-control|unlink-table-control|press-control|timer-action|control-time|update-control|create-control-container|configure-control-container|delete-control-container|create-control|create-controls|delete-control|get|get-many|select|move|update|fonts|set-font|timeline-animations|set-timeline-animation|set-timeline-animations|update-animations|set-update-animation|set-update-animations|behaviors|set-behavior|set-behaviors|create-group|configure-group|move-group|delete-group|capture|prepare-capture|finalize-capture|restore-capture|primitives|ensure-group|create|delete|validate|apply> [options]'
+      'Usage: composer-agent.js <pair|pair-intent|start-work|finish-work|status|complete|inspect|script-handoff|control-composition|create-composition|orchestrate|create-revision|list-revisions|read-revision|compare-revision|restore-revision|delete-revision|delete-composition|open-composition|widget-subcompositions|open-widget-subcomposition|update-table|update-grid|timeline2|control-nodes|metric-fonts|widget-nodes|link-widget-nodes|unlink-widget-nodes|set-control-value|set-control-font|create-table-control|set-table-control|update-table-control|link-table-control|unlink-table-control|press-control|timer-action|control-time|update-control|create-control-container|configure-control-container|delete-control-container|create-control|create-controls|delete-control|get|get-many|get-layouts|set-layouts|select|move|update|fonts|set-font|timeline-animations|set-timeline-animation|set-timeline-animations|update-animations|set-update-animation|set-update-animations|behaviors|set-behavior|set-behaviors|create-group|configure-group|move-group|delete-group|capture|primitives|ensure-group|create|delete|validate|apply> [options]'
       );
   }
 

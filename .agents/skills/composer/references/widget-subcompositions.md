@@ -48,6 +48,6 @@ Opening or fully inspecting the active template returns `identityScope.sessionTo
 
 Once open, ordinary active-composition commands apply: `inspect`, `get`, `apply`, `control-nodes`, and the other scoped composition operations. Read the Control Nodes before changing a dynamic template. Commands within the same uninterrupted edit session may use the active ID reported by `inspect`. Return to root with `open-composition --id root`, then immediately invalidate that ID and re-read the owner to obtain the rebuilt relationship.
 
-`capture --target active` is widget-aware. Standalone capture follows `activeComposition.widgetSubComposition.widgetTileId` into the owning widget iframe and captures the visually active runtime instance of the template. Paired capture uses Composer's dedicated standalone widget-template canvas. Root capture remains a capture of the full scene and widget-rendered result.
+`capture --target active` is widget-aware. The standalone capture follows `activeComposition.widgetSubComposition.widgetTileId` into the owning widget iframe and captures the visually active runtime instance of the template. Root capture remains a capture of the full scene and widget-rendered result. There is no separate paired-editor capture mode.
 
 Do not infer widget rendering behavior from the template alone. The owning widget controls instance count, sizing, state, timing, and the values supplied to exposed controls. Use the widget-specific reference when one exists.

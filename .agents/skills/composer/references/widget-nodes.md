@@ -23,7 +23,7 @@ An empty field list means that the chosen source has no declared Widget Nodes. D
 For a target inside an ordinary child of the template, keep that child active and inspect the known ancestor explicitly:
 
 ```bash
-node scripts/composer-agent.js widget-nodes --source-composition <ancestor-composition-id>
+node scripts/composer-agent.js widget-nodes --source-composition <ancestor-composition-id> --template-session <token>
 ```
 
 The default source is `self`. Explicit sources may be the active composition, `root`, or a composition on its current ancestor stack. Siblings, descendants, and unrelated scopes are rejected. Source selection affects the returned fields; the returned links still describe targets in the active composition.
@@ -70,7 +70,7 @@ All 1–100 entries are preflighted before mutation. Unknown fields or targets, 
 
 ## Unlink without changing the source
 
-Use `unlink-widget-nodes --file <links.json>` with the same target/source entries. Omit `replace`; it is not accepted for unlinking. The command removes only a matching Widget Node link. A different source or a Control Node link is a conflict, not permission to remove it. An absent link returns `unchanged`; a removed link returns `unlinked`. Stale source field IDs can be unlinked when the recorded source location and ID still match.
+Use `unlink-widget-nodes --file <links.json> --template-session <token>` with the same target/source entries. Omit `replace`; it is not accepted for unlinking. The command removes only a matching Widget Node link. A different source or a Control Node link is a conflict, not permission to remove it. An absent link returns `unchanged`; a removed link returns `unlinked`. Stale source field IDs can be unlinked when the recorded source location and ID still match.
 
 Unlinking preserves the Widget Node schema and payload and leaves native target-value behavior to Composer. Inspect the target before setting an explicit unlinked value. Do not use `delete-control`, direct data updates, or raw data-link writes to disconnect a Widget Node.
 
@@ -78,7 +78,7 @@ Unlinking preserves the Widget Node schema and payload and leaves native target-
 
 Follow [widget-subcompositions.md](widget-subcompositions.md): all identities discovered inside a widget-owned template are edit-session scoped, even if some values happen to survive a copy. Resolve the template again from the owner tile and field; rediscover target elements, fields, and links on reopening. Local native links use `self` or `<selfCompId>`, so they follow the copied template. Do not retain an ancestor template ID, descendant target ID, or Widget Node `keyId` across edit sessions.
 
-The template relationship's `mode`/`controls` describe its Control Node contract only. A template labeled `static` there may still contain Widget Nodes and changing output. Inspect `widget-nodes` before deciding that it is static visually.
+The template relationship's `mode`/`controls` describe its Control Node contract only. A template labeled `static` there may still contain Widget Nodes and changing output. Inspect both `control-nodes` and `widget-nodes` before changing a target or deciding that it is static visually.
 
 The script handoff includes a separate `widgetNodes` snapshot of the active source and target links; the helper's fast summary preserves it. This does not put Widget Nodes into `comp.getPayload2()` or make them public controls. Full persisted summaries retain native links but are not the dedicated Widget Node discovery API; use paired `widget-nodes` in the relevant scope. For script work, follow [composition-scripts.md](composition-scripts.md) and the owning widget's payload/message reference.
 

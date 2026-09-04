@@ -7,7 +7,7 @@ node scripts/composer-agent.js get --type tile --id <table-tile-id>
 node scripts/composer-agent.js widget-subcompositions --id <table-tile-id>
 ```
 
-Create a new managed Table with either `create --primitive table --name <label>` or a declarative element whose primitive is `table`. Creation follows Composer's normal widget defaults; it does not invent or replace the `composition` relationship. If the new Table has no assigned row template, run `open-widget-subcomposition --id <table-tile-id> --field composition --create`. This uses Composer's native hidden widget-template path and leaves the agent inside the new template for ordinary `apply` and Control Node work. Never use `create-composition` for the row template because it creates an ordinary visible parent tile.
+Create a new managed Table with either `create --primitive table --name <label>` or a declarative element whose primitive is `table`. Creation follows Composer's normal widget defaults; it does not invent or replace the `composition` relationship. If the new Table has no assigned row template, run `open-widget-subcomposition --id <table-tile-id> --field composition --create`. This uses Composer's native hidden widget-template path and leaves the agent inside the new template. Retain its `identityScope.sessionToken` and pass `--template-session <token>` on every subsequent `apply`, Control Node, or other template-scoped command. Never use `create-composition` for the row template because it creates an ordinary visible parent tile.
 
 ## Rendering model
 
@@ -66,4 +66,4 @@ The command:
 
 Supported options are `layoutDirection`, `elementsPerPage`, `lineSpacing`, `updateStyle`, `pageTransitionStyle`, `pageTransitionOffset`, `showLayout`, and `currentPage`. The command never changes the `composition` relationship.
 
-After an update, inspect the table and capture the root preview. If you edit the row template, returning to root intentionally triggers Composer's copy-on-exit lifecycle and replaces the template ID. Discard the edit-session ID, re-read the Table's `composition` relationship, and only then update or capture the table.
+After an update, inspect the Table. Capture only when pixels answer a remaining visual question: prefer `capture --target active` while the Table's ordinary graphic sub-composition is active, and use root only when the whole-scene combination is the acceptance target. If you edit the row template, leaving it intentionally triggers Composer's copy-on-exit lifecycle and replaces the template ID. Discard the edit-session ID, re-read the Table's `composition` relationship, and only then update or capture the Table.

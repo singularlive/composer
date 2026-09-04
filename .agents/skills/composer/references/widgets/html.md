@@ -15,7 +15,7 @@ Supply a string containing an HTML fragment, not a URL, object, or complete page
 }
 ```
 
-The renderer replaces the entire fragment when `source` changes. Include every child and style still needed in each replacement; `source: ""` clears the content. Composer placement owns the widget bounds. Size the fragment within those bounds and verify wrapping, clipping, fonts, and resizing in the Player. Prefer ordinary Text and shape primitives when their independent editing and native controls serve the requested design.
+The renderer replaces the entire fragment when `source` changes. Include every child and style still needed in each replacement; `source: ""` clears the content. Composer placement owns the widget bounds. Size the fragment within those bounds and verify wrapping, clipping, fonts, and resizing in the Player. Prefer Metric Text family and shape primitives when their independent editing and native controls serve the requested design; use legacy Text only for consistency with an existing legacy composition.
 
 This is an **unsanitized HTML renderer**. The paired adapter enforces the existing string type and serialized-value 32 KB limit; it does not sanitize HTML, validate CSS, or prevent resource loading. Use trusted, task-authored display markup. Escape externally supplied text before interpolation. Do not pass untrusted HTML through a public Textarea control, add event-handler attributes, script tags, executable URLs, or external resources as a workaround for composition scripting. HTML widget support does not add a script-execution command to the paired relay. Persist behavior through the separate [composition-script workflow](../composition-scripts.md).
 

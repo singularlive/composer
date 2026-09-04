@@ -38,7 +38,7 @@ This order ensures that when the root script initializes, it has access to all t
 
 ### 1.2 Essential Script Functions
 
-All composition scripts must have an `init()` and a `close()` function.
+All composition scripts must have an `init()` function. `close()` is optional in the runtime contract but strongly recommended, and it is required whenever the script owns listeners, timers, intervals, requests, streams, or other resources that need cleanup.
 
 *   The **`init()` function** is where custom code and variables are initialized. It provides access to a **composition object** (`comp`) and **context**.
 *   The **`close()` function** is used to clean up memory, clear timeouts/intervals, and close data streams, XHR requests, etc..
@@ -558,7 +558,7 @@ When a sub-composition receives data in control nodes, interprets it, and update
 
 #### Example: Reading control nodes, generating HTML, and updating a widget’s text property
 
-This script reads `firstname` and `lastname` from control nodes (via `comp.getPayload2()`), formats it into HTML, and updates a widget (`wiFullname`) via `setPayload()`.
+This script reads `firstname` and `lastname` from control nodes (via `comp.getPayload2()`), combines them as plain text, and updates a widget (`wiFullname`) via `setPayload()`. Use explicit HTML escaping before interpolation when rich text is actually required.
 [Lower subcomposition Script]
 ```javascript
 (function() {
@@ -570,10 +570,10 @@ This script reads `firstname` and `lastname` from control nodes (via `comp.getPa
         console.log("Composition payload " + comp.name, event, msg);
         // read control nodes content
         const p = comp.getPayload2();
-        const htmlText = `<html>${p.firstname} <b>${p.lastname}</b></html>`;
+        const fullName = String(p.firstname || "") + " " + String(p.lastname || "");
         // update text widget
         wiFullname.setPayload({
-          "text": htmlText
+          "text": fullName
         });
         e.stopPropagation();
       });
@@ -644,10 +644,10 @@ This example shows how to read control node payload using `getPayload()` (array 
         console.log("Composition payload " + comp.name, event, msg);
         // read control nodes content
         const p = comp.getPayload2();
-        const htmlText = `<html>${p.firstname} <b>${p.lastname}</b></html>`;
+        const fullName = String(p.firstname || "") + " " + String(p.lastname || "");
         // update text widget
         wiFullname.setPayload({
-          "text": htmlText
+          "text": fullName
         });
         e.stopPropagation();
       });
@@ -757,7 +757,7 @@ This example demonstrates the preferred way to resize and reposition widgets dyn
       const wiLogo = comp.findWidget("Logo")[0];
       wiLogo.setSizeX(20);
       wiLogo.setSizeY(20);
-      wiLogo.setPayload({url: "https://example.com/logo.png"});
+      wiLogo.setPayload({image: "https://example.com/logo.png"});
     },
     close: function(comp, context) {}
   };
