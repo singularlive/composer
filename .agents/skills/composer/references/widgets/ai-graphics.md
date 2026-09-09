@@ -14,8 +14,8 @@ The field value is one parseable JSON string following `app/components/widgets/a
 
 1. Generate the complete definition from the source-controlled AI authoring contract.
 2. Create or reconcile the `ai-graphics` tile with only its static `definition` property, then position and size the tile in Composer. Include required animation and effect runway in those bounds.
-3. Read the created tile again after the definition installs; its generated fields are published dynamically and cannot be inferred from the initial static schema.
-4. Create semantic Control Nodes only for generated values intended as public inputs. The `definition` field must remain non-linkable.
+3. Read the created tile again after the definition installs to verify its definition and layout. Generated fields are published in the Composer UI, but the current agent adapter does not merge this widget's generated model into its typed field discovery.
+4. Do not promise agent-created links to generated fields: the current Control Node adapter resolves catalog fields only. The `definition` field must remain non-linkable. If generated public inputs are required, report this limitation and ask the user to configure the links in Composer or approve a supported design alternative; never bypass typed commands or invent a field schema.
 5. Read the Timeline animation catalog and assign the `widget` effect to every authored timeline. Enable **2 timelines** when the definition owns a separate Out choreography; with it disabled, taking the composition Out reverses In and the authored Out timeline is dormant.
 6. Verify responsive geometry and finite In/Out behavior in Player. Composer model readback alone cannot prove Shadow DOM rendering or lifecycle JavaScript.
 
@@ -34,7 +34,7 @@ The field value is one parseable JSON string following `app/components/widgets/a
 
 - Keep the installed DOM persistent. Cache nodes in `mount()` and mutate only keys present in `changes` during `update()`.
 - Treat generated field declarations as Composer UI schema, not runtime JavaScript type guarantees. Composer controls and Control Node payloads may deliver serialized values; for example, a `number` or `normalizednumber` edit can reach `update()` as a numeric string.
-- Normalize each changed value according to its declared field type before using it. Parse finite numeric strings explicitly; handle boolean strings such as `"false"` without truthiness coercion; preserve text and selection strings; and validate the shape of color, image, and metricfont objects. Define a deliberate fallback for empty, malformed, or out-of-range input.
+- Normalize each changed value according to its declared field type before using it. Parse finite numeric strings explicitly; handle boolean strings such as `"false"` without truthiness coercion; preserve text and selection strings; and validate color and metricfont objects. Image inputs may be URL strings or objects with `url` or `src`; use `context.assets.resolveImage(value)` for those supported forms. Define a deliberate fallback for empty, malformed, or out-of-range input.
 - Normalize only keys present in `changes`. Do not rebuild a complete payload, coerce absent fields, or rely on `typeof` checks that reject valid serialized control values.
 - Write dynamic text with `textContent`, not `innerHTML`.
 - Render finite motion deterministically in `seek(animation, context)` from `animation.timeline` and normalized `animation.progress`. Progress is timeline-local and advances from 0 to 1 for both In and Out; do not globally invert Out progress. Map individual exit properties from settled to hidden as needed.
@@ -46,11 +46,11 @@ The field value is one parseable JSON string following `app/components/widgets/a
 
 ## Verification
 
-- Read back the tile definition, generated schema, layout, In/Out effects, keyframes, and active composition's `timeline2Active` value before visual acceptance.
+- Read back the tile definition, layout, In/Out effects, keyframes, and active composition's `timeline2Active` value before visual acceptance. Report generated-schema and link verification as pending when the typed adapter cannot expose them; the definition's field declarations alone are not live schema readback.
 - Exercise generated controls through the actual Composer UI or equivalent persisted payload path. Read back both the value and its runtime type, then verify the rendered result; a numeric command-path test alone does not prove that a formatted numeric string from the UI is handled.
 - Open the ordinary module that owns the widget timeline and use active-composition capture. A root capture seeks only the root timeline and is the wrong target for an independently timed nested module.
 - Capture and view exact start, representative midpoint, and settled/end positions. Distinct seek reports or PNG byte sizes are diagnostics, not substitutes for viewing every retained frame.
 - At a midpoint where content is transformed, confirm that its motion envelope prevents accidental edge clipping. Restore any temporary portrait, square, or stress-test geometry and verify final layout readback before handoff.
 - Require no lifecycle script errors or unresolved font/image resources, remove temporary manifests and captures, return to the intended Composer scope, and release the work lease.
 
-Generated field types are `text`, `textarea`, `number`, `normalizednumber`, `checkbox`, `selection`, `color`, `image`, and `metricfont`. Do not define a field named `definition` or a group named `definitionGroup`. Generated fields remain eligible for linking unless their definitions explicitly set `disableDataLink: true`.
+Generated field types are `text`, `textarea`, `number`, `normalizednumber`, `checkbox`, `selection`, `color`, `image`, and `metricfont`. Do not define a field named `definition` or a group named `definitionGroup`. In the Composer UI, generated fields remain eligible for linking unless their definitions explicitly set `disableDataLink: true`; this does not imply support in the current agent adapter.

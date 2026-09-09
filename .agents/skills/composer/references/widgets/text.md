@@ -46,7 +46,7 @@ node scripts/composer-agent.js set-font --id <text-tile-id> --italic false --und
 
 | Flag | Meaning |
 | --- | --- |
-| `--id <tile-id>` | Required Text tile in the active composition. |
+| `--id <tile-id>` | Required compatible legacy-font widget tile in the active composition. |
 | `--family <name>` | Exact catalog family, matched case-insensitively. |
 | `--source <user\|account>` | Resolve only in one catalog. User fonts take precedence when omitted. |
 | `--weight <variant>` | Available non-italic weight. `regular`/`normal` normalize to `400`; `bold` normalizes to `700`. |
@@ -54,7 +54,7 @@ node scripts/composer-agent.js set-font --id <text-tile-id> --italic false --und
 | `--underline [true\|false]` | Toggle underline. A bare flag means true. |
 | `--alignment <left\|center\|right\|justify>` | Set horizontal alignment. |
 
-Specify at least one property. The command rejects non-Text widgets, missing font fields, unknown catalog families, unsupported weights, invalid account-font metadata, and invalid formatting values before changing the tile. It returns the complete stored font value, its catalog source, and the available weights.
+Specify at least one property. Eligibility is field-based, not restricted to the Text widget ID: the target must expose a `font` field of schema type `font` with stored `fontData`. Compatible legacy widgets such as Text Ticker can use it; Metric Font fields cannot. The command rejects incompatible or missing font fields, linked targets, unknown catalog families, unsupported weights, invalid account-font metadata, and invalid formatting values before changing the tile. It returns the complete stored font value, its catalog source, and the available weights.
 
 When `--family` is provided without `--weight`, the command keeps the current weight if supported, then prefers `400`, `300`, `500`, or the family's first usable weight. Unspecified formatting remains unchanged. Setting a weight clears the obsolete legacy `bold` flag because weight is authoritative.
 

@@ -4,13 +4,13 @@ This reference covers ordinary scene sub-compositions. Widgets may also own comp
 
 Composer opens at a root composition. A composition tile can contain another composition, producing a nested sub-composition. Root and sub-compositions share the same group/tile model.
 
-Every command operates on the **currently active composition**. Run `inspect` and confirm `activeComposition.stack` before reading or updating anything.
+Most element and control commands operate on the **currently active composition**. Explicit scene-wide commands, such as composition playback, ordinary timeline linking, and scoped motion batches, resolve targets by their documented IDs without requiring each target to be active. Run `inspect` and confirm `activeComposition.stack`, then follow the target and scope contract of the chosen command; do not navigate merely because a target is elsewhere in the scene.
 
 ## Display variants
 
 Display variants represent presentation contexts, not merely resolutions. Two variants may both be `1920x1080` while one renders a compact transparent video overlay and another renders full-screen in-venue signage. Shared Control Nodes and payloads remain common; composition-tree adaptations choose the rendered elements, while Control Node relevance shapes the operator form.
 
-Model one logical graphic as one root-level sub-composition by default. Put its single shared Control Node set in that parent, and place alternate presentations as variant-relevant groups or ordinary child sub-compositions inside it. This keeps one Composition Navigator lifecycle and one payload contract while allowing substantially different layouts. Do not create one root-level composition or duplicate Control Nodes per display variant unless the user explicitly asks for independently controlled modules.
+Follow the display-presentation ownership policy in "Choose the right structural unit" in [authoring-quality.md](authoring-quality.md). The commands below configure presentation relevance without authorizing a reorganization of the existing composition tree or public controls.
 
 Inspect the scene-level contract from any ordinary scope:
 
@@ -75,14 +75,13 @@ Element adaptation controls rendering. Control and container relevance controls 
 
 ## Structuring graphics with sub-compositions
 
-The structural decision standard for tiles, groups, and sub-compositions lives in [authoring-quality.md](authoring-quality.md). This section describes the Composer-specific mechanics for applying it. Root is the scene's orchestration and shared-control layer. For every newly authored graphic, create one root-level ordinary sub-composition for each complete unit a user is likely to take in or out, animate, edit, or reuse independently — for example a location/time bug, a story list, a centered lower third, and a bottom ticker. Do not place newly authored visual primitives directly in root.
+The structural decision standard for tiles, groups, sub-compositions, and display presentations lives in "Choose the right structural unit" in [authoring-quality.md](authoring-quality.md). Choose the owning composition there before using these mechanics; do not create a new root module merely to extend an existing graphic.
 
 - Build each module's primitives inside its sub-composition; do not place all reference elements directly in the root.
-- Keep controls used only by one graphic inside that graphic's sub-composition.
-- Keep controls shared by several graphic sub-compositions in root. With the descendant target active, create or link each shared font, color, or theme input using `--source-composition root`; do not duplicate the shared control in every child.
+- With a descendant target active, link an existing ancestor-owned control using `--source-composition <ancestor-id>` (or `root` for a root-owned source). Follow "Design the public control contract" in the authoring standard when choosing where to define a new shared input.
 - Position primitives in scene coordinates. A sub-composition keeps the full Composer canvas coordinate system; it is not cropped to the module's bounds.
 - Keep a separate declarative specification with its own stable keys per sub-composition. `apply` reconciles only the active composition.
-- After assembly, return to the root and verify that every intended module appears as a separate composition tile and can be controlled independently.
+- After assembly, inspect the owning parent and verify the intended child tiles and linked or independent lifecycle. Return to the intended editor scope; root is not a mandatory verification target for nested extensions.
 - Preserve pre-existing root visuals unless the user explicitly requests migration; this architecture constrains new authoring rather than granting permission to reorganize unrelated content.
 
 ## Creating, opening, and deleting
@@ -97,7 +96,14 @@ node scripts/composer-agent.js delete-composition --id <composition-tile-id>
 
 Creation uses Composer's normal on-the-fly path: a default group, default settings, an In state, and a disabled Out timeline. Navigation is scoped to compositions in the current scene.
 
-Composer automatically links the timeline of an on-the-fly composition created inside another sub-composition. The child receives `settings.linkTimeline: true` and its immediate parent's composition ID in `settings.parentTimeline`, so playing the parent also plays the child. A composition created directly in the root is not linked automatically. Individual composition commands do not toggle these settings; `orchestrate` authors the requested relationship explicitly through each module's `linked` field.
+Composer automatically links the timeline of an on-the-fly composition created inside another sub-composition. The child receives `settings.linkTimeline: true` and its immediate parent's composition ID in `settings.parentTimeline`, so playing the parent also plays the child. A composition created directly in the root is not linked automatically. Inspect or change an existing ordinary child's relationship with:
+
+```bash
+node scripts/composer-agent.js timeline-link --id <composition-id>
+node scripts/composer-agent.js set-timeline-link --id <composition-id> --linked false
+```
+
+The setter resolves the immediate parent from the live composition tree, changes `linkTimeline` and `parentTimeline` in one root batch, and removes Composition Navigator logic-layer membership when linking. Root and widget-owned compositions are rejected. `inspect` reports `activeComposition.timelineLink` plus `timelineLink` on child composition tiles; `get` reports the same setting for a composition tile. `orchestrate` remains the preferred way to author requested relationships for a keyed multi-module structure.
 
 Treat that immediate parent as the linked child's operator-facing lifecycle owner. Take the parent In or Out to play the child; do not use `control-composition` on the linked child itself as playback proof. For exact Timeline-position verification, open the parent and capture `--target active --timeline ...`. A scene-root capture seeks only the root timeline: when the root-level module is intentionally unlinked, root can correctly report a zero-second duration even though its nested parent/child timeline has motion. In that case, a failed root seek diagnoses the wrong verification target, not missing child animation.
 
@@ -223,6 +229,8 @@ node scripts/composer-agent.js set-timeline-animation --type group --id <id> --t
 The command accepts `--type`, `--timeline In|Out`, `--effect`, `--property`, `--params-file`, `--easing-file`, `--start`, and `--duration`. The two file options read UTF-8 JSON objects from the task's temporary JSON directory. It writes `effects` and `keyframes`, preserves the other timeline, and clears stale effect parameters when required. A `propertyType` of `selection` requires a returned property ID; `angle` requires a numeric degree value.
 
 Prefer `set-timeline-animations --file` whenever two or more assignments form one choreography. It accepts `{ "timelineAnimations": [...] }`. Every entry needs a stable `key` plus the single-setter fields. An entry may set an absolute `start`, or reference another entry with `after` and an optional signed `offset`; resolved start is `dependency start + dependency duration + offset`.
+
+Each Timeline, Update, or Behavior batch entry may include `compositionId`. The command groups entries by ordinary composition, applies all groups in one root undo batch, and restores the exact starting ordinary scope. Omit `compositionId` to target the active composition. Keys remain unique across the complete manifest; Timeline `after` dependencies must stay within one composition.
 
 ```json
 {

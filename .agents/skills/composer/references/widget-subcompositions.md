@@ -8,10 +8,9 @@ Read the owning widget tile before navigation:
 
 ```bash
 node scripts/composer-agent.js get --type tile --id <widget-tile-id>
-node scripts/composer-agent.js widget-subcompositions --id <widget-tile-id>
 ```
 
-`get` reports `widget.subCompositions`; the dedicated command returns the same relationships without the rest of the widget schema. Each relationship contains:
+`get` reports `widget.subCompositions`; reuse that fresh readback. Alternatively, use `widget-subcompositions --id <widget-tile-id>` when only the relationships are needed. It returns the same relationships without the rest of the widget schema; do not run both solely to rediscover the same relationship. Each relationship contains:
 
 - `kind: "widget-subcomposition"`;
 - the owning `tileId` and active `parentCompositionId`;

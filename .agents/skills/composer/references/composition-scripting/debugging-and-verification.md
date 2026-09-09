@@ -16,19 +16,19 @@ When a visual script change does not appear to work, debug in this order:
 4. If the obvious content change works but the intended transform does not, re-check whether the target property should be driven by a dedicated widget method or by widget payload.
 5. Only after that, suspect control-node wiring, event propagation, or player-side triggering.
 
-### Missing expected log = swallowed error
+### Missing expected log may indicate a caught error
 
 **This is the most important debugging insight for Singular scripts.**
 
-If you see log A but the next expected log B never appears, the script hit a runtime error on the line between them. The Singular Player runtime catches script exceptions internally — they do **not** surface as `console.error` or `window.onerror`. Page-level `pageerror` listeners in Playwright also miss them because the error is caught inside the cross-origin iframe.
+If log A appears but expected log B does not, first confirm that the branch actually ran and that log collection is active. A caught runtime exception is one possible cause, not proof from the missing log alone. The Singular Player runtime catches script exceptions internally; they need not surface as `console.error`, `window.onerror`, or Playwright `pageerror`. Inspect the bundled verifier's `runtime.scriptEvents.error` count first. A custom sanitized harness is still needed for attribution to a particular script or call.
 
-Mitigation: Add a `console.log()` after each suspect method call. If the log doesn't appear, that method call threw. Use `try/catch` around the suspect call to see the actual error message:
+Mitigation: Use static diagnostic labels after suspect calls and `try/catch` to distinguish a thrown call from skipped control flow. Do not log raw errors or payload values:
 
 ```javascript
 try {
   suspectMethod(); // if this throws, you'd never know without the catch
-} catch (e) {
-  console.error("caught:", e.message); // now you'll see it
+} catch (error) {
+  console.error("Suspect call failed");
 }
 ```
 
@@ -36,13 +36,11 @@ try {
 
 ## Artifact storage convention
 
-Save working artifacts generated during debugging or verification (HTML copies, JS snippets, screenshots, log dumps, extracted JSON, etc.) to the `temp/` subfolder of the current working directory (the repository root).
-
-Do not assume `temp/` is git-ignored: the Singular repository ignores `tmp/`, not `temp/`. Keep generated artifacts out of commits and report retained artifact paths explicitly. Keep handoffs and credentials in memory throughout.
+Use the unique writable task-temporary directory defined in [commands.md](../commands.md) for working harnesses, scenarios, screenshots, and sanitized diagnostics. Pass `--out <task-dir>` and explicit scenario/report paths; the default `./temp` is not a required or necessarily ignored workspace folder. Remove scratch files after success or failure, retaining only requested deliverables or the selected final visual artifact separately. Keep handoffs and credentials in memory throughout.
 
 ## Playwright installation
 
-The bundled verifier uses `playwright-core@1.63.0` directly, matching standalone capture. Run it in place. Put scenario files and any genuinely custom harness in `temp/`; do not copy the verifier for behavior its declarative scenario contract already supports.
+The bundled verifier uses `playwright-core@1.63.0` directly, matching standalone capture. Run it in place. Put scenarios and any genuinely custom harness in the task-temporary directory; do not copy the verifier for behavior its declarative scenario contract already supports.
 
 ```powershell
 node -e "require('playwright-core')"
@@ -54,14 +52,14 @@ Run the bundled verifier from its repository location:
 
 ```powershell
 node scripts/composer-agent.js script-handoff --compact |
-  node scripts/verifyComposition.mjs --handoff-file -
+  node scripts/verifyComposition.mjs --handoff-file - --out <task-dir>
 ```
 
-Prefer a version-1 `--scenario-file` for supported payload, message, state, lifecycle, DOM, bounds, and checkpoint behavior. Create a separate custom harness under `temp/` only when the required external trigger or assertion is outside that bounded contract. Keep the bundled verifier untouched.
+Prefer a version-1 `--scenario-file` for supported payload, message, state, lifecycle, DOM, bounds, and checkpoint behavior. Create a separate custom harness in the task-temporary directory only when the required external trigger or assertion is outside that bounded contract. Keep the bundled verifier untouched.
 
 ### Screenshot output
 
-The Playwright verification script saves frame screenshots to `temp/` by default as `frame-0.png`, `frame-1.png`, etc.
+The verifier defaults to `./temp`; override it with `--out <task-dir>`. Frame screenshots are named `frame-0.png`, `frame-1.png`, etc.
 
 ### Programmatic widget-property verification
 
@@ -96,26 +94,32 @@ const rectInfo = await playerFrame.evaluate(() => {
 
 The bounding rectangle values are relative to the player viewport, but an SVG `<rect>`'s `x`, `y`, `width`, and `height` attributes are local vector geometry. Generic `<rect>` matches do not establish their owning widget's layout or identity. Use the exact inspected wrapper or a measurement snapshot for placement claims.
 
-**Custom scripts**: Place custom Playwright ESM harnesses in `temp/` and keep them out of commits. A custom harness must explicitly resolve the configured `playwright-core` dependency; its location under `temp/` does not provide `temp/node_modules`.
+**Custom scripts**: Place custom Playwright ESM harnesses in the task-temporary directory and keep them out of commits. Explicitly resolve the configured `playwright-core` dependency from the installed runtime; a scratch directory does not supply its own `node_modules`.
 
 ```powershell
-node temp/my-custom-verify.mjs
+node <task-dir>/my-custom-verify.mjs
 ```
 
 ## Verification workflow
 
 ### Automated verification with Playwright
 
-Use `scripts/verifyComposition.mjs` for headless visual verification after writing a script. It loads the composition via the player SDK, takes screenshots, and dumps the iframe DOM summary plus console logs — the agent interprets the results.
+Use `scripts/verifyComposition.mjs` for headless visual verification after writing a script. It loads the composition via the Player SDK, takes screenshots, and reports sanitized DOM summaries and console counts, not raw logs. The aggregate lifecycle `composition_script_event` counter alone cannot establish zero composition-script errors; use the separate typed script counters.
+
+Each frame's `scriptEvents` contains page-local cumulative `total`, `eval`, `ok`, `error`, and `unknown` counts. The SDK's explicit `type` determines the bucket; missing or unrecognized types become `unknown`, never report keys. `eval` means evaluation started, `ok` means initialization succeeded, and `error` includes reported evaluation, initialization, and caught runtime failures. Counts measure events, not unique failing scripts or exceptions. No message, stack, script name/ID, source text, payload, or credential is retained in these counters.
+
+`runtime.scriptEvents` totals the last sampled counts from every verification page, including fresh-page reloads and failed runs before screenshots. It is `null` if no counters could be read. `runtime.scriptEventsComplete` is true only when every created page has a successful final counter snapshot; otherwise totals may be partial. Frame counts reset on reload; runtime totals do not double-count repeated samples from one page. All script counts remain page-wide even when visuals and scenario actions target one composition.
+
+These are diagnostic additions to report version 1: they do not change pass/fail status or add scenario actions. A passed report can still contain script errors. Report zero observed typed errors only for the exercised observation window when counters are complete, `error` is zero, and `unknown` is zero. Zero events do not prove initialization, successful initialization does not prove later behavior, and events after the last snapshot are outside the evidence. Unknown types or incomplete reads require reporting script-error verification as inconclusive.
 
 1. Pipe a fresh paired handoff into the bundled verification script:
    ```sh
    node scripts/composer-agent.js script-handoff --compact |
-     node scripts/verifyComposition.mjs --handoff-file -
+    node scripts/verifyComposition.mjs --handoff-file - --out <task-dir>
    ```
 
 2. The script outputs:
-   - Frame screenshots saved to `temp/` (e.g. `temp/frame-0.png`, `temp/frame-1.png`)
+  - Frame screenshots saved to the explicit output directory
    - A sanitized `verification-report.json` containing renderer bounds, screenshot dimensions, DOM text length/hash, lifecycle counters, and console counts for every frame
    - Separate runtime, screenshot, and optional visual-integrity status
 
@@ -149,12 +153,12 @@ Use `scripts/verifyComposition.mjs` for headless visual verification after writi
 
    ```sh
    node scripts/composer-agent.js script-handoff --composition-id <id> --compact |
-     node scripts/verifyComposition.mjs --handoff-file - --composition-id active --scenario-file temp/scenario.json
+    node scripts/verifyComposition.mjs --handoff-file - --composition-id active --scenario-file <task-dir>/scenario.json --out <task-dir>
    ```
 
 ### Declarative Player scenario
 
-Use a scenario when runtime proof requires public Player inputs or specific checkpoints. The verifier validates the complete file before opening Player. A scenario is limited to version 1, 50 steps, 64 KiB total, 32 KiB for each payload/message/expected-state value, ten minutes of aggregate wait budget, and 60 seconds for one lifecycle wait.
+Use a scenario when runtime proof requires public Player inputs or specific checkpoints. The verifier validates the complete file before opening Player. A scenario is limited to version 1, 50 steps, 64 KiB total, 32 KiB for each payload/message/expected-state value, ten minutes of aggregate wait budget, and 60 seconds for one lifecycle or state wait.
 
 ```json
 {
@@ -174,7 +178,7 @@ Use a scenario when runtime proof requires public Player inputs or specific chec
       "minimumVisibleElementCount": 1
     },
     { "action": "jumpTo", "state": "In" },
-    { "action": "assertState", "equals": "In" },
+    { "action": "waitForState", "equals": "In", "timeoutMs": 3000 },
     { "action": "capture", "name": "after" }
   ]
 }
@@ -184,7 +188,7 @@ Run it without placing either handoff credential on disk:
 
 ```sh
 node scripts/composer-agent.js script-handoff --compact |
-  node scripts/verifyComposition.mjs --handoff-file - --scenario-file temp/scenario.json
+  node scripts/verifyComposition.mjs --handoff-file - --scenario-file <task-dir>/scenario.json --out <task-dir>
 ```
 
 Supported actions are:
@@ -194,7 +198,8 @@ Supported actions are:
 - `playTo` and `jumpTo`: call the public Player composition API with `state`; they accept the same optional `compositionId`.
 - `waitForLifecycle`: wait for an allowed lifecycle counter to reach `minimum`, with an optional `timeoutMs`.
 - `assertLifecycle`: require `equals`, `minimum`, or `maximum` for one allowed lifecycle counter.
-- `assertState`: compare the selected target's `getState()` with the JSON value in `equals`; accepts the same optional `compositionId` override.
+- `assertState`: immediately compare the selected target's cached `getState()` with the JSON value in `equals`; accepts the same optional `compositionId` override. It does not wait for state convergence. SDK `playTo`/`jumpTo` delivery is asynchronous, so use `waitForState` when the next step requires the target's state notification.
+- `waitForState`: poll the selected target's `getState()` every 50 ms until it structurally equals the required JSON value in `equals`. Accepts the same optional `compositionId` override and integer `timeoutMs` from 1 to 60000 (default 10000); the full timeout counts toward the aggregate wait budget. Object key order is ignored, array order is significant, and matching never relies on sibling lifecycle events. Missing targets or SDK failures fail the step immediately; a nonmatching state waits only until the deadline. A match is one observed SDK state, not proof of sustained stability, completed animation, or rendered pixels. Expected and observed values are omitted from the report.
 - `assertDom`: check a 16-character `textHash`, a text change from an earlier checkpoint, minimum element/visible-element counts, or minimum target width/height. It never exposes rendered text.
 - `capture`: save a named checkpoint. Names are unique and use up to 64 letters, digits, periods, underscores, or hyphens.
 

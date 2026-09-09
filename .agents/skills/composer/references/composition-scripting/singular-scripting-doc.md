@@ -235,7 +235,7 @@ The widget object provides methods to read and update widget specific properties
 | Method/Property | Description |
 | :--- | :--- |
 | `getPayload()` | Returns widget type specific properties as a JSON object. |
-| `setPayload(o)` | Sets one or multiple widget specific properties. Prefer using dedicated methods like `setSizeX()`, `setSizeY()` for dimensions instead of `setPayload()`. |
+| `setPayload(o)` | Sets one or multiple widget-specific properties. Payload fields are not tile layout dimensions; use `setSizeX()` and `setSizeY()` for the widget's canvas bounds. |
 | `getDomElement(t)` | Returns the HTML `Dom` element for the widget. |
 | `getPositionX()`, `getPositionY()` | Returns position in [-50, 50] coordinate space. 0 = center. Anchor point is center by default. |
 | `setPositionX(o)`, `setPositionY(o)` | Sets position in [-50, 50] coordinate space. 0 = center. Anchor point is center by default. |
@@ -246,18 +246,14 @@ The widget object provides methods to read and update widget specific properties
 
 #### [BEST PRACTICE] Widget Dimensions
 
-**Always prefer `setSizeX()` and `setSizeY()` methods for widget dimensions unless the user specifically requests `setPayload()`.**
-
-- ✅ PREFERRED: `widget.setSizeX(50)` // Sets width to 50% of canvas
-- ✅ PREFERRED: `widget.setSizeY(30)` // Sets height to 30% of canvas
-- ⚠️ AVOID: `widget.setPayload({width: 50, height: 30})` // Works but not recommended
+Use `setSizeX()` and `setSizeY()` for tile layout dimensions. `widget.setSizeX(50)` sets the tile width to 50% of the canvas; `widget.setSizeY(30)` sets its height to 30%. `widget.setPayload({width: 50, height: 30})` is not an equivalent operation: Rectangle interprets those fields as internal shape percentages, while widgets without those payload fields may ignore them.
 
 **Why use dedicated methods:**
 - More explicit and readable
 - Consistent with position, opacity, and other transform methods
 - Widget-agnostic approach that works for all widget types
 
-**When to use `setPayload()`:** Only for widget-specific content properties (text, url, table content, etc.) or when explicitly requested by the user.
+**When to use `setPayload()`:** For documented widget-specific properties (text, url, table content, internal shape dimensions, etc.). Inspect the widget contract; a user request does not make an unsupported payload field a layout setter.
 
 **Widget Payload Example**:
 
@@ -378,7 +374,7 @@ The `context` object provides access to common objects, including global storage
 
 ### 2.5 Event Listeners
 
-The `comp.addListener (eventType, callbackFunction)` method attaches an event handler to the composition without overwriting existing handlers.
+The `comp.addListener(eventType, callbackFunction)` method stores one handler per composition and event type. Registering again for the same pair replaces the previous handler; it does not append another listener. When extending an existing script or merging a recipe, combine the existing and new logic in one handler, preserving its scope filters and propagation behavior. Composition-script listeners are removed when that script is uninstalled.
 
 For a root or sub-composition script, the callback contract is `function(event, msg, propagationEvent)`: `event` is the event-name string, `msg` is the structured message, and `propagationEvent.stopPropagation()` stops the event from continuing to parent compositions. This is distinct from the host-page Player SDK, whose listener contract is `function(event, msg)` and has no third propagation object. For `payload_changed`, read the new values from `comp.getPayload2()`; use `msg.compositionId` when the script must ignore events propagated from child compositions.
 
@@ -531,7 +527,7 @@ Extend the composition object by adding the function `updateContent()` to the co
 Get a reference to the receiving composition and send data by calling its `updateContent()` function.
 [Root Script]
 ```javascript
-((function() {
+(function() {
   return {
     init: function(comp, context) {
       console.log("Initialize Composition script " + comp.name);
@@ -821,47 +817,47 @@ This example demonstrates how to update a table widget's content. Note that the 
 
 ### 4.7 Reading Control Nodes, Generating HTML Text with Auto-Sizing Background
 
-This example demonstrates using the text widget’s HTML feature to style text and set an auto-sizing background color dynamically, relying on `utils.createTinyColor()` for color parsing.
+This example uses the legacy text widget's HTML feature with escaped public text and bounded numeric CSS values. The padding fields are explicitly pixel values for this example; adapt their unit contract deliberately when responsive padding is required. Merge its payload listener into an existing handler rather than replacing unrelated behavior.
 [Lower script]
 ```javascript
 (function() {
   const HTML_TEMPLATE = '<html><span style="background:{{background-color}}; padding: 0px {{padding-right}}px 0px {{padding-left}}px">{{firstname}} <b>{{secondname}}</b></span></html>';
-  // convert color JSON to CSS rgba()
-  const parseColor = function(color) {
-    const colorRgba = `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a})`;
-    // console.log("colorRgba =", colorRgba);
-    return colorRgba;
+  function boundedNumber(value, maximum, fallback) {
+    if (typeof value !== 'number' && typeof value !== 'string') return fallback;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.min(maximum, Math.max(0, numeric)) : fallback;
+  }
+  function escapeHtml(value) {
+    const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function(character) {
+      return entities[character];
+    });
   }
   return {
     init: function(comp, context) {
-      // get reference to the fullname widget
       const wiLowerText = comp.findWidget("lowerText")[0];
-      /**********************************************************************/
-      // we define a function to update the composition
+      if (!wiLowerText) throw new Error('Required lowerText widget was not found');
       function updateComposition() {
-        // get control node payload as JSON object
-        const p = comp.getPayload2();
-        console.log(p);
-        const colorRgba = parseColor(p["Background Color"]);
-        // build HTML text.
-        let htmlText = HTML_TEMPLATE.replace(/{{background-color}}/gi, colorRgba);
-        htmlText = htmlText.replace(/{{padding-right}}/gi, p["Padding Right"]);
-        htmlText = htmlText.replace(/{{padding-left}}/gi, p["Padding Left"]);
-        htmlText = htmlText.replace(/{{firstname}}/gi, p["Firstname"]);
-        htmlText = htmlText.replace(/{{secondname}}/gi, p["Lastname"]);
-        // update fullname text
-        wiLowerText.setPayload({
-          "text": htmlText
+        const payload = comp.getPayload2() || {};
+        const color = payload['Background Color'] || {};
+        const values = {
+          'background-color': 'rgba(' + boundedNumber(color.r, 255, 0) + ',' +
+            boundedNumber(color.g, 255, 0) + ',' + boundedNumber(color.b, 255, 0) + ',' +
+            boundedNumber(color.a, 1, 1) + ')',
+          'padding-right': boundedNumber(payload['Padding Right'], 200, 0),
+          'padding-left': boundedNumber(payload['Padding Left'], 200, 0),
+          firstname: escapeHtml(payload.Firstname),
+          secondname: escapeHtml(payload.Lastname)
+        };
+        const htmlText = HTML_TEMPLATE.replace(/{{([a-z-]+)}}/g, function(match, key) {
+          return values[key];
         });
+        wiLowerText.setPayload({ text: htmlText });
       }
-      /**********************************************************************/
-      // we listen to payload_changed events
-      comp.addListener('payload_changed', (event, msg, e) => {
+      comp.addListener('payload_changed', function(event, msg) {
+        if (msg.compositionId !== comp.id) return;
         updateComposition();
-        e.stopPropagation();
       });
-      /**********************************************************************/
-      // update the composition when loading the output URL
       updateComposition();
     },
     close: function(comp, context) {}
@@ -931,8 +927,8 @@ This script uses the `timeline_event` listener to start a Text Ticker widget cra
 - Avoid post-ES2017 syntax in shared examples and generated scripts, especially optional chaining (`?.`), nullish coalescing (`??`), and similar newer language features that may fail in older browsers.
 
 ### Preferring dedicated dimension methods [CRITICAL]
-- **Always use `setSizeX()`, `setSizeY()` for widget and group dimensions** unless the user explicitly requests `setPayload()`.
-- While some widgets support `setPayload({width: X, height: Y})`, the dedicated methods are the recommended approach.
+- Use `setSizeX()` and `setSizeY()` for widget and group layout dimensions.
+- Payload `width` and `height`, where supported, have widget-specific semantics and do not replace layout setters.
 - Benefits: Better readability, consistency across all widget types, and alignment with other transform methods.
 - Default to dedicated methods (`setSizeX`, `setSizeY`, `setPositionX`, `setPositionY`, `setOpacity`, etc.) for all dimension and transform properties.
 - Reserve `setPayload()` primarily for widget-specific content (text, url, table data, etc.).

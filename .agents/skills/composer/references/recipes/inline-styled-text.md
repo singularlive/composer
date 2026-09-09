@@ -2,11 +2,11 @@
 
 Build a single left-aligned line from two or more independently controlled Metric Text family widgets. Use this when each segment needs its own text, Font 2.0 font, and solid color while visible segments must remain adjacent as their content or font changes.
 
-Read [Metric Text Style authoring](../widgets/metric-text-style.md), [Metric Text Style scripting](../composition-scripting/widget-metrictextstyle.md), [composition scripts](../composition-scripts.md), and [ordinary compositions](../compositions.md) before using this recipe. The live widget schema and inspected instances remain authoritative.
+Before structural work, read [Metric Text Style authoring](../widgets/metric-text-style.md) and [ordinary compositions](../compositions.md). Before script work, read [Metric Text Style scripting](../composition-scripting/widget-metrictextstyle.md) and [composition scripts](../composition-scripts.md); before verification, read [Player verification](../composition-scripting/debugging-and-verification.md). Establish the bounds-event, script-owned positioning, and public-input requirements below before mutation. The live widget schema and inspected instances remain authoritative.
 
 ## Structure and controls
 
-Create one ordinary root-level sub-composition for the complete inline unit. Inside it:
+Choose the inline unit's owning composition using "Choose the right structural unit" in [authoring-quality.md](../authoring-quality.md). Keep the complete line together inside that owner:
 
 - Add one left-aligned Metric Text Style widget per segment.
 - Put the user-facing position on the containing group and start every segment widget at the same local horizontal origin, normally `left: 0`. The script owns only the segment offsets within that group.
@@ -66,7 +66,7 @@ On initialization and local `payload_changed` events:
 4. Hide absent widgets with `setVisibility(false)`, clear their cached bounds, and exclude them from layout.
 5. Show nonempty widgets and insert the shared gap only between consecutive visible segments.
 
-Register the composition `message` listener before forwarding the initial controls. Metric Text Style replays cached data after its SVG DOM mounts and emits the resulting bounds, so the composition script does not need to poll `getDomElement()`, toggle `emitEvents`, or retry initialization. Later content, font, and widget-size renders emit updated bounds through the same listener.
+Register the composition `message` listener before forwarding the initial controls. `addListener` replaces an existing handler for the same composition/event; merge this recipe's message and payload logic into existing handlers rather than overwriting unrelated behavior. Metric Text Style replays cached data after its SVG DOM mounts and emits the resulting bounds, so the composition script does not need to poll `getDomElement()`, toggle `emitEvents`, or retry initialization. Later content, font, and widget-size renders emit updated bounds through the same listener.
 
 An empty Metric Text Style widget returns before emitting bounds, so never wait for a zero-bounds message. Font changes can load asynchronously and produce later measurements; the latest bounds message is the layout authority.
 

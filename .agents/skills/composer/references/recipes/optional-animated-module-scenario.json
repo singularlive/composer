@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "steps": [
+    { "action": "jumpTo", "state": "In" },
+    { "action": "setPayload", "payload": { "Callout": "" } },
+    { "action": "wait", "milliseconds": 500 },
+    { "action": "capture", "name": "empty-settled" },
+
+    { "action": "setPayload", "payload": { "Callout": "First callout" } },
+    { "action": "wait", "milliseconds": 100 },
+    { "action": "capture", "name": "populate-early" },
+    { "action": "wait", "milliseconds": 500 },
+    { "action": "capture", "name": "populate-settled" },
+
+    { "action": "setPayload", "payload": { "Callout": "Replacement callout" } },
+    { "action": "wait", "milliseconds": 100 },
+    { "action": "capture", "name": "replace-update-out" },
+    { "action": "wait", "milliseconds": 300 },
+    { "action": "capture", "name": "replace-update-in" },
+    { "action": "wait", "milliseconds": 500 },
+    { "action": "capture", "name": "replace-settled" },
+
+    { "action": "setPayload", "payload": { "Callout": "" } },
+    { "action": "wait", "milliseconds": 100 },
+    { "action": "capture", "name": "clear-early" },
+    { "action": "wait", "milliseconds": 500 },
+    { "action": "capture", "name": "clear-settled" },
+
+    { "action": "setPayload", "payload": { "Callout": "Parent out check" } },
+    { "action": "wait", "milliseconds": 500 },
+    { "action": "capture", "name": "before-parent-out" },
+    { "action": "playTo", "state": "Out" },
+    { "action": "wait", "milliseconds": 100 },
+    { "action": "capture", "name": "parent-out-early" },
+    { "action": "wait", "milliseconds": 500 },
+    { "action": "capture", "name": "parent-out-settled" }
+  ]
+}

@@ -105,7 +105,7 @@ Native limitations remain authoritative: drop shadow ignores spread and inset; b
 
 ## Declarative specification
 
-Save the specification in the session artifacts directory, then validate and apply it:
+Save the specification in the unique task-temporary directory described in [commands.md](commands.md), then validate and apply it. Keep a separate deliverable only when requested; remove working inputs during task cleanup.
 
 ```bash
 node scripts/composer-agent.js validate --file <spec.json>

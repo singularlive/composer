@@ -13,4 +13,4 @@ background.setPayload({
 });
 ```
 
-The renderer loops muted video, plays while the composition is In, and pauses while Out. It does not expose widget button actions.
+The renderer loops muted video. Composition transitions pause on Out and resume on In, but replacing `videoFile` while already Out can start playback again; Out is not a continuously enforced playback guard. It does not expose widget button actions. Verify the affected transitions and replacement path in the Player.

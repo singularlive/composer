@@ -89,7 +89,7 @@ The snapshot contains no text values, image URLs, DOM dump, script text, event p
 
 In smart mode—including an explicitly sought Timeline position—the target has passed visual stability before measurement. In timed mode, the snapshot is sampled immediately before the screenshot, but continuous Behavior, script, timer, video, or live-data clocks are not frozen and can advance between those two browser operations. Use the snapshot for geometry and clipping evidence; use the PNG for glyph rendering, filters, gradients, shadows, canvas pixels, video content, and overall visual comparison.
 
-Write output to the session artifacts directory when one is available.
+Write working output inside the task-temporary directory described in [commands.md](commands.md). Retain only the selected user-facing visual artifact in an appropriate deliverable location before removing scratch files.
 
 ### Choosing a wait mode and delay
 
@@ -99,7 +99,7 @@ Use `timed` when the target has any known persisted composition, global, or over
 
 Use timed capture for one sampled state of continuous output. Use the Player-verification workflow when a frame sequence must prove composition-script or runtime behavior.
 
-When starting from a paired workflow and script presence is unknown, pipe `script-handoff` to the bundled composition-script helper's read-only `list-scripts` path. Because that endpoint can be empty even when a composition script is readable, probe the suggested active/root script target when necessary. Do not expose script text or move script inspection into the paired relay. If smart mode reports ongoing timeline or visual activity, inspect the target and retry once with timed mode; do not make a continuously moving composition satisfy smart mode by extending `--timeout`.
+When script presence is unknown, choose timed mode without additional script discovery solely to select the wait mode. Use the composition-script helper only when a concrete diagnostic or authoring question requires script inspection; an empty `list-scripts` result alone does not establish that the target is script-free. Do not expose script text or move script inspection into the paired relay. If smart mode reports ongoing timeline or visual activity, inspect the target and retry once with timed mode; do not make a continuously moving composition satisfy smart mode by extending `--timeout`.
 
 ### Temporal evidence for animated and live output
 
@@ -132,7 +132,7 @@ Taking the root composition out hides animated elements directly in the root; ne
 
 An `Out1` or `Out2` state is not inherently invisible. Elements whose applicable timeline effect is `none`, or whose animation otherwise leaves them visible, still render while their composition reports an Out state. If a composition is already Out when its timeline changes from `none` to a hiding animation, cycle it In and then Out before capture so the new timeline plays.
 
-Avoid changing animation solely for a screenshot. If state-based isolation is explicitly required, snapshot and restore every changed animation and composition state.
+Avoid changing animation solely for a screenshot. If state-based isolation is explicitly required, snapshot and restore every changed animation and composition state. Use finally-style restoration after success or ordinary failure while authorization and the work lease remain valid. Cancellation takes precedence: do not reacquire a lease or issue restoration commands after `OPERATION_CANCELLED`. Clean up local artifacts, report unrestored state, and follow "Mutation failure recovery" in [commands.md](commands.md) before any later authorized restoration. If ordinary failure prevents restoration, report the pending state instead of claiming cleanup succeeded.
 
 ## Capture errors
 

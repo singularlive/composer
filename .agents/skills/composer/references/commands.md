@@ -23,8 +23,30 @@ Structured JSON inputs use files. Prefer a pre-approved agent-session temporary 
 ## Command selection policy
 
 - **Preferred** commands are the normal path for the scope they represent.
-- **Targeted only** commands remain supported because they have a distinct isolated-edit, repair, diagnosis, navigation, or unsupported-structure use case. Never decompose a supported batch or orchestration into these commands after the atomic operation fails; correct the manifest and rerun it.
+- **Targeted only** commands remain supported because they have a distinct isolated-edit, repair, diagnosis, navigation, or unsupported-structure use case. Never decompose a supported batch or orchestration into these commands after the atomic operation fails; follow "Mutation failure recovery" below before correcting and rerunning the manifest.
 - Superseded commands and aliases with no distinct use case are absent from the CLI and this reference. Do not infer or try old names.
+
+## Isolated property edits
+
+Use this bounded path for a text, color, or other property edit on an existing target when ownership, layout, links, scripts, and lifecycle remain unchanged. It is not a shortcut for creation, reference matching, structural changes, or new behavior.
+
+1. Use the normal authorization, work lease, readiness, and copied-reference gates. Inspect the active scope and read the target with `get`, `get-properties`, or its typed inspector. Read the relevant live field schema and matching widget guide; do not infer types, selection values, or limits.
+2. Check links before writing. For a linked field, inspect and update its defining source through the dedicated typed command, preserving the link. If a shared source affects additional targets, establish that scope first and ask before expanding the user's request.
+3. Apply one bounded supported mutation, batching related fields when needed. Use specialized commands for typed models such as Metric Fonts rather than generic writes. Do not create a declarative graphic or reorganize controls just to edit an existing value.
+4. Re-read the affected values and links, verify unrelated state is preserved, and perform visual or Player checks required by the changed field. A text change may alter fitting or trigger a script; static readback does not prove those outcomes. Use the normal capture and scripting references when applicable, and report unavailable verification as pending.
+5. Restore the intended scope, clean up task files, and release the work lease. The normal cancellation, revision, and mutation-failure rules still apply.
+
+Load the full authoring standard if the task requires layout/design decisions or structural changes. Read only the command sections and widget contracts needed for this edit; do not load scripting, recipes, or graphics manifests solely because they exist.
+
+## Mutation failure recovery
+
+A timeout, connection loss, or missing response after dispatch does not prove that a mutation failed. Do not replay or alter the request solely because its response was lost.
+
+1. After confirmed validation rejection or confirmed rollback, correct the reported defect and retry the same supported operation.
+2. After an uncertain outcome, obtain authoritative readback of the affected scope before deciding whether to retry. Confirm readiness first if needed, but never reconnect after cancellation. Compare identities, values, links, and managed keys against the intended change; do not identify newly created objects by name alone.
+3. If the intended result is present, verify it and continue without replay. If readback establishes no change, retry the same stable-key request. If the result is partial, ambiguous, or unavailable, preserve state, report the uncertainty, and stop mutation until it can be resolved.
+
+Cancellation takes precedence over recovery. On `OPERATION_CANCELLED`, stop editor and script commands, clean up local task artifacts, and report any temporary state that was not restored. Await explicit authorization before restoring it; a new instruction requires fresh readiness and inspection, not blind replay of a cleanup snapshot.
 
 ## Session
 
@@ -34,7 +56,7 @@ Structured JSON inputs use files. Prefer a pre-approved agent-session temporary 
 | `pair-intent [--server <url>] --intent-id <id> [--intent-secret -] [--device-name <name>]` | Orchestrator-only automatic pairing. Claim an authenticated short-lived intent after Composer binds it. Supply the secret through `COMPOSER_AGENT_INTENT_SECRET` or pipe it on stdin with `--intent-secret -`; literal secret arguments are rejected. The command waits up to two minutes across valid-but-unbound `409` responses and shared-rate-limit `429` responses, then stores and acknowledges credentials like `pair`. Normal runtime users should use the visible-code `pair` flow. |
 | `start-work` | Acquire or renew the ten-minute task-level work lease. Run once before the first editor command in every task; Composer remains locked across individual command sockets. |
 | `wait-ready [--timeout <milliseconds>]` | Wait until authorization, editor connection, editor command registration, and the work lease are all ready. Returns immediately when ready, otherwise reports the last sanitized readiness state after the default 30-second timeout. The range is 1–120000 ms. It does not mutate, reload, navigate, or renew the lease. |
-| `finish-work` | Release the current work lease and Composer input while preserving the reusable JWT authorization. Run before every final handoff or wait for user input. |
+| `finish-work` | Release the current work lease and Composer input while preserving the reusable JWT authorization. Run before final handoff or waiting for user input, except during revision approval under "Protect user content and public inputs" in [SKILL.md](../SKILL.md). |
 | `status --message <text>` | Show a concise update and renew an active work lease. It does not acquire a missing lease. |
 | `complete` | Revoke the saved authorization only after the user explicitly asks to disconnect the AI Agent. Ordinary task completion uses `finish-work`. |
 | `inspect` | Read the scene, preview inputs, active composition stack, selection, groups, tile summaries, and a `summary` count of groups, tiles, compositions, and controls. |
@@ -42,6 +64,8 @@ Structured JSON inputs use files. Prefer a pre-approved agent-session temporary 
 | `inspect --summary` | Return only the `summary` counts; the full tile list is omitted, so the payload stays small even in large compositions. |
 | `resolve-references --file <references.json>` | Decode and resolve 1–25 Composer references pasted from tree **Copy reference** actions without navigating or mutating. |
 | `script-handoff [--composition-id <id\|root>]` | Inspect the active composition and its local Control Nodes once, then return versioned context for the scripting fast path. With `--composition-id`, temporarily inspect that root or ordinary sub-composition as the suggested script target and restore the prior Composer scope before returning. Widget-owned templates retain their owner-field navigation workflow. |
+| `timeline-link --id <composition-id>` | Inspect an ordinary child composition's timeline-link setting and resolved immediate parent. |
+| `set-timeline-link --id <composition-id> --linked <true\|false>` | Atomically link an ordinary child to its immediate parent Timeline or unlink it, keeping `parentTimeline` and logic-layer membership consistent with Composer. |
 
 `resolve-references` accepts either a JSON array of complete copied reference strings or `{ "references": [...] }`. Each readable string ends with a deterministic short handle such as `@composer/widget ref_0123456789abcdef`; the handle contains no encoded identity and requires no stored lookup table. The live editor recomputes handles from the current scene and reports `resolved`, `missing`, or `collision`. Names embedded in copied text are labels only. Never replace a failed reference with a same-named object. References inside widget-owned template edit sessions are intentionally unavailable because their descendant IDs are session-scoped.
 
@@ -97,7 +121,7 @@ Widget Nodes are owner-supplied template outputs, not public Control Nodes. See 
 }
 ```
 
-`get-properties` and `set-properties` share one ordered manifest shape. Each element may appear once and has a non-empty `properties` array. Every property explicitly identifies `namespace` as `data` for one top-level widget field or `element` for the element `name`; `set-properties` additionally requires `value`. Nested data paths, layout paths, other element properties, duplicate targets/properties, missing fields, type changes, null/deletion values, and linked widget fields reject the complete operation. Use `set-layouts`, `set-font`, and the dedicated widget/control commands for their stronger domain contracts.
+`get-properties` and `set-properties` share one ordered manifest shape. Each element may appear once and has a non-empty `properties` array. Every property explicitly identifies `namespace` as `data` for one top-level widget field or `element` for the element `name`; `set-properties` additionally requires `value`. Nested data paths, layout paths, other element properties, duplicate targets/properties, and missing fields reject the complete operation. `get-properties` can read linked widget fields. For `set-properties`, type changes, null/deletion values, and linked widget fields reject the complete write; update a linked field's defining source instead. Use `set-layouts`, `set-font`, and the dedicated widget/control commands for their stronger domain contracts.
 
 Generic property values are limited to 32 KiB after `JSON.stringify`. The sole larger widget-data exception is AI Graphics widget `4792` field `definition`, which accepts up to 256 KiB after serialization through scalar updates, projected property writes, primitive creation, graphics, and orchestration. Other AI Graphics fields and all other widget or element values retain 32 KiB. The relay permits command and response envelopes up to 1 MiB so the escaped definition and authoritative readback can round-trip; this transport capacity does not raise any other per-value limit.
 
@@ -255,8 +279,8 @@ By design, widget-owned templates are copied when Composer exits standalone edit
 
 | Command | Purpose |
 | --- | --- |
-| `update-table --id <table-tile-id> --file <table.json>` | Validate rows against the Table's current template controls, update supported table options and content, roll back partial failure, and verify the stored result. |
-| `update-grid --id <grid-tile-id> --file <grid.json>` | Validate items against the Grid's current template controls and bounded rows/columns, update options and content with rollback, and verify readback. |
+| `update-table --id <table-tile-id> --file <table.json>` | Validate rows against the current template, update options/content with readback-guarded best-effort compensation, and verify readback. Cancellation stops recovery; see [Table](widgets/table.md) for `TABLE_UPDATE_RECOVERY_UNCERTAIN`. |
+| `update-grid --id <grid-tile-id> --file <grid.json>` | Validate items and bounded dimensions, update options/content with readback-guarded best-effort compensation, and verify readback. Cancellation stops recovery; see [Grid](widgets/grid.md) for `TABLE_UPDATE_RECOVERY_UNCERTAIN`. |
 
 See [table.md](widgets/table.md) and [grid.md](widgets/grid.md). Grid uses `cols`/`rows` and separate spacing fields; Table's `elementsPerPage`, `lineSpacing`, and `layoutDirection` are not Grid options.
 
@@ -424,4 +448,4 @@ Pipe fresh `script-handoff` output directly to `scripts/compositionScriptCli.js 
 
 Canceling the unclaimed pairing modal invalidates its one-time code. During active work, **Cancel operation** interrupts current agent sockets, restores Composer input, and returns `OPERATION_CANCELLED`; stop the current task and do not reconnect until the user gives a new instruction. It does not revoke the reusable JWT. **Disconnect AI Agent** or explicit `complete` revokes the authorization on the server and prevents later socket and script access with that token.
 
-Use `status` when you need input from the user. Before asking a blocking question in the AI Agent task, send that question or request through `status` first, including an instruction to return to the AI Agent task, then run `finish-work` before waiting. Do not call `complete` when an operation ends unless the user explicitly asks to disconnect the agent. A normal completion message is `status` followed by `finish-work`, not authorization revocation.
+Use `status` when you need input from the user. Before asking a blocking question in the AI Agent task, send that question or request through `status` first, including an instruction to return to the AI Agent task, then run `finish-work` before waiting. The sole exception is revision approval under "Protect user content and public inputs" in [SKILL.md](../SKILL.md): keep the lease active during that question and follow its expiry, reacquisition, and fresh-inspection procedure after the answer. Do not call `complete` when an operation ends unless the user explicitly asks to disconnect the agent. A normal completion message is `status` followed by `finish-work`, not authorization revocation.

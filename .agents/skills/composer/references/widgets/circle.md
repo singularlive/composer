@@ -30,7 +30,7 @@ Position and bounding size belong to tile layout or declarative `placement`. The
 
 Use `holeSize` to control a filled ring's thickness. With no stroke, a round shape of outer diameter `D` has band thickness `(D / 2) * (1 - holeSize / 100)`. For example, a 200-pixel diameter with `holeSize: 80` gives a 20-pixel band. Larger hole values make thinner bands.
 
-Stroke follows the shape boundary: on a partial ring it outlines the inner and outer arcs and the radial ends. It is not a separate rounded-cap progress line. The renderer exposes no line-cap property here; do not invent one. Use [AI Graphics](ai-graphics.md) with inline SVG when the requested geometry requires an independently stroked open path or rounded arc ends.
+Stroke follows the shape boundary: on a partial ring it outlines the inner and outer arcs and the radial ends. It is not a separate rounded-cap progress line. The renderer exposes no line-cap property here; do not invent one. If an independently stroked open path or rounded arc ends require [AI Graphics](ai-graphics.md) with inline SVG, explain the native limitation and obtain explicit approval for AI Graphics unless the user already requested it. Do not silently switch widget families.
 
 ## Choose explicit angles
 

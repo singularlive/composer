@@ -17,7 +17,7 @@ mt.setPayload({ text: "Hello", color: "yellow" });
 | :--- | :--- | :--- | :--- |
 | `text` | string | `""` | Text content. Only content before the first newline is rendered. Empty or whitespace-only text is hidden. Optional `<html>...</html>` markup is unsanitized; use trusted display markup only. |
 | `font` | object | — | Font definition (see [Font Object](#font-object) below). |
-| `color` | string, object | `"white"` | Text color. Same formats as Rectangle's `fillGradient`. |
+| `color` | string, object | `"white"` | Solid text color: a supported CSS color string or RGBA object. A structured gradient contributes only its `solidColor` (or fallback white); gradient stops are not rendered. Use Metric Text Style for gradient text. |
 | `alignment` | string | `"left"` | Horizontal alignment: `"left"`, `"center"`, `"right"`, or `"align"` + character (e.g. `"align."` aligns on the last `.`). |
 | `overflow` | string | `"none"` | Overflow behavior: `"none"`, `"clip"` (clips horizontally), `"fitScale"` (uniform scale to fit width), `"fitWidth"` (scale X only to fit width). |
 | `letterSpacing` | number | `0` | Letter spacing as percentage of widget height. |

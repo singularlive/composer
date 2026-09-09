@@ -174,6 +174,7 @@ function buildHtml() {
     var player;
     var playerBaseUrl = ${JSON.stringify(baseUrl)};
     var compositionToken = ${JSON.stringify(token)};
+    window.__verificationScriptEvents = { total: 0, eval: 0, ok: 0, error: 0, unknown: 0 };
     window.__verificationLifecycle = {
       compositionLoaded: 0,
       message: 0,
@@ -197,8 +198,14 @@ function buildHtml() {
       if (!compositionToken) { console.error('Set compositionToken'); return; }
       Object.keys(window.__verificationLifecycle).forEach(function (eventName) {
         if (eventName === 'compositionLoaded') return;
-        player.addListener(eventName, function () {
+        player.addListener(eventName, function (event, message) {
           window.__verificationLifecycle[eventName] += 1;
+          if (eventName === 'composition_script_event') {
+            var type = message && message.type;
+            var category = type === 'eval' || type === 'ok' || type === 'error' ? type : 'unknown';
+            window.__verificationScriptEvents.total += 1;
+            window.__verificationScriptEvents[category] += 1;
+          }
         });
       });
       player.loadComposition(compositionToken, function (obj) {
@@ -305,8 +312,9 @@ async function evaluateIntegrity(page, pngBuffer, contract) {
   };
 }
 
-async function prepareVerificationPage(browser, viewport, logs, runtime) {
+async function prepareVerificationPage(browser, viewport, logs, runtime, verificationPages) {
   const page = await browser.newPage({ viewport });
+  verificationPages.push({ page, scriptEvents: null, complete: false });
   page.on('console', msg => logs.push({ type: msg.type(), text: sanitizeText(msg.text()) }));
   await page.setContent(buildHtml(), { waitUntil: 'domcontentloaded' });
   try {
@@ -387,6 +395,7 @@ async function main() {
   };
 
   const logs = [];
+  const verificationPages = [];
   let page = null;
   let playerFrame = null;
   let target = null;
@@ -402,21 +411,41 @@ async function main() {
     viewport,
     diagnostics: { freshPagePerFrame, disableGpu },
     target: { ...targetRequest, status: 'pending' },
-    runtime: { compositionLoaded: false, loadCount: 0 },
+    runtime: { compositionLoaded: false, loadCount: 0, scriptEvents: null, scriptEventsComplete: false },
     scenario: { requested: Boolean(verificationScenario), status: verificationScenario ? 'pending' : 'not-requested' },
     screenshot: { successfulFrames: 0 },
     visualIntegrity: { requested: Boolean(integrityContract), passed: true },
     frames: []
   };
 
+  async function collectScriptEvents() {
+    const total = { total: 0, eval: 0, ok: 0, error: 0, unknown: 0 };
+    let complete = verificationPages.length > 0;
+    for (const entry of verificationPages) {
+      if (!entry.page.isClosed()) {
+        try {
+          entry.scriptEvents = await entry.page.evaluate(() => window.__verificationScriptEvents || null);
+          entry.complete = Boolean(entry.scriptEvents);
+        } catch {
+          entry.complete = false;
+        }
+      }
+      if (!entry.complete) complete = false;
+      if (entry.scriptEvents) for (const key of Object.keys(total)) total[key] += entry.scriptEvents[key];
+    }
+    report.runtime.scriptEvents = verificationPages.some(entry => entry.scriptEvents) ? total : null;
+    report.runtime.scriptEventsComplete = complete;
+  }
+
   try {
-    ({ page, playerFrame, target, identity } = await prepareVerificationPage(browser, viewport, logs, report.runtime));
+    ({ page, playerFrame, target, identity } = await prepareVerificationPage(browser, viewport, logs, report.runtime, verificationPages));
     report.target = { ...identity, status: 'ready' };
 
     const captureFrame = async function (checkpoint) {
       await waitForCompositor(playerFrame);
       const sampled = await sampleVerificationTarget(target);
       const lifecycle = await page.evaluate(() => ({ ...window.__verificationLifecycle }));
+      const scriptEvents = await page.evaluate(() => ({ ...window.__verificationScriptEvents }));
       const pngBuffer = captureMode === 'target'
         ? await target.screenshot({ type: 'png' })
         : await page.screenshot({ type: 'png', fullPage: true });
@@ -437,6 +466,7 @@ async function main() {
         targetBounds: sampled.targetBounds,
         dom: sampled.dom,
         lifecycle,
+        scriptEvents,
         integrity
       };
       if (checkpoint) frame.checkpoint = checkpoint;
@@ -460,9 +490,10 @@ async function main() {
     for (let i = 0; i < (scenarioCaptureCount ? 0 : frameCount); i++) {
       if (i > 0 && freshPagePerFrame) {
         await restoreVerificationTarget(playerFrame);
+        await collectScriptEvents();
         await page.close();
         const previousIdentity = identity;
-        ({ page, playerFrame, target, identity } = await prepareVerificationPage(browser, viewport, logs, report.runtime));
+        ({ page, playerFrame, target, identity } = await prepareVerificationPage(browser, viewport, logs, report.runtime, verificationPages));
         if (identity.kind !== previousIdentity.kind || identity.compositionId !== previousIdentity.compositionId) {
           throw new Error('PLAYER_TARGET_CHANGED: the resolved composition changed after reload');
         }
@@ -471,6 +502,7 @@ async function main() {
       if (i < frameCount - 1) await page.waitForTimeout(intervalMs);
     }
 
+    await collectScriptEvents();
     report.runtime.console = summarizeLogs(logs);
     report.status = report.visualIntegrity.passed ? 'passed' : 'failed';
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf8');
@@ -486,6 +518,7 @@ async function main() {
     if (report.target.status === 'pending') report.target.status = 'failed';
     report.error = sanitizeText(error && error.message ? error.message : error);
     if (error && error.scenarioResult) report.scenario = error.scenarioResult;
+    await collectScriptEvents();
     report.runtime.console = summarizeLogs(logs);
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf8');
     throw error;

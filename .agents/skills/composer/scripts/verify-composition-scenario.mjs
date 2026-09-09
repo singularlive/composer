@@ -25,6 +25,7 @@ const ACTIONS = new Set([
   'jumpTo',
   'waitForLifecycle',
   'assertLifecycle',
+  'waitForState',
   'assertState',
   'assertDom',
   'capture'
@@ -140,9 +141,15 @@ function validateStep(step, index, captureNames) {
     return;
   }
 
-  if (step.action === 'assertState') {
-    assertAllowedKeys(step, ['action', 'compositionId', 'equals'], label);
+  if (step.action === 'assertState' || step.action === 'waitForState') {
+    assertAllowedKeys(step, step.action === 'waitForState'
+      ? ['action', 'compositionId', 'equals', 'timeoutMs']
+      : ['action', 'compositionId', 'equals'], label);
     assertOptionalCompositionId(step, label);
+    if (step.action === 'waitForState' && step.timeoutMs !== undefined &&
+        (!Number.isSafeInteger(step.timeoutMs) || step.timeoutMs < 1 || step.timeoutMs > MAX_STEP_TIMEOUT_MS)) {
+      throw new Error(`${label}.timeoutMs must be an integer between 1 and ${MAX_STEP_TIMEOUT_MS}`);
+    }
     if (step.equals === undefined) throw new Error(`${label}.equals is required`);
     let serialized;
     try {
@@ -202,7 +209,7 @@ export function validateVerificationScenario(scenario) {
   scenario.steps.forEach((step, index) => validateStep(step, index, captureNames));
   const totalWaitBudgetMs = scenario.steps.reduce(function (total, step) {
     if (step.action === 'wait') return total + step.milliseconds;
-    if (step.action === 'waitForLifecycle') return total + (step.timeoutMs || 10000);
+    if (step.action === 'waitForLifecycle' || step.action === 'waitForState') return total + (step.timeoutMs || 10000);
     return total;
   }, 0);
   if (totalWaitBudgetMs > MAX_WAIT_MS) {
@@ -305,6 +312,33 @@ export async function executeVerificationScenario(options) {
           compositionId: step.compositionId
         }, options.defaultCompositionId);
         if (stableJson(actual) !== stableJson(step.equals)) throw new Error('state assertion failed');
+      } else if (step.action === 'waitForState') {
+        await page.waitForFunction(function (input) {
+          function canonicalState(value) {
+            if (Array.isArray(value)) return '[' + value.map(canonicalState).join(',') + ']';
+            if (value && typeof value === 'object') {
+              return '{' + Object.keys(value).sort().map(key =>
+                JSON.stringify(key) + ':' + canonicalState(value[key])).join(',') + '}';
+            }
+            return JSON.stringify(value);
+          }
+          if (!window.player || typeof window.player.getMainComposition !== 'function') {
+            throw new Error('Player composition API is unavailable');
+          }
+          var target = window.player.getMainComposition();
+          if (!target) throw new Error('Player main composition is unavailable');
+          if (input.compositionId) {
+            if (typeof target.getCompositionById !== 'function') {
+              throw new Error('Player sub-composition lookup is unavailable');
+            }
+            target = target.getCompositionById(input.compositionId);
+            if (!target) throw new Error('Requested Player composition was not found');
+          }
+          return canonicalState(target.getState()) === input.expected;
+        }, {
+          compositionId: step.compositionId === undefined ? options.defaultCompositionId : step.compositionId,
+          expected: stableJson(step.equals)
+        }, { polling: 50, timeout: step.timeoutMs || 10000 });
       } else if (step.action === 'assertDom') {
         const actual = await sample();
         if (!domAssertion(step, actual, checkpoints)) throw new Error('DOM assertion failed');

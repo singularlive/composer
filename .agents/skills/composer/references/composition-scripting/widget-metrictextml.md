@@ -17,7 +17,7 @@ ml.setPayload({ text: "Line 1\nLine 2\nLine 3", color: "yellow" });
 | :--- | :--- | :--- | :--- |
 | `text` | string | `""` | Text content. Wrap with `<html>...</html>` to render HTML. Newlines separate lines. |
 | `font` | object | — | Font definition (see [Font Object](#font-object) below). |
-| `color` | string, object | `"white"` | Text color. Same formats as Rectangle's `fillGradient`. |
+| `color` | string, object | `"white"` | Solid text color using the [Metric Text color contract](widget-metrictext.md). Gradient stops are not rendered; Metric Text Style supports gradient text but is single-line. |
 | `alignment` | string | `"left"` | Horizontal alignment: `"left"`, `"center"`, `"right"`. |
 | `lineHeight` | number | `100` | Line height as percentage (e.g. `120` = 1.2× line spacing). |
 | `minLines` | number | `1` | Minimum number of lines to reserve space for. |

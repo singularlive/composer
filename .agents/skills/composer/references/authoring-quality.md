@@ -1,6 +1,6 @@
 # Composition authoring standard
 
-Read this reference before every prompt-, screenshot-, or reference-driven graphic creation or refinement. It is the single source of truth for composition-authoring best practice and the completion gate before handing finished work back to the user.
+Read this reference before graphic creation, layout/design refinement, or reference matching. It is the single source of truth for composition-authoring best practice and the completion gate before handing finished work back to the user. For an isolated property edit that preserves structure and behavior, use "Isolated property edits" in [commands.md](commands.md); load this standard if the edit expands into design or structural work.
 
 The standard has two equally required parts:
 
@@ -32,7 +32,7 @@ Use zero captures for nonvisual or model-only work and normally one for a straig
 
 ### Choose the right structural unit
 
-- Treat the **root composition** as an orchestration and shared-control layer. New visual graphics belong in root-level ordinary sub-compositions, not as Rectangle, Text, Image, or other visual tiles directly in root.
+- Treat the **root composition** as an orchestration and shared-control layer. Independent graphics belong in root-level ordinary sub-compositions, not as Rectangle, Text, Image, or other visual tiles directly in root. Nest extensions and optional modules inside the nearest composition owning the surrounding graphic's layout and animation; preserve existing presentation ownership when extending a graphic.
 - Use a **tile** for one independently editable visual or widget, such as a background shape, text value, image, divider, or table. Do not combine separately aligned or separately controlled values into one tile merely to reduce element count.
 - Use a **group** when elements in the same composition need shared clipping, bounds, layer movement, or a genuinely shared animation lifecycle. Put the unit's canvas position and size on that group; make its children fill the group or use simple local insets so a human can move and resize the complete unit from one place. Position a child independently only when its role genuinely requires geometry outside that shared frame. Do not group persistent and transient elements under one hiding animation.
 - Use a **sub-composition** for a complete module the user is likely to take in or out, animate, edit, reuse, or control independently. Examples include a score bug, lower third, story list, or ticker.

@@ -1,6 +1,6 @@
 ---
 name: composer
-description: Inspect, capture, create, and refine graphics in an open Singular Composer session, including composition elements, control nodes, layouts, timeline animations, and composition scripts. Use when AI needs to control Composer or develop and verify graphics and runtime behavior for a paired composition.
+description: Inspect, capture, create, and refine graphics in an open Singular Composer session, including composition elements, control nodes, layouts, timeline animations, and composition scripts. Use when AI needs to control Composer, verify graphics and runtime behavior, or respond to generate improvement handoff with retrospective feedback on user corrections; the retrospective requires no paired session.
 ---
 
 # Singular Composer
@@ -15,18 +15,19 @@ The bundled CLIs are the only supported agent interface. Never replace raw compo
 
 ## CLI dependencies
 
-The bundled CLIs require the exact packages declared in `package.json`. Before their first command, verify those dependencies resolve from the corresponding script. If not, install them through the target environment's normal Node dependency workflow, then retry.
+Use the exact dependency versions declared in the skill's `package.json`. Before first use of a CLI, verify the packages imported by that script resolve from its location. Check `playwright-core` and installed Chrome only before capture or Player verification, not as prerequisites for ordinary inspection or editing. If a required package is missing, install it through the target environment's normal Node dependency workflow, then retry.
 
 Reuse available packages. If dependency setup is unavailable or prohibited, report it and stop before pairing. Capture and Player verification use the target machine's installed Chrome; follow their routed references.
 
 ## Route the task first
 
-Read only the references required for the current task:
+Read only the references required for the current task and phase. Before mutation, establish the ownership, public-input, and lifecycle constraints that affect the design; defer implementation details for later phases until those phases begin.
 
 | Task | Required reference |
 | --- | --- |
 | CLI names, flags, responses, structured files, sessions | [commands.md](references/commands.md) |
-| Prompt-, screenshot-, or reference-driven graphic work | [authoring-quality.md](references/authoring-quality.md) |
+| Graphic creation, layout/design refinement, or reference matching | [authoring-quality.md](references/authoring-quality.md) |
+| Isolated text, color, or property edit with unchanged structure and behavior | "Isolated property edits" in [commands.md](references/commands.md), plus the matching widget guide when applicable |
 | Primitives, layout, declarative graphics, grids | [graphics.md](references/graphics.md) |
 | Choosing or configuring a widget | [widgets.md](references/widgets.md), then its routed widget guide |
 | Ordinary sub-compositions, timelines, controls | [compositions.md](references/compositions.md) |
@@ -36,12 +37,15 @@ Read only the references required for the current task:
 | Composition scripts or Player behavior | [composition-scripts.md](references/composition-scripts.md) and its routed scripting references |
 | Reusable multi-capability construction patterns | [recipes.md](references/recipes.md), then its routed recipe |
 | Recreating supplied motion | [video-reference.md](references/video-reference.md) |
+| User asks `generate improvement handoff` after teaching or correcting the skill | [improvement-handoff.md](references/improvement-handoff.md) |
+
+Treat the exact phrase `generate improvement handoff` as a retrospective reporting request, not a Composer authoring task. Read the routed reference and return its sanitized, self-contained development prompt without acquiring a work lease, reinspecting Composer, or modifying the composition or repository.
 
 ## Authorize and hold one work lease
 
 If no reusable authorization exists, ask the user to open **Composer AI**, request its six-character code, and run `pair --code <code>`. Pass `--server` only when the user explicitly needs another environment. Never request, print, or expose the access token. Require `acknowledged: true`; otherwise report the state and wait for reconnection or fresh pairing before continuing.
 
-At the start of every Composer task, before `inspect` or any other editor command, run:
+For tasks requiring editor commands, before `inspect` or any other editor command, run:
 
 ```bash
 node scripts/composer-agent.js start-work
@@ -73,7 +77,7 @@ Use `inspect --summary`, `inspect --selection`, `get --selected`, filtered primi
 
 ## Preserve structure and use atomic operations
 
-Treat root as orchestration and shared-control space, not a graphics canvas. Put every newly authored graphic in a root-level ordinary sub-composition; keep its visuals and graphic-specific controls there. Preserve existing root visuals unless the user asks to migrate them. Put shared unit bounds on groups and use simple child fill or inset layouts.
+Preserve existing ownership. For new structure, follow "Choose the right structural unit" in [authoring-quality.md](references/authoring-quality.md), which owns root, nested-module, display-presentation, and shared-bounds policy.
 
 Organize every agent-authored public Control Node into a semantic ordinary container before handoff. Group by operator workflow, default containers to Large (`width: "double"`), and use Small only for a concrete compact-layout reason.
 
@@ -87,10 +91,10 @@ Use the operation matching the requested scope:
 - Metric Font changes: use `set-metric-font` for an unlinked widget field and `set-control-font` for a linked field's defining Control Node.
 - Related motion assignments: the matching batch Timeline, Update, or Behavior setter.
 - Composition exclusivity: inspect `logic-layers`, then use `set-logic-layer` or `rename-logic-layer` before controlling members.
-- Display presentations: inspect `display-variants`; configure the complete ordered scene set from root, activate one natively, and assign element/control/container relevance with one `set-display-variant-relevance` manifest. By default, keep one logical graphic as one root-level sub-composition with one shared Control Node contract; place its variant-specific groups or child compositions inside it. Create separate root modules or duplicate controls only when the user explicitly requests independent operation.
+- Display presentations: follow the ownership policy above; inspect `display-variants`, configure the complete ordered scene set from root, activate one natively, and assign element/control/container relevance with one `set-display-variant-relevance` manifest.
 - Individual commands: only one isolated edit, diagnosis, repair, widget-template operation, or unsupported manifest structure.
 
-Never decompose a failed atomic operation into serial mutations. Correct the manifest and rerun it. Keep declarative keys stable and content inside its managed ownership group.
+Never decompose a failed atomic operation into serial mutations. Follow "Mutation failure recovery" in [commands.md](references/commands.md): after an uncertain outcome, obtain authoritative readback before any retry. Keep declarative keys stable and content inside its managed ownership group.
 
 Report every relay or command error directly. Preserve the original failure and Composer state instead of hiding either behind speculative recovery.
 

@@ -61,9 +61,13 @@ The command:
 3. validates every row against the template's complete exposed-control contract, rejecting unknown or missing keys and incompatible text, number, image, or tinycolor2-compatible color values;
 4. validates supported options and preserves the widget's live runtime types;
 5. rejects more than 1,000 rows or serialized content above 32 KB;
-6. applies options followed by `tableContent`, rolling earlier fields back if a later update fails;
+6. applies options followed by `tableContent`, recording attempted fields before dispatch so recovery includes a committed write even if its acknowledgement is lost;
 7. reads the table again and returns verified row count, options, content, and the template relationship.
 
 Supported options are `layoutDirection`, `elementsPerPage`, `lineSpacing`, `updateStyle`, `pageTransitionStyle`, `pageTransitionOffset`, `showLayout`, and `currentPage`. The command never changes the `composition` relationship.
+
+This is a CLI transaction across separate relay writes, not one atomic editor undo batch. Cancellation stops all further recovery commands, including cancellation during readback or compensation. After another failure, the helper reads the target before compensation and verifies its widget/version, template relationship/schema, and affected values. Only values matching this transaction's original or attempted state may be restored; untouched fields and already-restored fields must still match their expected original values. Each compensation is followed by another authoritative read.
+
+If recovery confirms restoration, the original failure is still reported. Unavailable or conflicting readback, changed identity, or failed compensation stops recovery with `TABLE_UPDATE_RECOVERY_UNCERTAIN`; this code is shared by Table and Grid and does not imply no mutation occurred. Preserve the observed state and follow "Mutation failure recovery" in [commands.md](../commands.md) before any retry. After cancellation, report potentially unrestored state without reconnecting. Readback is not compare-and-set: late in-flight writes or changes between read and write remain possible, so do not claim transactional isolation or automatic recovery from every disconnection.
 
 After an update, inspect the Table. Capture only when pixels answer a remaining visual question: prefer `capture --target active` while the Table's ordinary graphic sub-composition is active, and use root only when the whole-scene combination is the acceptance target. If you edit the row template, leaving it intentionally triggers Composer's copy-on-exit lifecycle and replaces the template ID. Discard the edit-session ID, re-read the Table's `composition` relationship, and only then update or capture the Table.

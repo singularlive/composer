@@ -17,7 +17,7 @@ const { createWidgetReferences } = require('./widget-script-references');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 92;
+const SKILL_VERSION = 101;
 const DEFAULT_TIMEOUT_MS = 15000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
@@ -1114,10 +1114,11 @@ async function updateTable(options, isGrid = false) {
     value: tableContent
   });
 
-  const applied = [];
+  const attempted = [];
   let verified;
   try {
     for (const update of updates) {
+      attempted.push(update);
       await executeCommand('element.update', {
         elementType: 'tile',
         id: id,
@@ -1125,7 +1126,6 @@ async function updateTable(options, isGrid = false) {
         path: update.name,
         value: update.value
       });
-      applied.push(update);
     }
     verified = requireWidgetTile(await executeCommand('element.get', { elementType: 'tile', id: id }), id);
     if (!verified.widget || verified.widget.id !== table.widget.id ||
@@ -1134,22 +1134,51 @@ async function updateTable(options, isGrid = false) {
       throw new Error(`${widgetTitle} readback did not match the requested update`);
     }
   } catch (err) {
-    const rollbackErrors = [];
-    for (const update of applied.reverse()) {
-      try {
-        await executeCommand('element.update', {
-          elementType: 'tile',
-          id: id,
-          namespace: 'data',
-          path: update.name,
-          value: update.previous
-        });
-      } catch (rollbackError) {
-        rollbackErrors.push(update.name);
+    const isCancelled = error => error.code === 'OPERATION_CANCELLED' || error.code === 'SESSION_CANCELLED';
+    if (isCancelled(err)) throw err;
+    const restored = new Set();
+    async function readRecoveryState() {
+      const current = requireWidgetTile(await executeCommand('element.get', { elementType: 'tile', id: id }), id);
+      if (!current.widget || current.widget.id !== table.widget.id ||
+          current.widget.version !== table.widget.version ||
+          current.data.composition !== table.data.composition ||
+          JSON.stringify(current.widget.subCompositions) !== JSON.stringify(table.widget.subCompositions)) {
+        throw new Error('Recovery target changed');
       }
+      for (const update of updates) {
+        const value = current.data[update.name];
+        if (value !== update.previous &&
+            (!attempted.includes(update) || restored.has(update.name) || value !== update.value)) {
+          throw new Error('Recovery values conflict');
+        }
+      }
+      return current;
     }
-    if (rollbackErrors.length) {
-      throw new Error(`${err.message}; rollback failed for: ${rollbackErrors.join(', ')}`);
+    try {
+      let current = await readRecoveryState();
+      for (const update of attempted.slice().reverse()) {
+        if (current.data[update.name] !== update.previous) {
+          await executeCommand('element.update', {
+            elementType: 'tile',
+            id: id,
+            namespace: 'data',
+            path: update.name,
+            value: update.previous
+          });
+          restored.add(update.name);
+          current = await readRecoveryState();
+        } else {
+          restored.add(update.name);
+        }
+      }
+    } catch (recoveryError) {
+      if (isCancelled(recoveryError)) throw recoveryError;
+      const uncertain = new Error(
+        `TABLE_UPDATE_RECOVERY_UNCERTAIN: ${widgetTitle} update failed and recovery is incomplete or unverified; inspect before retrying. Original failure: ${err.message}`
+      );
+      uncertain.code = 'TABLE_UPDATE_RECOVERY_UNCERTAIN';
+      uncertain.cause = err;
+      throw uncertain;
     }
     throw err;
   }
@@ -1644,6 +1673,19 @@ async function run() {
       });
       break;
     }
+    case 'timeline-link':
+      assertAllowedOptions(parsed.options, ['id', 'compact'], 'timeline-link');
+      result = await executeCommand('composition.timelineLink.inspect', {
+        id: requireOption(parsed.options, 'id')
+      });
+      break;
+    case 'set-timeline-link':
+      assertAllowedOptions(parsed.options, ['id', 'linked', 'compact'], 'set-timeline-link');
+      result = await executeCommand('composition.timelineLink.set', {
+        id: requireOption(parsed.options, 'id'),
+        linked: requireBooleanOption(parsed.options, 'linked')
+      });
+      break;
     case 'logic-layers': {
       assertAllowedOptions(parsed.options, ['id', 'compact'], 'logic-layers');
       const params = {};
@@ -2486,7 +2528,7 @@ async function run() {
     }
     default:
       throw new Error(
-      'Usage: composer-agent.js <pair|pair-intent|start-work|wait-ready|finish-work|status|complete|inspect|resolve-references|script-handoff|control-composition|logic-layers|set-logic-layer|rename-logic-layer|create-composition|orchestrate|create-revision|list-revisions|read-revision|compare-revision|restore-revision|delete-revision|delete-composition|open-composition|widget-subcompositions|open-widget-subcomposition|update-table|update-grid|timeline2|display-variants|configure-display-variants|activate-display-variant|set-display-variant-relevance|control-nodes|metric-fonts|set-metric-font|upgrade-metric-widgets|widget-nodes|link-widget-nodes|unlink-widget-nodes|set-control-value|set-control-font|create-table-control|set-table-control|update-table-control|link-table-control|unlink-table-control|press-control|timer-action|control-time|update-control|create-control-container|configure-control-container|delete-control-container|create-control|create-controls|delete-control|get|get-many|get-layouts|set-layouts|get-properties|set-properties|select|move|update|fonts|set-font|timeline-animations|set-timeline-animation|set-timeline-animations|update-animations|set-update-animation|set-update-animations|behaviors|set-behavior|set-behaviors|create-group|configure-group|move-group|delete-group|capture|primitives|ensure-group|create|delete|validate|apply> [options]'
+      'Usage: composer-agent.js <pair|pair-intent|start-work|wait-ready|finish-work|status|complete|inspect|resolve-references|script-handoff|control-composition|timeline-link|set-timeline-link|logic-layers|set-logic-layer|rename-logic-layer|create-composition|orchestrate|create-revision|list-revisions|read-revision|compare-revision|restore-revision|delete-revision|delete-composition|open-composition|widget-subcompositions|open-widget-subcomposition|update-table|update-grid|timeline2|display-variants|configure-display-variants|activate-display-variant|set-display-variant-relevance|control-nodes|metric-fonts|set-metric-font|upgrade-metric-widgets|widget-nodes|link-widget-nodes|unlink-widget-nodes|set-control-value|set-control-font|create-table-control|set-table-control|update-table-control|link-table-control|unlink-table-control|press-control|timer-action|control-time|update-control|create-control-container|configure-control-container|delete-control-container|create-control|create-controls|delete-control|get|get-many|get-layouts|set-layouts|get-properties|set-properties|select|move|update|fonts|set-font|timeline-animations|set-timeline-animation|set-timeline-animations|update-animations|set-update-animation|set-update-animations|behaviors|set-behavior|set-behaviors|create-group|configure-group|move-group|delete-group|capture|primitives|ensure-group|create|delete|validate|apply> [options]'
       );
   }
 
