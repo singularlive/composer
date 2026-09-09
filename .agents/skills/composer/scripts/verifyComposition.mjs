@@ -13,26 +13,13 @@ import {
 const require = createRequire(import.meta.url);
 
 function loadPlaywrightCore() {
-  const candidates = [
-    'playwright-core',
-    path.join(
-      path.dirname(process.execPath),
-      'node_modules',
-      '@playwright',
-      'cli',
-      'node_modules',
-      'playwright-core'
-    )
-  ];
-  for (const candidate of candidates) {
-    try {
-      return require(candidate);
-    } catch (error) {
-      if (error.code !== 'MODULE_NOT_FOUND') throw error;
-    }
+  try {
+    return require('playwright-core');
+  } catch (error) {
+    if (error.code !== 'MODULE_NOT_FOUND') throw error;
   }
   throw new Error(
-    'Playwright is unavailable. Install @playwright/cli before using Player verification.'
+    'Playwright is unavailable. Make playwright-core@1.63.0 resolvable before using Player verification.'
   );
 }
 

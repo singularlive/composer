@@ -23,7 +23,7 @@ Run `primitives --primitive metric-text-ticker`, then inspect created instances 
 }
 ```
 
-Preserve the complete inspected `font.fontData`, including resolved metrics when present. Ordinary Text font commands do not support `metricfont`. The shared typed operations preserve unrelated values and reject invalid types or values exceeding the serialized 32 KB limit; they do not enforce all catalog ranges or selection choices.
+Change `font` with `set-metric-font` when unlinked or `set-control-font` through its defining linked control. Both resolve complete Font 2 metrics; ordinary Text font commands do not support `metricfont`. Choose the font before final alignment and spacing. The shared typed operations preserve unrelated values and reject invalid types or values exceeding the serialized 32 KB limit; they do not enforce all catalog ranges or selection choices.
 
 - `speed` is advance as a percentage of widget width per second; use a positive value for motion. `messagePadding` is a percentage of widget width. Catalog version 2 offers 0–500 for both.
 - `direction` is exactly `RightToLeft` or `LeftToRight`. Letter/word spacing and shadow distance/blur are percentages of widget height.

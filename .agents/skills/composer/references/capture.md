@@ -26,6 +26,7 @@ node scripts/composer-agent.js capture \
 - `--target` defaults to `root`. `active` captures the active scene or widget-owned sub-composition when one is open and otherwise resolves to root. An active widget-owned target requires the current opaque `--template-session <token>` from full `inspect` or `open-widget-subcomposition`; missing or stale tokens fail before Player startup.
 - `--wait-mode` defaults to `smart`. `smart` waits for finite Singular timelines and a short target-scoped visual quiet window. `timed` waits for core lifecycle and assets, then captures after `--settle` without requiring the output to stop moving.
 - `--timeline` and `--at` capture an exact paused position of the root or an ordinary active composition's `In` or `Out` timeline. They must be supplied together, require `smart` mode, do not support widget-owned active compositions, and reject positions beyond the selected timeline duration instead of silently clamping them.
+- Choose the target that owns the operator-facing timeline. For a root-level module with linked nested presentations, open that module and use `--target active`; `--target root` seeks the scene root only. An intentionally unlinked root-level module does not contribute its nested duration to the root, so a zero-second root timeline is valid and means the verification target is wrong, not that the nested animation is absent.
 - `--measurements` writes an optional version-1 Player measurement snapshot immediately before the screenshot. Use it for a named geometry question, not as a default sidecar for every capture.
 - `--timeout` is the overall renderer-readiness deadline in seconds and defaults to `30`.
 - `--settle` adds a non-negative delay after core readiness. It defaults to `0` in `smart` mode and `2` seconds in `timed` mode.
@@ -36,7 +37,7 @@ Successful output contains the absolute path, source and target, PNG dimensions 
 
 Standalone core readiness requires a visible positive target box; target-owned DownloadStore cycles to finish; composition-script evaluation to reach `ok` or `error`; a short payload/resource quiet period; loaded fonts; decoded target images; and completed or failed CSS background assets. The listener is injected before navigation into every frame, so events emitted by nested widget frames can be collected from their immediate parents. All gates share the one caller-provided deadline.
 
-In `smart` mode, standalone additionally waits until Singular's finite In/Out timelines are inactive and no timeline reports an unfinished transition, then requires 350 ms of unchanged target-scoped visual state. For a requested timeline position, it first lets that normal finite-timeline gate complete, seeks the existing runtime, verifies the exact paused time, and applies the same visual-stability check without requiring the intentionally incomplete timeline to finish again. Root capture uses Composer's phase-aware runtime timeline-position path, preserving linked descendants and timeline-aware widget callbacks. Ordinary active capture uses the existing Player composition seek API and confirms the selected runtime timeline position before capture. The sample hashes text content, relevant HTML/SVG attributes, computed visibility, opacity, transforms, backgrounds, fonts, bounds, resources, and the complete target-owned Playwright frame tree. This targets Singular timelines specifically; it does not use global `TweenMax.getAllTweens()`, which cannot distinguish finite timeline motion from continuous Behavior or script tweens. If visual changes continue for three seconds after the finite-timeline gate, capture fails early with `PREVIEW_CONTINUOUS_ACTIVITY` and directs the caller to timed mode instead of consuming the complete overall timeout. Canvas presence is reported in readiness metadata, but canvas pixels are not used as proof of stability.
+In `smart` mode, standalone additionally waits until Singular's finite In/Out timelines are inactive and no timeline reports an unfinished transition, then requires 350 ms of unchanged target-scoped visual state. For a requested timeline position, it first lets that normal finite-timeline gate complete, seeks the existing runtime, verifies the exact paused time, and applies the same visual-stability check without requiring the intentionally incomplete timeline to finish again. Root capture uses Composer's phase-aware runtime timeline-position path, preserving linked descendants and timeline-aware widget callbacks. Ordinary active capture uses the frame-local composition timeline API for every matching runtime owner and confirms that an instance reached the selected timeline position before capture. The sample hashes text content, relevant HTML/SVG attributes, computed visibility, opacity, transforms, backgrounds, fonts, bounds, resources, and the complete target-owned Playwright frame tree. This targets Singular timelines specifically; it does not use global `TweenMax.getAllTweens()`, which cannot distinguish finite timeline motion from continuous Behavior or script tweens. If visual changes continue for three seconds after the finite-timeline gate, capture fails early with `PREVIEW_CONTINUOUS_ACTIVITY` and directs the caller to timed mode instead of consuming the complete overall timeout. Canvas presence is reported in readiness metadata, but canvas pixels are not used as proof of stability.
 
 In `timed` mode, capture performs its resource gates, waits `--settle`, rechecks resources, then samples one visible state without requiring timelines or rendered output to become still. Standalone bootstraps from either the preview-ready console signal or an attached `#SingularPlayer` iframe. The iframe is resolved from the element itself, with its stable `/singularplayer/output` URL and top-level child-frame relationship as compatibility fallbacks, rather than assuming its `name` attribute matches its ID. For a widget-owned active composition, capture enters the owning widget iframe and selects the visually active runtime instance of the template. Empty compositions are valid; readiness does not require text or descendants.
 
@@ -45,18 +46,12 @@ Readiness metadata includes the selected wait mode, lifecycle event counts and w
 ## Standalone prerequisites
 
 ```bash
-playwright-cli --version
-playwright-cli install-browser chrome
+node -e "require('playwright-core')"
 ```
 
-If `playwright-cli` is missing:
+If the check fails, make `playwright-core@1.63.0` available through the target environment's normal Node dependency workflow. Standalone capture launches the target machine's installed Google Chrome through Playwright's `chrome` channel; it does not require `@playwright/cli` or a Playwright-managed browser download. If Chrome is unavailable from its standard system location, report the missing prerequisite before capture.
 
-```bash
-npm install --global @playwright/cli
-playwright-cli install-browser chrome
-```
-
-Prefer Chrome. The bundled module uses the `playwright-core` library included with `@playwright/cli` to start a localhost-only headless Chrome worker, deliberately bypassing Playwright CLI's detached daemon. The first standalone capture starts the worker; subsequent captures within its five-minute idle window reuse the Chrome process but create a fresh incognito context and page. The worker accepts authenticated local requests only, keeps the Composition API token out of arguments and worker state, and exits automatically after the idle window. Do not substitute Chromium unless Chrome is unavailable and the user approves the fallback.
+The bundled module uses `playwright-core` directly to start a localhost-only headless Chrome worker. It always creates isolated automation state and never opens the user's normal Chrome profile. The first standalone capture starts the worker; subsequent captures within its five-minute idle window reuse the Chrome process but create a fresh incognito context and page. The worker accepts authenticated local requests only, keeps the Composition API token out of arguments and worker state, and exits automatically after the idle window.
 
 The headless browser must be able to reach the preview endpoint and the external origins used by that preview, including its CDN bootstrap dependencies and any data or asset URLs required by the composition script. In a restricted browser-network context, the outer preview page can fail before attaching `#SingularPlayer` and surface as `PREVIEW_FRAME_NOT_FOUND`. Re-run the same supported command from a network-enabled execution context before treating that error as a renderer defect.
 
@@ -122,14 +117,16 @@ An isolated anomalous frame is useful diagnostic evidence but is not sufficient 
 
 ## Isolating a sub-composition
 
-For a screenshot of one sub-composition, prefer `--composition-id`. Its DOM visibility changes exist only in the temporary Playwright page, so it changes no persistent animation settings or playback states and requires no restoration.
+For a screenshot of one sub-composition, open it with `open-composition --id <id>` and use `capture --target active`. Open widget-owned templates through `open-widget-subcomposition` and supply the current template session. Capture isolation changes visibility only in the temporary Player page, not persistent animation settings or playback states. Return to the previous editor scope afterward when needed.
+
+For sibling variants in one logic layer, verify each variant separately: take one member In, confirm the others are Out, capture the active member, and repeat. Record the intended final active member before changing state, then restore it and re-read the logic layer before handoff. Do not infer stacking from logic-layer membership; it expresses mutual exclusion, not z-order.
 
 Use state-based root capture only when the actual on-air combination of root and sub-compositions matters:
 
 1. Inspect the relevant elements and confirm they have an effective In or Out animation.
 2. Take unrelated root or sibling compositions out.
 3. Take the target composition in.
-4. Run the standalone script without `--composition-id`.
+4. Run `composer-agent.js capture --target root --output <path.png>`.
 
 Taking the root composition out hides animated elements directly in the root; nested sub-compositions remain governed by their own composition states and timelines.
 

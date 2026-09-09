@@ -33,15 +33,21 @@ Structured JSON inputs use files. Prefer a pre-approved agent-session temporary 
 | `pair [--server <url>] --code <code>` | Claim a one-time pairing code, store a 30-day scene/user JWT authorization, and automatically acknowledge it in Composer. `acknowledged: true` requires the editor to apply the retryable connection status and return its correlated receipt through the Redis relay. The editor resumes this authorization after reload. The server defaults to `https://beta.singular.live/`; output reports `acknowledged` and the sanitized `credentialStorage` category. |
 | `pair-intent [--server <url>] --intent-id <id> [--intent-secret -] [--device-name <name>]` | Orchestrator-only automatic pairing. Claim an authenticated short-lived intent after Composer binds it. Supply the secret through `COMPOSER_AGENT_INTENT_SECRET` or pipe it on stdin with `--intent-secret -`; literal secret arguments are rejected. The command waits up to two minutes across valid-but-unbound `409` responses and shared-rate-limit `429` responses, then stores and acknowledges credentials like `pair`. Normal runtime users should use the visible-code `pair` flow. |
 | `start-work` | Acquire or renew the ten-minute task-level work lease. Run once before the first editor command in every task; Composer remains locked across individual command sockets. |
+| `wait-ready [--timeout <milliseconds>]` | Wait until authorization, editor connection, editor command registration, and the work lease are all ready. Returns immediately when ready, otherwise reports the last sanitized readiness state after the default 30-second timeout. The range is 1–120000 ms. It does not mutate, reload, navigate, or renew the lease. |
 | `finish-work` | Release the current work lease and Composer input while preserving the reusable JWT authorization. Run before every final handoff or wait for user input. |
 | `status --message <text>` | Show a concise update and renew an active work lease. It does not acquire a missing lease. |
 | `complete` | Revoke the saved authorization only after the user explicitly asks to disconnect the AI Agent. Ordinary task completion uses `finish-work`. |
 | `inspect` | Read the scene, preview inputs, active composition stack, selection, groups, tile summaries, and a `summary` count of groups, tiles, compositions, and controls. |
 | `inspect --selection` | Return only the currently selected item (`id`, `type`, `groupId`). |
 | `inspect --summary` | Return only the `summary` counts; the full tile list is omitted, so the payload stays small even in large compositions. |
+| `resolve-references --file <references.json>` | Decode and resolve 1–25 Composer references pasted from tree **Copy reference** actions without navigating or mutating. |
 | `script-handoff [--composition-id <id\|root>]` | Inspect the active composition and its local Control Nodes once, then return versioned context for the scripting fast path. With `--composition-id`, temporarily inspect that root or ordinary sub-composition as the suggested script target and restore the prior Composer scope before returning. Widget-owned templates retain their owner-field navigation workflow. |
 
+`resolve-references` accepts either a JSON array of complete copied reference strings or `{ "references": [...] }`. Each readable string ends with a deterministic short handle such as `@composer/widget ref_0123456789abcdef`; the handle contains no encoded identity and requires no stored lookup table. The live editor recomputes handles from the current scene and reports `resolved`, `missing`, or `collision`. Names embedded in copied text are labels only. Never replace a failed reference with a same-named object. References inside widget-owned template edit sessions are intentionally unavailable because their descendant IDs are session-scoped.
+
 Pairing claims are rate limited to one request per second per client address across the claim endpoints. A `429` response has not consumed the pairing code; wait for its `Retry-After` interval and retry the same `pair` command. `pair-intent` performs this bounded retry internally.
+
+After `start-work`, run `wait-ready` before the first editor command. A successful result has `status: "ready"`, `authorization: "active"`, `editor: "connected"`, `commands: "ready"`, and `workLease: "active"`. A timeout exits nonzero with `COMPOSER_NOT_READY` and writes the same sanitized fields with `status: "timeout"`; use them to distinguish an absent editor, an initializing command handler, and a missing lease. Do not substitute repeated `inspect` calls or automatic page reloads.
 
 `COMPOSER_AGENT_CREDENTIALS` has highest precedence and is never silently replaced when its configured file is unreadable or unwritable. Without that override, pairing first uses the normal profile file and falls back to a workspace-keyed file under the operating-system temporary directory only for `EACCES`, `EPERM`, or read-only-filesystem failures. Later commands discover that fallback deterministically, expired fallback credentials and `complete` remove it, and managed fallback identity is stable across working directories. Other read/write failures return `CREDENTIAL_READ_FAILED` or `CREDENTIAL_WRITE_FAILED` with a sanitized target category and remediation; no credential value or complete path is printed. Composer locks while the explicit work lease is active, not while individual sockets are connected. Editor commands without a lease fail with `WORK_NOT_STARTED`. **Cancel operation** releases the lease and interrupts active sockets without revoking the JWT; stop the current task on `OPERATION_CANCELLED`. **Disconnect AI Agent** revokes the authorization.
 
@@ -65,12 +71,16 @@ Widget Nodes are owner-supplied template outputs, not public Control Nodes. See 
 | `get-layouts --type <tile\|group> --ids <id-1,id-2>` | **Preferred for homogeneous layout reads:** return only identity, name, and supported layout fields for up to 100 elements. |
 | `get-layouts --file <targets.json>` | **Preferred for mixed layout reads:** read tiles and groups together from one `{ "elements": [{ "type", "id" }] }` file. |
 | `set-layouts --file <assignments.json>` | **Preferred for coordinated geometry:** validate and atomically update up to 100 mixed tile/group layouts from one file. |
+| `get-properties --file <targets.json>` | **Preferred for selected values:** project up to 100 requested top-level widget fields or element names across one or more tiles/groups. |
+| `set-properties --file <updates.json>` | **Preferred for related ordinary values:** validate and atomically update up to 100 requested top-level widget fields or element names across one or more tiles/groups. |
 | `select --type <tile\|group> --id <id>` | Select an existing element in Composer. The `selected` result includes its `id`, `name`, and `elementType`. |
 | `move --id <tile-id> --group-id <group-id> [--index <n>]` | Move a tile into another group in the active composition, or reorder it within its group. |
 | `update --type <tile\|group> --id <id> --path <path> --value-file <value.json>` | Update one existing property. The `updated` result includes `id`, `name`, `elementType`, `namespace`, `path`, `previousValue`, and the applied `value`. |
 | `update ... --namespace data --path <field-id> --value-file <value.json>` | Update one existing widget control value and return the same named `updated` result shape. |
 | `fonts [--source <user\|account>] [--family <substring>]` | List safe font summaries from Composer's current font catalogs. |
 | `set-font --id <tile-id> [...]` | Set catalog-backed Text family, weight, italic, underline, or alignment properties. |
+| `set-metric-font --id <tile-id> [--property <field-id>] [--family <family>] [--weight <weight>] [--style <style>] [--subset <subset>] [--font-source <catalog\|account>]` | Set a catalog-backed Metric Font field directly on an unlinked widget. The field defaults to `font`. |
+| `upgrade-metric-widgets --ids <tile-id-1,tile-id-2>` | Atomically upgrade explicit Text v2 and Simple Ticker tiles in the active composition to their Metric equivalents. |
 
 `--value-file` must point to a readable valid JSON file whose value preserves the existing property's type. Exact widget fields with schema type `datetime` additionally allow a native unset empty string to become an integer Unix millisecond timestamp within the JavaScript Date range, or return to the empty-string sentinel. Other date strings, fractional timestamps, and out-of-range timestamps are rejected. Null and undefined are rejected, so `update` can never act as a delete.
 
@@ -87,6 +97,35 @@ Widget Nodes are owner-supplied template outputs, not public Control Nodes. See 
 }
 ```
 
+`get-properties` and `set-properties` share one ordered manifest shape. Each element may appear once and has a non-empty `properties` array. Every property explicitly identifies `namespace` as `data` for one top-level widget field or `element` for the element `name`; `set-properties` additionally requires `value`. Nested data paths, layout paths, other element properties, duplicate targets/properties, missing fields, type changes, null/deletion values, and linked widget fields reject the complete operation. Use `set-layouts`, `set-font`, and the dedicated widget/control commands for their stronger domain contracts.
+
+Generic property values are limited to 32 KiB after `JSON.stringify`. The sole larger widget-data exception is AI Graphics widget `4792` field `definition`, which accepts up to 256 KiB after serialization through scalar updates, projected property writes, primitive creation, graphics, and orchestration. Other AI Graphics fields and all other widget or element values retain 32 KiB. The relay permits command and response envelopes up to 1 MiB so the escaped definition and authoritative readback can round-trip; this transport capacity does not raise any other per-value limit.
+
+```json
+{
+	"elements": [
+		{
+			"type": "tile",
+			"id": "<rectangle-1>",
+			"properties": [
+				{ "namespace": "data", "path": "bevelStyle", "value": "outside" },
+				{ "namespace": "data", "path": "bevelSize", "value": 1 }
+			]
+		},
+		{
+			"type": "tile",
+			"id": "<rectangle-2>",
+			"properties": [
+				{ "namespace": "element", "path": "name", "value": "Rounded panel" },
+				{ "namespace": "data", "path": "bevelSize", "value": 1 }
+			]
+		}
+	]
+}
+```
+
+For `get-properties`, omit each `value`. Both commands preserve element and property order and return only the requested values. A successful write returns `previousValue`, authoritative `value`, and `changed` for every property. The total property count is limited to 100, the existing per-value and response-size limits apply, and unexpected failures roll back the complete editor batch.
+
 ```bash
 node scripts/composer-agent.js update --type tile --id <id> --path layout.left --value-file <temporary-directory>/left.json
 node scripts/composer-agent.js update --type tile --id <id> --path name --value-file <temporary-directory>/headline.json
@@ -96,6 +135,10 @@ node scripts/composer-agent.js update --type tile --id <id> --namespace data --p
 Before using `update` on widget data or a linkable layout property, run `control-nodes` and match the requested `(elementId, propertyId)` against its `links` and `nodeRefs`. If a Control Node drives that property, do not call `update` for the linked target. Use `set-control-value` on the defining Control Node and verify both the control and linked element readback. Also inspect `widget-nodes` for owner-supplied output links. Do not overwrite a Widget Node-driven target: change the owning widget's inputs, or deliberately unlink the matching output first. Direct property updates are only for unlinked targets.
 
 Use `fonts` and `set-font` for Text font changes; they validate catalog families and weights and supply required account-font metadata. See [text.md](widgets/text.md).
+
+Use `metric-fonts` and `set-metric-font` for an unlinked `metricfont` widget field. The setter resolves complete Font 2 metrics from the selected catalog, preserves omitted family/weight/style/subset values when valid, and rejects linked fields; use `set-control-font` on the defining Metric Font Control Node instead.
+
+Use `upgrade-metric-widgets` only when the user requests migration from legacy Font 1.0 widgets. Inspect every tile first and pass 1–100 unique IDs from the active composition. Text v2 becomes Metric Text or Metric Text ML according to its current line limits; Simple Ticker becomes Metric Ticker. The command loads current target widget versions and Font 2 sources, translates legacy typography and dimension fields, merges target defaults, and commits the complete batch only after validation. It preserves linked properties only when the source and target fields have the same ID and type; incompatible or removed-field links reject the entire request. Each result reports the previous and resulting widget identities, whether metrics were mapped, and preserved linked properties. Reinspect every upgraded tile afterward; `fontMapped: false` requires a deliberate Metric Font update before visual acceptance.
 
 ### Moving between groups
 
@@ -108,7 +151,7 @@ Both the tile and the target group must be in the active composition. `--index` 
 
 The move rewrites the target group's item priorities and each moved tile's `layout.zindex`, exactly as a layer-list drag does. It leaves the source group's remaining priorities untouched, and does not touch the tile's data, links, keyframes, or effects.
 
-Any tile can be moved into or out of any group. Moving a declarative graphic out of the `AI Generated` group releases it from `graphics.apply`: its spec key is cleared, it becomes an ordinary element, and the response reports `releasedKey`. A later `apply` whose spec still lists that key will build a new element for it rather than reclaim the moved one.
+Any tile can be moved into or out of any group. Moving a declarative graphic out of its metadata-owned managed graphics group releases it from `graphics.apply`: its spec key is cleared, it becomes an ordinary element, and the response reports `releasedKey`. A later `apply` whose spec still lists that key will build a new element for it rather than reclaim the moved one.
 
 ## Groups
 
@@ -122,7 +165,7 @@ Any tile can be moved into or out of any group. Moving a declarative graphic out
 
 `delete-group` uses Composer's normal group deletion. As in the UI, a group cannot be deleted without its tiles: each one's data, links, and node references go with it, and any sub-composition it holds is removed too. The response lists the deleted tiles by id and name. Move anything worth keeping into another group first, and confirm the scope with the user before running it. It also refuses to delete a composition's last remaining group.
 
-`AI Generated` is reserved as a group name — use `ensure-group` for it.
+Managed groups use the active composition's functional name with a trailing `Presentation` omitted. Ownership is metadata-based, so renaming one manually does not release its contents. `ensure-group` restores the concise semantic name.
 
 `move-group` follows Composer's native group-sort path. It rewrites every group's contiguous `priority` and `layout.zindex` values in one editor batch, preserving group contents, animation, Control Nodes, and managed ownership. Read the target group first and use the returned `groupOrder` as authoritative readback.
 
@@ -192,7 +235,15 @@ Update animation supports `--duration`, `--params-file`, `--easing-file`, `--act
 | `open-widget-subcomposition --id <widget-tile-id> [--field <field-id>] [--create]` | Resolve and open the widget's current hidden template, or create it through Composer's native widget-owned path when the field is empty and `--create` is passed. Its `identityScope` reports the durable owner locator and marks the active template and descendant IDs as current-edit-session handles. |
 | `delete-composition --id <id>` | Recursively delete a sub-composition. |
 | `control-composition --id <id> --state <in\|out>` | Take the root or a sub-composition in or out. |
+| `logic-layers [--id <composition-id>]` | Inspect all Composition Navigator logic layers or one ordinary composition's assignment. |
+| `set-logic-layer --id <composition-id> [--name <name>] [--delay <none\|auto\|custom>] [--time <seconds>]` | Assign or configure one ordinary composition. A custom delay requires `--time` from `-10` to `10`. |
+| `set-logic-layer --id <composition-id> --remove` | Remove one logic-layer assignment without changing its current state. |
+| `rename-logic-layer --name <name> --new-name <name>` | Atomically rename a complete layer; an existing target name merges the memberships. |
 | `timeline2 --active <true\|false>` | Enable or disable the dedicated Out timeline on the active composition. |
+| `display-variants` | Inspect the ordered scene variants, active name, resolution catalog, and scene-wide relevance-reference totals. |
+| `configure-display-variants --file <configuration.json>` | From root, atomically replace the complete ordered variant set and migrate explicit rename/delete references across every composition. |
+| `activate-display-variant --name <name>` | Activate one existing variant through Composer's native resolution/global/render transition. |
+| `set-display-variant-relevance --file <relevance.json>` | Atomically set or remove active-composition relevance for up to 100 tiles, groups, controls, and ordinary Control Node containers. |
 
 Prefer `orchestrate` when constructing or refining several related ordinary modules. It replaces a serial create/open/apply/animate sequence with one bounded rollback batch. Use the individual composition commands for isolated changes, widget-owned templates, or structures the version-1 manifest cannot represent.
 
@@ -235,14 +286,14 @@ See [table.md](widgets/table.md) and [grid.md](widgets/grid.md). Grid uses `cols
 | `create-control --name <name> --node-type metricfont --target standalone [--family <name>] [--weight <weight>] [--style <style>] [--subset <subset\|auto>] [--font-source <catalog\|account>]` | **Targeted only:** create one catalog-resolved Metric Font input; defaults to Open Sans and a compatible native variant. |
 | `create-control --name <name> --node-type json --target standalone --value-file <value.json>` | **Targeted only:** create JSON Text from a JSON file whose top-level value is an empty or parseable JSON string, not an object. |
 | `create-control --name <name> --node-type infotext --target standalone --info-mode <static\|dynamic> --value-file <value.json>` | **Targeted only:** create one sanitized form-only data display. Static content is metadata-owned; dynamic content can be replaced through the payload. |
-| `create-control --name <name> --node-type <type> --tile-id <id> --property <field-id> [--source-composition <root\|ancestor-id>]` | **Targeted only:** create and link one isolated widget-data control. The target stays in the active composition; the optional source defines the control in root or another active-stack ancestor. |
+| `create-control --name <name> --node-type <type> --tile-id <id> --property <field-id> [--source-composition <root\|ancestor-id>] [--reuse-existing]` | **Targeted only:** create and link one isolated widget-data control. The target stays in the active composition; the optional source defines the control in root or another active-stack ancestor. `--reuse-existing` links an exact same-name/type control already in that source instead of creating a suffixed duplicate. |
 | `create-control --name <name> --node-type <number\|checkbox> --target layout --element-type <tile\|group> --element-id <id> --property <layout-property> [--source-composition <root\|ancestor-id>]` | **Targeted only:** create and link one explicitly requested Transform/Effect public control; never use as a graphic-authoring default. The optional source follows the same ancestor rule. |
 | `create-controls --file <controls.json>` | **Preferred for related controls:** validate, create, optionally link, and verify a batch atomically. Linked entries may set `sourceCompositionId` to `root` or an active-stack ancestor ID. |
 | `delete-control --id <control-id>` | Delete one supported control through the normal cleanup path. |
 
 ### Control Node containers
 
-Control Node containers are flat editor groups for organizing public controls; they are unrelated to composition graphic groups. Create one from a semantic specification:
+Control Node containers are flat editor groups for organizing public controls; they are unrelated to composition graphic groups. Every agent-authored public control must be assigned to a semantic ordinary container before handoff. Group by operator workflow, default to Large (`width: "double"`), and use Small (`width: ""`) only for a concrete compact-layout reason. Create one from a semantic specification:
 
 ```json
 {
@@ -334,8 +385,8 @@ See [compositions.md](compositions.md).
 | Command | Purpose |
 | --- | --- |
 | `primitives` | List supported primitive widgets and their field schemas. |
-| `primitives --primitive text` | List only one primitive: `text`, `text-ticker`, `metric-text`, `metric-text-ticker`, `metric-text-style`, `metric-text-animation`, `metric-text-ml`, `rectangle`, `circle`, `gradient`, `html`, `image`, `aisvg`, `bodymovin`, `bodymovin-loop`, `sound`, `video-animation`, `video-background`, `video-clip`, `video-clip-with-audio`, `web-page`, `timer`, `date-time-countdown`, `current-date-time`, `grid`, or `table`. |
-| `ensure-group` | Return or create the `AI Generated` group. |
+| `primitives --primitive text` | List only one primitive: `text`, `text-ticker`, `metric-text`, `metric-text-ticker`, `metric-text-style`, `metric-text-animation`, `metric-text-ml`, `rectangle`, `circle`, `gradient`, `html`, `image`, `ai-graphics`, `bodymovin`, `bodymovin-loop`, `sound`, `video-animation`, `video-background`, `video-clip`, `video-clip-with-audio`, `web-page`, `timer`, `date-time-countdown`, `current-date-time`, `grid`, or `table`. |
+| `ensure-group` | Return or create the active composition's semantic managed graphics group. |
 | `create --primitive <name> --name <label>` | **Targeted only:** create one unkeyed managed primitive for diagnosis or an isolated edit that cannot be represented declaratively. |
 | `delete --id <tile-id>` | Delete one primitive. |
 | `validate --file <spec.json>` | Validate a complete required-version-2 specification, including explicit stable-keyed Transform/Effect controls, without mutating anything. |

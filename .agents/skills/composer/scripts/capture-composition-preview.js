@@ -37,151 +37,29 @@ function createCaptureError(code, message) {
   return error;
 }
 
-function usage() {
-  return [
-    'Usage:',
-    '  node capture-composition-preview.js <endpoint> <width> <height> <composition-token> <output-path> [--measurements <path.json>] [--wait-mode <smart|timed>] [--delay <seconds>] [--timeout <seconds>] [--timeline <In|Out> --at <seconds>] [--composition-id <id>] [--widget-tile-id <id>] [--json]',
-    '',
-    'Examples:',
-    '  node capture-composition-preview.js http://localhost:3000 1920 1080 <token> ./tmp/preview.png --delay 3',
-    '  node capture-composition-preview.js http://localhost:3000 1920 1080 <token> ./tmp/subcomp.png --composition-id <id> --json'
-  ].join('\n');
-}
-
-function fail(message) {
-  throw new Error(`${message}\n\n${usage()}`);
-}
-
-function parsePositiveInteger(value, name) {
-  if (!/^\d+$/.test(value)) {
-    fail(`${name} must be a positive integer`);
-  }
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    fail(`${name} must be a positive integer`);
-  }
-  return parsed;
-}
-
-function parseSeconds(value, name, allowZero) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || (allowZero ? parsed < 0 : parsed <= 0)) {
-    fail(`${name} must be ${allowZero ? 'a non-negative' : 'a positive'} number of seconds`);
-  }
-  return parsed;
-}
-
 function normalizeEndpoint(value) {
   let endpoint;
   try {
     endpoint = new URL(value);
   } catch (error) {
-    fail('endpoint must be a valid URL using http or https');
+    throw createCaptureError('CAPTURE_FAILED', 'endpoint must be a valid URL using http or https');
   }
   if (endpoint.protocol !== 'http:' && endpoint.protocol !== 'https:') {
-    fail('endpoint must be a valid URL using http or https');
+    throw createCaptureError('CAPTURE_FAILED', 'endpoint must be a valid URL using http or https');
   }
   return endpoint.toString().replace(/\/$/, '');
 }
 
 function loadPlaywrightCore() {
-  const candidates = [
-    'playwright-core',
-    path.join(
-      path.dirname(process.execPath),
-      'node_modules',
-      '@playwright',
-      'cli',
-      'node_modules',
-      'playwright-core'
-    )
-  ];
-  for (const candidate of candidates) {
-    try {
-      return require(candidate);
-    } catch (error) {
-      if (error.code !== 'MODULE_NOT_FOUND') throw error;
-    }
+  try {
+    return require('playwright-core');
+  } catch (error) {
+    if (error.code !== 'MODULE_NOT_FOUND') throw error;
   }
   throw createCaptureError(
     'PLAYWRIGHT_UNAVAILABLE',
-    'Playwright is unavailable. Install @playwright/cli before using standalone capture.'
+    'Playwright is unavailable. Make playwright-core@1.63.0 resolvable before using standalone capture.'
   );
-}
-
-function parseOptions(args) {
-  const options = {
-    settleMs: 1000,
-    waitMode: 'smart',
-    timeoutMs: DEFAULT_TIMEOUT_MS,
-    compositionId: null,
-    widgetTileId: null,
-    measurementsPath: null,
-    timeline: null,
-    atSeconds: null,
-    json: false
-  };
-  const seen = new Set();
-
-  for (let index = 5; index < args.length; index++) {
-    const flag = args[index];
-    if (seen.has(flag)) {
-      fail(`${flag} may be provided only once`);
-    }
-    seen.add(flag);
-
-    if (flag === '--json') {
-      options.json = true;
-      continue;
-    }
-
-    const value = args[index + 1];
-    if (value === undefined || value.startsWith('--')) {
-      fail(`${flag} requires a value`);
-    }
-    index++;
-
-    if (flag === '--wait-mode') {
-      if (value !== 'smart' && value !== 'timed') {
-        fail('--wait-mode must be "smart" or "timed"');
-      }
-      options.waitMode = value;
-    } else if (flag === '--delay') {
-      options.settleMs = parseSeconds(value, 'delay', true) * 1000;
-    } else if (flag === '--timeout') {
-      options.timeoutMs = parseSeconds(value, 'timeout', false) * 1000;
-    } else if (flag === '--composition-id') {
-      if (!/^[A-Za-z0-9_-]{1,200}$/.test(value)) {
-        fail('composition id must contain only letters, numbers, underscores, and hyphens');
-      }
-      options.compositionId = value;
-    } else if (flag === '--widget-tile-id') {
-      if (!/^[A-Za-z0-9_-]{1,200}$/.test(value)) {
-        fail('widget tile id must contain only letters, numbers, underscores, and hyphens');
-      }
-      options.widgetTileId = value;
-    } else if (flag === '--measurements') {
-      options.measurementsPath = value;
-    } else if (flag === '--timeline') {
-      if (value !== 'In' && value !== 'Out') {
-        fail('--timeline must be "In" or "Out"');
-      }
-      options.timeline = value;
-    } else if (flag === '--at') {
-      options.atSeconds = parseSeconds(value, 'at', true);
-    } else {
-      fail(`unknown option ${flag}`);
-    }
-  }
-
-  if ((options.timeline === null) !== (options.atSeconds === null)) {
-    fail('--timeline and --at must be provided together');
-  }
-  if (options.timeline !== null && options.waitMode !== 'smart') {
-    fail('timeline-position capture requires --wait-mode smart');
-  }
-
-  return options;
 }
 
 function remainingTime(deadline, code, message) {
@@ -1416,17 +1294,11 @@ async function seekActiveTimeline(page, frame, compositionId, timeline, atSecond
     if (!composition || typeof composition.seek !== 'function') {
       return { ok: false, reason: 'composition-unavailable' };
     }
-    const inDuration = Number(durations.In) || 0;
-    const masterSeconds = request.timeline === 'Out'
-      ? inDuration + request.atSeconds
-      : request.atSeconds;
-    composition.seek(masterSeconds);
     return {
       ok: true,
       timeline: request.timeline,
       requestedSeconds: request.atSeconds,
-      durationSeconds: durationSeconds,
-      masterSeconds: masterSeconds
+      durationSeconds: durationSeconds
     };
   }, {
     compositionId: compositionId,
@@ -1446,22 +1318,53 @@ async function seekActiveTimeline(page, frame, compositionId, timeline, atSecond
     );
   }
 
+  const seekedInstances = await frame.evaluate(function (request) {
+    const library = window.singularCompLib;
+    const control = library && library.controlLib;
+    const owners = library && library.rootTimelines;
+    if (!control || typeof control._seek !== 'function' || !owners) return 0;
+    let count = 0;
+    Object.keys(owners).forEach(function (ownerId) {
+      if (!owners[ownerId] || !owners[ownerId][request.compositionId]) return;
+      control._seek(ownerId, request.compositionId, request.timeline, request.atSeconds);
+      count++;
+    });
+    return count;
+  }, {
+    compositionId: compositionId,
+    timeline: timeline,
+    atSeconds: atSeconds
+  }).catch(function () { return 0; });
+  if (!seekedInstances) {
+    throw createCaptureError(
+      'PREVIEW_TIMELINE_SEEK_FAILED',
+      `Unable to find a runtime timeline for composition ${compositionId}`
+    );
+  }
+
+  let observedTimes = [];
   while (Date.now() < deadline) {
-    const actualSeconds = await frame.evaluate(function (request) {
+    const actualTimes = await frame.evaluate(function (request) {
       const onairRef = window.singularOnAirRef;
       const owners = onairRef && onairRef.props && onairRef.props.rootTimelines;
-      if (!owners) return null;
+      if (!owners) return [];
+      const times = [];
       const ownerIds = Object.keys(owners);
       for (let index = 0; index < ownerIds.length; index++) {
         const timelines = owners[ownerIds[index]] && owners[ownerIds[index]][request.compositionId];
         const selected = timelines && timelines[request.timeline];
-        if (selected && typeof selected.time === 'function') return selected.time();
+        if (selected && typeof selected.time === 'function') times.push(selected.time());
       }
-      return null;
-    }, { compositionId: compositionId, timeline: timeline }).catch(function () { return null; });
-    if (Number.isFinite(actualSeconds) && Math.abs(actualSeconds - atSeconds) <= 0.001) {
+      return times;
+    }, { compositionId: compositionId, timeline: timeline }).catch(function () { return []; });
+    observedTimes = Array.isArray(actualTimes)
+      ? actualTimes.filter(Number.isFinite).slice(0, 10)
+      : [];
+    const actualSeconds = Array.isArray(actualTimes)
+      ? actualTimes.find(function (time) { return Number.isFinite(time) && Math.abs(time - atSeconds) <= 0.001; })
+      : undefined;
+    if (Number.isFinite(actualSeconds)) {
       requested.actualSeconds = actualSeconds;
-      delete requested.masterSeconds;
       return requested;
     }
     await page.waitForTimeout(Math.min(25, Math.max(1, deadline - Date.now())));
@@ -1469,7 +1372,8 @@ async function seekActiveTimeline(page, frame, compositionId, timeline, atSecond
 
   throw createCaptureError(
     'PREVIEW_TIMELINE_SEEK_FAILED',
-    `Composition ${compositionId} ${timeline} did not reach ${atSeconds} seconds`
+    `Composition ${compositionId} ${timeline} did not reach ${atSeconds} seconds` +
+      (observedTimes.length ? ` (observed: ${observedTimes.join(', ')})` : ' (no runtime timeline observed)')
   );
 }
 
@@ -1533,9 +1437,10 @@ async function captureCompositionPreviewDirect(options) {
   const settleMs = captureOptions.settleMs === undefined
     ? (waitMode === 'timed' ? 2000 : 0)
     : Number(captureOptions.settleMs);
-  const target = captureOptions.target || 'root';
   const compositionId = captureOptions.compositionId || null;
   const widgetTileId = captureOptions.widgetTileId || null;
+  const target = captureOptions.target === 'active' && !compositionId && !widgetTileId
+    ? 'root' : captureOptions.target || 'root';
   const timeline = captureOptions.timeline || null;
   const atSeconds = captureOptions.atSeconds === undefined || captureOptions.atSeconds === null
     ? null
@@ -1578,7 +1483,7 @@ async function captureCompositionPreviewDirect(options) {
     if (!Number.isFinite(atSeconds) || atSeconds < 0) {
       throw createCaptureError('INVALID_CAPTURE_TIMELINE', 'Timeline position must be zero or greater');
     }
-    if (widgetTileId || (target === 'active' && !compositionId)) {
+    if (widgetTileId) {
       throw createCaptureError(
         'INVALID_CAPTURE_TIMELINE',
         'Timeline-position capture does not support widget-owned active compositions'
@@ -1651,7 +1556,7 @@ async function captureCompositionPreviewDirect(options) {
       } catch (error) {
         throw createCaptureError(
           'BROWSER_LAUNCH_FAILED',
-          'Unable to launch Chrome for standalone capture. Confirm that the Playwright Chrome browser is installed.'
+          'Unable to launch system Google Chrome for standalone capture. Confirm Chrome is installed in its standard system location.'
         );
       }
     }
@@ -1917,7 +1822,7 @@ async function runCaptureWorker() {
   } catch (error) {
     throw createCaptureError(
       'BROWSER_LAUNCH_FAILED',
-      'Unable to launch Chrome for standalone capture. Confirm that the Playwright Chrome browser is installed.'
+      'Unable to launch system Google Chrome for standalone capture. Confirm Chrome is installed in its standard system location.'
     );
   }
 
@@ -2028,38 +1933,7 @@ async function runCaptureWorker() {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  if (args.length < 5) {
-    fail('expected endpoint, width, height, composition token, output path, and optional flags');
-  }
-
-  const endpoint = normalizeEndpoint(args[0]);
-  const width = parsePositiveInteger(args[1], 'width');
-  const height = parsePositiveInteger(args[2], 'height');
-  const compositionToken = args[3];
-  if (!compositionToken) {
-    throw createCaptureError('COMPOSITION_TOKEN_REQUIRED', 'composition token must not be empty');
-  }
-  const options = parseOptions(args);
-  const result = await captureCompositionPreview({
-    endpoint: endpoint,
-    width: width,
-    height: height,
-    compositionToken: compositionToken,
-    outputPath: args[4],
-    target: options.compositionId ? 'active' : 'root',
-    compositionId: options.compositionId,
-    widgetTileId: options.widgetTileId,
-    measurementsPath: options.measurementsPath,
-    waitMode: options.waitMode,
-    timeoutMs: options.timeoutMs,
-    settleMs: options.settleMs,
-    timeline: options.timeline,
-    atSeconds: options.atSeconds
-  });
-
-  if (options.json) console.log(JSON.stringify(result, null, 2));
-  else console.log(`Saved composition preview to ${result.output}`);
+  throw createCaptureError('UNSUPPORTED_CAPTURE_CLI', 'Use composer-agent.js capture; direct credential arguments are not supported');
 }
 
 if (require.main === module) {

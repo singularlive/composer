@@ -13,6 +13,12 @@ node scripts/composer-agent.js <command> [options]
 
 The bundled CLIs are the only supported agent interface. Never replace raw composition JSON, expose credentials, or add arbitrary script execution to the paired editor relay. If a command reports `COMPOSER_SKILL_UPDATE_AVAILABLE`, tell the user once and continue unless another error blocks the task.
 
+## CLI dependencies
+
+The bundled CLIs require the exact packages declared in `package.json`. Before their first command, verify those dependencies resolve from the corresponding script. If not, install them through the target environment's normal Node dependency workflow, then retry.
+
+Reuse available packages. If dependency setup is unavailable or prohibited, report it and stop before pairing. Capture and Player verification use the target machine's installed Chrome; follow their routed references.
+
 ## Route the task first
 
 Read only the references required for the current task:
@@ -28,6 +34,7 @@ Read only the references required for the current task:
 | Widget-owned output links | [widget-nodes.md](references/widget-nodes.md) |
 | Capture or measurements | [capture.md](references/capture.md) |
 | Composition scripts or Player behavior | [composition-scripts.md](references/composition-scripts.md) and its routed scripting references |
+| Reusable multi-capability construction patterns | [recipes.md](references/recipes.md), then its routed recipe |
 | Recreating supplied motion | [video-reference.md](references/video-reference.md) |
 
 ## Authorize and hold one work lease
@@ -38,9 +45,12 @@ At the start of every Composer task, before `inspect` or any other editor comman
 
 ```bash
 node scripts/composer-agent.js start-work
+node scripts/composer-agent.js wait-ready
 ```
 
-If work is canceled and a command returns `OPERATION_CANCELLED`, stop and do not reconnect until the user gives a new instruction. Before yielding, waiting for user input, or ending the task, always run:
+`start-work` acquires the lease immediately even while Composer is reconnecting. `wait-ready` is the non-mutating application gate: it returns immediately when authorization, the editor socket, its command handler, and the work lease are ready, or reports the last sanitized state after a bounded timeout. Use `--timeout <milliseconds>` only when the default 30 seconds is insufficient; the accepted range is 1–120000. It never reloads or navigates Composer.
+
+If work is canceled and a command returns `OPERATION_CANCELLED`, stop and do not reconnect until the user gives a new instruction. Except for the bounded revision recommendation described below, before yielding, waiting for user input, or ending the task, always run:
 
 ```bash
 node scripts/composer-agent.js finish-work
@@ -49,6 +59,8 @@ node scripts/composer-agent.js finish-work
 Require `COMPOSER_WORK_RELEASED`. Use `status --message <text>` before asking a blocking question, then release the lease before waiting. During a long script or Player phase, send a meaningful `status` update before the ten-minute lease can expire. Use `complete` only when the user explicitly asks to disconnect or revoke authorization; normal completion uses `finish-work`.
 
 ## Inspect, mutate, verify
+
+When the user pastes one or more strings ending with `@composer/widget ref_…`, `@composer/composition ref_…`, or `@composer/group ref_…`, preserve each complete string in a temporary JSON `references` array and run `resolve-references --file` immediately after `wait-ready`. Use only entries returned with `status: "resolved"` as direct targets. Report `missing` or `collision` rather than substituting a similarly named element. The readable names are display hints, never identity. Group resolved references by `compositionId` because ordinary mutation commands remain active-composition scoped.
 
 Composer is the source of truth for editor work:
 
@@ -63,25 +75,37 @@ Use `inspect --summary`, `inspect --selection`, `get --selected`, filtered primi
 
 Treat root as orchestration and shared-control space, not a graphics canvas. Put every newly authored graphic in a root-level ordinary sub-composition; keep its visuals and graphic-specific controls there. Preserve existing root visuals unless the user asks to migrate them. Put shared unit bounds on groups and use simple child fill or inset layouts.
 
+Organize every agent-authored public Control Node into a semantic ordinary container before handoff. Group by operator workflow, default containers to Large (`width: "double"`), and use Small only for a concrete compact-layout reason.
+
 Use the operation matching the requested scope:
 
 - Several related ordinary modules: `orchestrate --file` from root.
 - One composition's declarative graphic: required-version-2 `validate` then `apply`.
 - Coordinated geometry: one `get-layouts` and one `set-layouts`.
+- Selected ordinary widget fields or names: one `get-properties` and one `set-properties`.
+- Requested legacy Text or Simple Ticker migration: inspect the tiles, then use one `upgrade-metric-widgets` batch.
+- Metric Font changes: use `set-metric-font` for an unlinked widget field and `set-control-font` for a linked field's defining Control Node.
 - Related motion assignments: the matching batch Timeline, Update, or Behavior setter.
+- Composition exclusivity: inspect `logic-layers`, then use `set-logic-layer` or `rename-logic-layer` before controlling members.
+- Display presentations: inspect `display-variants`; configure the complete ordered scene set from root, activate one natively, and assign element/control/container relevance with one `set-display-variant-relevance` manifest. By default, keep one logical graphic as one root-level sub-composition with one shared Control Node contract; place its variant-specific groups or child compositions inside it. Create separate root modules or duplicate controls only when the user explicitly requests independent operation.
 - Individual commands: only one isolated edit, diagnosis, repair, widget-template operation, or unsupported manifest structure.
 
 Never decompose a failed atomic operation into serial mutations. Correct the manifest and rerun it. Keep declarative keys stable and content inside its managed ownership group.
 
 Report every relay or command error directly. Preserve the original failure and Composer state instead of hiding either behind speculative recovery.
 
-For newly authored text, prefer the matching Metric Text family primitive. Continue to inspect, preserve, and edit legacy Text; adding legacy Text is allowed when it keeps an existing legacy composition consistent. Route exact selection and authoring through [widgets.md](references/widgets.md).
+For newly authored text, prefer the matching Metric Text family primitive. Preserve entered casing with `transform: none` by default; use uppercase, lowercase, capitalize, or small-caps transforms only when the user or reference explicitly requests that behavior. Continue to inspect, preserve, and edit legacy Text; adding legacy Text is allowed when it keeps an existing legacy composition consistent. Route exact selection and authoring through [widgets.md](references/widgets.md).
+
+For AI Graphics, treat the Composer widget rectangle as both the responsive viewport and the complete motion envelope. Composer owns outer placement and size; authored content fills the runtime root but may reserve bounded internal runway for transforms or effects. Treat generated field types as UI schema, not runtime JavaScript type guarantees, and normalize changed values at the lifecycle boundary. Prefer container-relative geometry and motion, and follow [ai-graphics.md](references/widgets/ai-graphics.md) for value normalization, pixel exceptions, Timeline 2, normalized progress, and temporal verification.
 
 ## Protect user content and public inputs
 
 - Change only requested content. Preserve unrelated elements, groups, compositions, controls, scripts, states, and links.
 - Before deletion, inspect and state the complete scope. Ask first if it exceeds the user's explicit request. Treat group and composition deletion as recursive.
-- Create, restore, or delete permanent revisions only on explicit request and follow the backup/readback workflow in [compositions.md](references/compositions.md).
+- Before the first high-impact mutation in a task, recommend a revision through the AI chat question UI. High-impact work includes multi-composition or broad element changes, recursive deletion, migration, display-variant configuration, composition-script changes, control/link restructuring, orchestration, and replacement of an existing visual system. Do not prompt for inspection, capture, playback, isolated text/color/property edits, variant activation, or another high-impact phase already covered by a revision created during the same task.
+- Prefill the decision through a recommended option named `Create revision: <description>`, where the concise description starts with `AI checkpoint before ` and names the planned operation. Also offer `Continue without revision` and `Cancel operation`, and allow a freeform answer for a custom revision description. The chat question API does not provide an editable prefilled text value; the recommended option is the default proposal. Do not add or request a Composer-side dialog.
+- Before showing this blocking chat question, send a status describing the proposed operation and keep the work lease active so the Composer AI dialog remains open. This revision question is the sole exception to releasing the lease before waiting for user input. After the answer, run `wait-ready` and `inspect` again; if the lease expired while waiting, reacquire it with `start-work` first. If the user chooses a revision or supplies a custom name, create the revision before mutation and report its revision number. If the user continues without one, proceed only after the fresh inspection. If the user cancels, run `finish-work` and do not mutate.
+- Create revisions automatically only after that explicit chat approval. Restore or delete permanent revisions only on explicit request and follow the backup/readback workflow in [compositions.md](references/compositions.md).
 - Inspect Control Nodes and Widget Nodes before changing linked widget data or layout. Update the defining source instead of bypassing a link; never replace a conflicting link implicitly.
 - Create standalone controls only as intentional external or composition-script inputs. Expose Transform or Effect controls only when explicitly requested.
 - Use only dedicated typed commands for Control Node metadata, Metric Fonts, Tables, containers, timers, and other specialized models. Follow [commands.md](references/commands.md) and [compositions.md](references/compositions.md).

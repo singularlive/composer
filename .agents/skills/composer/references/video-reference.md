@@ -9,8 +9,8 @@ Use this workflow when the user supplies a clip whose motion, reveal order, timi
 3. Mark only the intervals where direction, topology, overlap, or timing would change the implementation choice.
 4. Resample those ambiguous intervals more densely. A typical rate is 20–30 fps; use the lowest density that resolves the decision.
 5. Record an event map with approximate time, visible elements, geometry change, overlap or occlusion, and whether each item is persistent or transient.
-6. Map each part to the simplest faithful mechanism: standard primitives, groups and clipping, native Timeline effects, AISVG, or script-driven logic.
-7. When AISVG geometry is easiest to transcribe in source pixels, use the source frame's coordinate system as the SVG `viewBox`.
+6. Map each part to the simplest faithful mechanism: standard primitives, groups and clipping, native Timeline effects, AI Graphics, or script-driven logic.
+7. When inline SVG geometry in AI Graphics is easiest to transcribe in source pixels, use the source frame's coordinate system as the SVG `viewBox`.
 8. Verify meaningful intermediate states as well as the settled In and Out states. Treat final-state geometry, intermediate-state geometry, and lifecycle persistence as separate acceptance questions.
 
 Infer motion from adjacent frames rather than the first and last frames alone. Distinguish one continuous path from coordinated segments, and distinguish a path being drawn from a rectangle being scaled or revealed. Track backgrounds, frames, and accents that remain visible during Out instead of grouping them with transient foreground content.

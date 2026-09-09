@@ -34,7 +34,7 @@ Tile layout or declarative `placement` defines the image slot. The widget sizes 
 | --- | --- |
 | `image` | Asset URL. A changed URL starts an asynchronous load; successful readback does not establish that the image downloaded or became visible. |
 | `objectFit` | `contain` preserves aspect ratio and fits the whole image, leaving space on one axis when ratios differ. `cover` preserves aspect ratio and fills the slot, cropping overflow. Select other modes only when returned by the live schema. |
-| `shift` | Alignment along the axis with spare space (`contain`) or overflow (`cover`). The offset is half the size difference multiplied by `1 + shift / 100`; zero centers it. It is not an independent X/Y translation. |
+| `shift` | Alignment along the axis with spare space (`contain`) or overflow (`cover`). The offset is half the size difference multiplied by `1 + shift / 100`; zero centers it. Published versions can expose this numeric value as a string, so preserve the exact live schema type. It is not an independent X/Y translation. |
 | `flipX`, `flipY` | Boolean horizontal and vertical mirroring of the image inside its slot; the tile bounds do not change. |
 
 Prefer `contain` for a logo whose complete mark must remain visible, and `cover` for a photo intended to fill its frame. For shift values allowed by the schema, `-100` aligns the image's leading edge with the slot's top or left, and `100` aligns its trailing edge with the bottom or right. The affected axis depends on image and slot aspect ratios. When the ratios match, shift has no visible effect.
@@ -62,7 +62,7 @@ This version-2 example reserves a logo slot. Merge the element into the current 
     "properties": {
       "image": "https://app.singular.live/images/default-asset-icon.png",
       "objectFit": "contain",
-      "shift": 0,
+      "shift": "0",
       "flipX": false,
       "flipY": false
     }

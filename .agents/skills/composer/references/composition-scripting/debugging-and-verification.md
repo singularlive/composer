@@ -42,12 +42,13 @@ Do not assume `temp/` is git-ignored: the Singular repository ignores `tmp/`, no
 
 ## Playwright installation
 
-The bundled verifier uses the `playwright-core` library installed with `@playwright/cli`, matching standalone capture. Run it in place. Put scenario files and any genuinely custom harness in `temp/`; do not copy the verifier for behavior its declarative scenario contract already supports.
+The bundled verifier uses `playwright-core@1.63.0` directly, matching standalone capture. Run it in place. Put scenario files and any genuinely custom harness in `temp/`; do not copy the verifier for behavior its declarative scenario contract already supports.
 
 ```powershell
-playwright-cli --version
-playwright-cli install-browser chrome
+node -e "require('playwright-core')"
 ```
+
+If the check fails, make `playwright-core@1.63.0` available through the target environment's normal Node dependency workflow. The verifier launches the target machine's installed Google Chrome through Playwright's `chrome` channel and does not require `@playwright/cli` or a Playwright-managed browser download. If Chrome is unavailable from its standard system location, report the missing prerequisite.
 
 Run the bundled verifier from its repository location:
 
@@ -95,7 +96,7 @@ const rectInfo = await playerFrame.evaluate(() => {
 
 The bounding rectangle values are relative to the player viewport, but an SVG `<rect>`'s `x`, `y`, `width`, and `height` attributes are local vector geometry. Generic `<rect>` matches do not establish their owning widget's layout or identity. Use the exact inspected wrapper or a measurement snapshot for placement claims.
 
-**Custom scripts**: Place custom Playwright ESM harnesses in `temp/` and keep them out of commits. A custom harness must implement explicit module resolution for the installed `@playwright/cli` environment as the bundled verifier does; its location under `temp/` does not provide `temp/node_modules`.
+**Custom scripts**: Place custom Playwright ESM harnesses in `temp/` and keep them out of commits. A custom harness must explicitly resolve the configured `playwright-core` dependency; its location under `temp/` does not provide `temp/node_modules`.
 
 ```powershell
 node temp/my-custom-verify.mjs
@@ -203,6 +204,8 @@ Lifecycle counters remain page-wide even with a scoped target. Use target state 
 
 When a scenario contains `capture` steps, those checkpoints replace the ordinary `--frames`/`--interval` sampler, so do not combine those flags. `--fresh-page-per-frame` is also incompatible because reloading would discard the scenario state. With no `capture` step, the normal periodic sampler runs after the scenario. A supplied integrity contract applies to every resulting screenshot.
 
+For property-change Update animation, include intermediate checkpoints rather than only settled states. Capture the old value, call `setPayload`, wait into UpdateOut, capture again near the configured UpdateIn start, then wait through the remaining duration and capture the settled value. This temporal sequence reveals simultaneous old/new glyphs and unintended blank gaps that DOM hashes and final screenshots cannot distinguish. Derive waits from the inspected Update durations and signed offset; do not reuse fixed timings from another composition.
+
 ### Optional visual-integrity contract
 
 Use this only for deterministic fixtures whose required occupied regions are known. Coordinates are relative to the saved PNG; `unit` is `px` or `percent`. Pixels that differ from `background` by more than `tolerance` count as foreground.
@@ -232,7 +235,7 @@ The report records the failed frame, measured foreground pixels, occupied rows/c
    - Add explicit `console.log()` after each suspect line in the composition script, OR
    - Wrap suspect calls in `try/catch` with `console.error()` inside the catch block
 
-**Prerequisite**: `playwright` must be installed. See the [Playwright installation](#playwright-installation) section above.
+**Prerequisite**: `playwright-core@1.63.0` and Google Chrome must be available. See the [Playwright installation](#playwright-installation) section above.
 
 ## Player SDK API reference
 

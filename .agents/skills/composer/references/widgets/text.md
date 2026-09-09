@@ -71,3 +71,11 @@ Other Text properties, including `overflow`, `verticalAlignment`, spacing, line-
 ## Legacy scope
 
 Prefer Metric Text for new authoring. Use this legacy Text workflow when matching an existing composition or when a required legacy font behavior has no Metric Text equivalent.
+
+When the user explicitly asks to migrate existing Text v2 widgets, inspect the complete tiles and upgrade their IDs together:
+
+```bash
+node scripts/composer-agent.js upgrade-metric-widgets --ids <text-tile-id-1,text-tile-id-2>
+```
+
+The command chooses Metric Text for single-line data and Metric Text ML when the legacy minimum or maximum line count exceeds one. It maps available Font 2 metrics, converts pixel-based spacing and shadow values relative to the rendered tile height, translates overflow/alignment/line settings, removes obsolete legacy fields, and preserves tile identity, layout, animation, grouping, and compatible same-field links. Do not use it merely because Metric Text is preferred for new work. Incompatible links reject the complete batch; resolve them explicitly rather than silently unlinking. Reinspect all upgraded tiles and visually verify typography, overflow, and spacing. A result with `fontMapped: false` needs a deliberate Metric Font selection.

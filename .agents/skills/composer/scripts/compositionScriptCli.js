@@ -422,40 +422,50 @@ function collectCompositionIds(node, out) {
 }
 
 async function request(url, options) {
-  let response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
   try {
-    response = await fetch(url, options);
+    const response = await fetch(url, Object.assign({}, options, { signal: controller.signal }));
+    if (!response.ok) {
+      if (response.body) await response.body.cancel();
+      throw new Error("HTTP " + response.status);
+    }
+    const chunks = [];
+    let size = 0;
+    if (response.body) {
+      const reader = response.body.getReader();
+      try {
+        while (true) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          size += chunk.value.byteLength;
+          if (size > 32 * 1024 * 1024) {
+            controller.abort();
+            throw new Error("Response exceeds 32 MB");
+          }
+          chunks.push(Buffer.from(chunk.value));
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    }
+    const text = Buffer.concat(chunks).toString("utf8");
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch (error) {}
+    return { status: response.status, text: text, json: json };
   } catch (error) {
     throw new Error(
       "Request failed for " +
         sanitizeUrl(url) +
         ": " +
-        sanitizeUrl((error && error.message) || "network error")
+        (controller.signal.aborted ? "request deadline or response limit exceeded" :
+          (/^HTTP \d+$/.test(error.message) ? error.message : "network or response error"))
     );
+  } finally {
+    clearTimeout(timeout);
   }
-  const text = await response.text();
-  let json;
-
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch (error) {
-    json = null;
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      "Request failed (" +
-        response.status +
-        ") for " +
-        sanitizeUrl(url)
-    );
-  }
-
-  return {
-    status: response.status,
-    text: text,
-    json: json,
-  };
 }
 
 function composerAgentHeaders(accessToken, headers) {
@@ -466,12 +476,8 @@ function composerAgentHeaders(accessToken, headers) {
 
 async function fetchJson(url, options) {
   const result = await request(url, options || {});
+  if (result.json === null) throw new Error("Invalid JSON response for " + sanitizeUrl(url));
   return result.json;
-}
-
-async function fetchText(url) {
-  const result = await request(url, {});
-  return result.text;
 }
 
 async function fetchContent(host, token) {
@@ -483,7 +489,11 @@ async function fetchScriptsList(host, token, accessToken) {
     host + "/apiv1/compositions/" + token + "/scripts",
     { headers: composerAgentHeaders(accessToken) }
   );
-  return (response && response.data) || [];
+  if (!response || !Array.isArray(response.data) || response.data.some(entry =>
+    !entry || typeof entry.id !== "string" || !entry.id)) {
+    throw new Error("Invalid script list response");
+  }
+  return response.data;
 }
 
 function resolveScriptNames(content) {

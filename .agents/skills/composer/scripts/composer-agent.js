@@ -17,7 +17,7 @@ const { createWidgetReferences } = require('./widget-script-references');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 56;
+const SKILL_VERSION = 92;
 const DEFAULT_TIMEOUT_MS = 15000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
@@ -63,7 +63,8 @@ const BOOLEAN_OPTIONS = new Set([
   'create',
   'remove',
   'preview',
-  'replace'
+  'replace',
+  'reuse-existing'
 ]);
 const GLOBAL_COMMAND_OPTIONS = ['server', 'compact', 'template-session'];
 let activeTemplateSessionToken = null;
@@ -113,6 +114,21 @@ function readJsonOptionFile(options, name, description, required) {
     : options[name];
   if (filePath === undefined) return undefined;
   return readJsonFile(filePath, description);
+}
+
+function decodeComposerReference(value, index) {
+  if (typeof value !== 'string') {
+    throw new Error(`references[${index}] must be a copied Composer reference string`);
+  }
+  const match = value.trim().match(/(?:^|\s)@composer\/(widget|composition|group)\s+(ref_[a-f0-9]{16})$/);
+  if (!match) {
+    throw new Error(`references[${index}] is not a valid copied Composer reference`);
+  }
+  return {
+    version: 1,
+    expectedType: match[1],
+    handle: match[2]
+  };
 }
 
 function parseIds(value) {
@@ -595,6 +611,135 @@ function sendSessionMessage(message, acknowledgementType) {
   });
 }
 
+function waitForComposerReady(options) {
+  const credentials = readCredentials();
+  const readinessId = uuid.v4();
+  const timeoutMs = options.timeout === undefined ? 30000 : Number(options.timeout);
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120000) {
+    throw new Error('--timeout must be an integer from 1 to 120000 milliseconds');
+  }
+
+  return new Promise(function (resolve, reject) {
+    const socket = new WebSocket(createSocketUrl(credentials));
+    const readiness = {
+      status: 'waiting',
+      authorization: 'pending',
+      editor: 'unknown',
+      commands: 'unknown',
+      workLease: 'unknown',
+      workExpiresAt: null
+    };
+    let settled = false;
+    let probeTimer = null;
+    const timeout = setTimeout(function () {
+      const result = Object.assign({}, readiness, { status: 'timeout' });
+      const error = new Error(
+        `Composer did not become ready within ${timeoutMs} ms ` +
+        `(editor=${result.editor}, commands=${result.commands}, workLease=${result.workLease})`
+      );
+      error.code = 'COMPOSER_NOT_READY';
+      error.result = result;
+      finish(error);
+    }, timeoutMs);
+
+    function finish(err, result) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (probeTimer) clearInterval(probeTimer);
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+        socket.close(1000);
+      }
+      if (err) reject(err);
+      else resolve(result);
+    }
+
+    function finishIfReady() {
+      if (
+        readiness.authorization === 'active' &&
+        readiness.editor === 'connected' &&
+        readiness.commands === 'ready' &&
+        readiness.workLease === 'active'
+      ) {
+        finish(null, Object.assign({}, readiness, { status: 'ready' }));
+      }
+    }
+
+    function sendProbe() {
+      if (socket.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({
+        type: 'readiness_request',
+        readinessId: readinessId
+      }));
+    }
+
+    socket.on('open', function () {
+      socket.send(JSON.stringify({
+        type: 'authenticate',
+        token: credentials.accessToken
+      }));
+    });
+
+    socket.on('message', function (rawMessage) {
+      let message;
+      try {
+        message = JSON.parse(rawMessage.toString());
+      } catch (err) {
+        finish(new Error('Composer relay returned invalid JSON'));
+        return;
+      }
+
+      if (message.type === 'authenticated') {
+        warnIfSkillUpdateAvailable(message);
+        readiness.authorization = 'active';
+        sendProbe();
+        probeTimer = setInterval(sendProbe, 500);
+        finishIfReady();
+      } else if (message.type === 'readiness_status') {
+        readiness.authorization = message.authorization || readiness.authorization;
+        readiness.workLease = message.workLease || readiness.workLease;
+        readiness.workExpiresAt = message.workExpiresAt || null;
+        finishIfReady();
+      } else if (message.type === 'editor_status') {
+        readiness.editor = message.status === 'connected' ? 'connected' : 'disconnected';
+        if (message.status !== 'connected') readiness.commands = 'unavailable';
+        else if (readiness.commands !== 'ready') readiness.commands = 'initializing';
+        finishIfReady();
+      } else if (
+        message.type === 'readiness_acknowledged' &&
+        message.readinessId === readinessId
+      ) {
+        readiness.editor = 'connected';
+        readiness.commands = 'ready';
+        finishIfReady();
+      } else if (message.type === 'session_cancelled') {
+        const cancelledError = new Error('Composer operation was canceled by the user. Pair again.');
+        cancelledError.code = 'SESSION_CANCELLED';
+        finish(cancelledError);
+      } else if (message.type === 'operation_cancelled') {
+        const interruptedError = new Error('Composer operation was canceled by the user.');
+        interruptedError.code = 'OPERATION_CANCELLED';
+        finish(interruptedError);
+      } else if (message.type === 'error') {
+        finish(new Error(message.error && message.error.message
+          ? message.error.message
+          : 'Composer relay error'));
+      }
+    });
+
+    socket.on('error', function (err) {
+      finish(new Error(`Unable to connect to Composer: ${err.message}`));
+    });
+
+    socket.on('close', function (code, reason) {
+      if (!settled) {
+        const detail = reason ? `: ${reason.toString()}` : '';
+        finish(new Error('Composer connection closed' + detail + ` (code ${code})`));
+      }
+    });
+  });
+}
+
 function executeCommand(method, params, commandTimeoutMs) {
   const credentials = readCredentials();
   const request = {
@@ -970,6 +1115,7 @@ async function updateTable(options, isGrid = false) {
   });
 
   const applied = [];
+  let verified;
   try {
     for (const update of updates) {
       await executeCommand('element.update', {
@@ -980,6 +1126,12 @@ async function updateTable(options, isGrid = false) {
         value: update.value
       });
       applied.push(update);
+    }
+    verified = requireWidgetTile(await executeCommand('element.get', { elementType: 'tile', id: id }), id);
+    if (!verified.widget || verified.widget.id !== table.widget.id ||
+        verified.data.composition !== table.data.composition ||
+        updates.some(update => verified.data[update.name] !== update.value)) {
+      throw new Error(`${widgetTitle} readback did not match the requested update`);
     }
   } catch (err) {
     const rollbackErrors = [];
@@ -1002,7 +1154,6 @@ async function updateTable(options, isGrid = false) {
     throw err;
   }
 
-  const verified = await executeCommand('element.get', { elementType: 'tile', id: id });
   return {
     [isGrid ? 'grid' : 'table']: { id: id, name: verified.element.name, widget: verified.widget.id },
     widgetSubComposition: subComposition,
@@ -1130,7 +1281,7 @@ function validateCaptureFile(result) {
 }
 
 async function captureStandalone(options) {
-  const inspection = await executeCommand('composition.inspect');
+  const inspection = await executeCommand('composition.inspect', { capture: true });
   const preview = inspection && inspection.preview;
   if (!preview || !preview.compositionToken) {
     throw createCaptureError(
@@ -1329,14 +1480,13 @@ async function createScriptHandoff(options) {
   const originalStack = Array.isArray(originalComposition.stack)
     ? originalComposition.stack
     : [];
-  const requestedCompositionId = requestedOption === 'root'
-    ? originalStack[0] && originalStack[0].id
+  const rootRequested = requestedOption === 'root';
+  let requestedCompositionId = rootRequested && originalStack.length === 1
+    ? originalComposition.id
     : requestedOption;
-  if (!requestedCompositionId) {
-    throw new Error('Composer did not report a root composition for scoped script handoff');
-  }
-
-  const shouldRestore = requestedCompositionId !== originalComposition.id;
+  const shouldRestore = rootRequested
+    ? originalStack.length !== 1
+    : requestedCompositionId !== originalComposition.id;
   let handoff;
   let handoffError = null;
   let restoreError = null;
@@ -1344,13 +1494,16 @@ async function createScriptHandoff(options) {
   try {
     if (shouldRestore) {
       const navigation = await executeCommand('composition.open', {
-        id: requestedCompositionId,
-        ordinaryOnly: true
+        id: rootRequested ? 'root' : requestedCompositionId,
+        ordinaryOnly: !rootRequested
       });
       const openedId = navigation && navigation.activeComposition && navigation.activeComposition.id;
-      if (openedId !== requestedCompositionId) {
+      if (rootRequested && openedId) {
+        requestedCompositionId = openedId;
+      } else if (openedId !== requestedCompositionId) {
         throw new Error(`Composer did not open ordinary composition "${requestedCompositionId}"`);
       }
+      if (!openedId) throw new Error('Composer did not report the opened composition');
     }
 
     const inspection = await executeCommand('composition.inspect', {
@@ -1421,6 +1574,10 @@ async function run() {
     case 'start-work':
       result = await sendSessionMessage({ type: 'work_start' }, 'work_started');
       break;
+    case 'wait-ready':
+      assertAllowedOptions(parsed.options, ['timeout', 'compact'], 'wait-ready');
+      result = await waitForComposerReady(parsed.options);
+      break;
     case 'finish-work':
       result = await sendSessionMessage({ type: 'work_finish' }, 'work_finished');
       break;
@@ -1455,6 +1612,23 @@ async function run() {
       }
       break;
     }
+    case 'resolve-references': {
+      assertAllowedOptions(parsed.options, ['file', 'compact'], 'resolve-references');
+      const specification = readJsonFile(
+        requireOption(parsed.options, 'file'),
+        'Composer references file'
+      );
+      const references = Array.isArray(specification)
+        ? specification
+        : specification.references;
+      if (!Array.isArray(references)) {
+        throw new Error('Composer references file must be an array or contain a references array');
+      }
+      result = await executeCommand('reference.resolveMany', {
+        references: references.map(decodeComposerReference)
+      });
+      break;
+    }
     case 'script-handoff':
       assertAllowedOptions(parsed.options, ['composition-id', 'compact'], 'script-handoff');
       result = await createScriptHandoff(parsed.options);
@@ -1470,6 +1644,30 @@ async function run() {
       });
       break;
     }
+    case 'logic-layers': {
+      assertAllowedOptions(parsed.options, ['id', 'compact'], 'logic-layers');
+      const params = {};
+      if (parsed.options.id) params.id = parsed.options.id;
+      result = await executeCommand('composition.logicLayers.inspect', params);
+      break;
+    }
+    case 'set-logic-layer': {
+      assertAllowedOptions(parsed.options, ['id', 'name', 'delay', 'time', 'remove', 'compact'], 'set-logic-layer');
+      const params = { id: requireOption(parsed.options, 'id') };
+      if (parsed.options.remove) params.remove = true;
+      if (parsed.options.name !== undefined) params.name = parsed.options.name;
+      if (parsed.options.delay !== undefined) params.delay = parsed.options.delay.toLowerCase();
+      if (parsed.options.time !== undefined) params.time = Number(parsed.options.time);
+      result = await executeCommand('composition.logicLayer.set', params);
+      break;
+    }
+    case 'rename-logic-layer':
+      assertAllowedOptions(parsed.options, ['name', 'new-name', 'compact'], 'rename-logic-layer');
+      result = await executeCommand('composition.logicLayer.rename', {
+        name: requireOption(parsed.options, 'name'),
+        newName: requireOption(parsed.options, 'new-name')
+      });
+      break;
     case 'create-composition': {
       const params = { name: requireOption(parsed.options, 'name') };
       if (parsed.options['group-id']) {
@@ -1539,6 +1737,30 @@ async function run() {
         active: requireBooleanOption(parsed.options, 'active')
       });
       break;
+    case 'display-variants':
+      assertAllowedOptions(parsed.options, ['compact'], 'display-variants');
+      result = await executeCommand('displayVariants.inspect', {});
+      break;
+    case 'configure-display-variants':
+      assertAllowedOptions(parsed.options, ['file', 'compact'], 'configure-display-variants');
+      result = await executeCommand(
+        'displayVariants.configure',
+        readJsonFile(requireOption(parsed.options, 'file'), 'display variant configuration')
+      );
+      break;
+    case 'activate-display-variant':
+      assertAllowedOptions(parsed.options, ['name', 'compact'], 'activate-display-variant');
+      result = await executeCommand('displayVariants.activate', {
+        name: requireOption(parsed.options, 'name')
+      });
+      break;
+    case 'set-display-variant-relevance':
+      assertAllowedOptions(parsed.options, ['file', 'compact'], 'set-display-variant-relevance');
+      result = await executeCommand(
+        'displayVariants.relevance.setMany',
+        readJsonFile(requireOption(parsed.options, 'file'), 'display variant relevance manifest')
+      );
+      break;
     case 'control-nodes':
       result = await executeCommand('controlNode.inspect');
       break;
@@ -1550,6 +1772,27 @@ async function run() {
       });
       break;
     }
+    case 'set-metric-font': {
+      assertAllowedOptions(parsed.options, [
+        'id', 'property', 'family', 'weight', 'style', 'subset', 'font-source', 'compact'
+      ], 'set-metric-font');
+      result = await executeCommand('widget.metricFont.set', {
+        id: requireOption(parsed.options, 'id'),
+        property: parsed.options.property,
+        family: parsed.options.family,
+        weight: parsed.options.weight,
+        style: parsed.options.style,
+        subset: parsed.options.subset,
+        source: parsed.options['font-source']
+      });
+      break;
+    }
+    case 'upgrade-metric-widgets':
+      assertAllowedOptions(parsed.options, ['ids', 'compact'], 'upgrade-metric-widgets');
+      result = await executeCommand('widget.metric.upgradeMany', {
+        ids: parseIds(requireOption(parsed.options, 'ids'))
+      });
+      break;
     case 'widget-nodes': {
       assertAllowedOptions(parsed.options, ['source-composition', 'compact'], 'widget-nodes');
       result = await executeCommand('widgetNode.inspect', {
@@ -1719,6 +1962,7 @@ async function run() {
       assertAllowedOptions(parsed.options, [
         'name', 'node-type', 'target', 'tile-id', 'element-type',
         'element-id', 'property', 'value-file', 'info-mode', 'replace',
+        'reuse-existing',
         'source-composition', 'options-file', 'options-url', 'use-reload',
         'family', 'weight', 'style', 'subset', 'font-source', 'compact'
       ], 'create-control');
@@ -1838,6 +2082,7 @@ async function run() {
           ? undefined
           : requireBooleanOption(parsed.options, 'use-reload'),
         replace: parsed.options.replace === true,
+        reuseExisting: parsed.options['reuse-existing'] === true,
         sourceCompositionId: parsed.options['source-composition']
       });
       break;
@@ -1867,6 +2112,7 @@ async function run() {
               sourceUrl: control.sourceUrl,
               useReload: control.useReload,
               replace: control.replace === true,
+              reuseExisting: control.reuseExisting === true,
               sourceCompositionId: control.sourceCompositionId || control.sourceComposition
             };
           })
@@ -1928,6 +2174,21 @@ async function run() {
       result = await executeCommand('element.layouts.setMany', {
         elements: Array.isArray(specification) ? specification : specification.elements
       });
+      break;
+    }
+    case 'get-properties':
+    case 'set-properties': {
+      assertAllowedOptions(parsed.options, ['file', 'compact'], parsed.command);
+      const specification = readJsonFile(
+        requireOption(parsed.options, 'file'),
+        'property specification'
+      );
+      result = await executeCommand(
+        parsed.command === 'get-properties'
+          ? 'element.properties.getMany'
+          : 'element.properties.setMany',
+        { elements: Array.isArray(specification) ? specification : specification.elements }
+      );
       break;
     }
     case 'select':
@@ -2225,7 +2486,7 @@ async function run() {
     }
     default:
       throw new Error(
-      'Usage: composer-agent.js <pair|pair-intent|start-work|finish-work|status|complete|inspect|script-handoff|control-composition|create-composition|orchestrate|create-revision|list-revisions|read-revision|compare-revision|restore-revision|delete-revision|delete-composition|open-composition|widget-subcompositions|open-widget-subcomposition|update-table|update-grid|timeline2|control-nodes|metric-fonts|widget-nodes|link-widget-nodes|unlink-widget-nodes|set-control-value|set-control-font|create-table-control|set-table-control|update-table-control|link-table-control|unlink-table-control|press-control|timer-action|control-time|update-control|create-control-container|configure-control-container|delete-control-container|create-control|create-controls|delete-control|get|get-many|get-layouts|set-layouts|select|move|update|fonts|set-font|timeline-animations|set-timeline-animation|set-timeline-animations|update-animations|set-update-animation|set-update-animations|behaviors|set-behavior|set-behaviors|create-group|configure-group|move-group|delete-group|capture|primitives|ensure-group|create|delete|validate|apply> [options]'
+      'Usage: composer-agent.js <pair|pair-intent|start-work|wait-ready|finish-work|status|complete|inspect|resolve-references|script-handoff|control-composition|logic-layers|set-logic-layer|rename-logic-layer|create-composition|orchestrate|create-revision|list-revisions|read-revision|compare-revision|restore-revision|delete-revision|delete-composition|open-composition|widget-subcompositions|open-widget-subcomposition|update-table|update-grid|timeline2|display-variants|configure-display-variants|activate-display-variant|set-display-variant-relevance|control-nodes|metric-fonts|set-metric-font|upgrade-metric-widgets|widget-nodes|link-widget-nodes|unlink-widget-nodes|set-control-value|set-control-font|create-table-control|set-table-control|update-table-control|link-table-control|unlink-table-control|press-control|timer-action|control-time|update-control|create-control-container|configure-control-container|delete-control-container|create-control|create-controls|delete-control|get|get-many|get-layouts|set-layouts|get-properties|set-properties|select|move|update|fonts|set-font|timeline-animations|set-timeline-animation|set-timeline-animations|update-animations|set-update-animation|set-update-animations|behaviors|set-behavior|set-behaviors|create-group|configure-group|move-group|delete-group|capture|primitives|ensure-group|create|delete|validate|apply> [options]'
       );
   }
 
@@ -2238,6 +2499,7 @@ async function run() {
 run().then(function () {
   writeWorkLifecycleReminder(invokedCommand, true);
 }).catch(function (err) {
+  if (err.result) console.log(JSON.stringify(err.result, null, 2));
   const prefix = err.code ? `${err.code}: ` : '';
   console.error(prefix + err.message);
   writeWorkLifecycleReminder(invokedCommand, false);

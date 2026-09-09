@@ -2,7 +2,7 @@
 
 Use this index to choose a reference for building or editing widgets in paired Composer. Widget-specific authoring guides live in `widgets/`; this index stays at `references/widgets.md`. Read only the document matching the task, alongside [graphics.md](graphics.md) for shared layout, color, and declarative-specification rules.
 
-Selection follows the creation-default policy in the runtime skill: use the matching Metric Text family primitive for newly authored text. Legacy `text` and `text-ticker` remain supported for inspection, editing, and additions that preserve an existing composition's legacy typography. Do not introduce Bodymovin, Sound, Video, or Web Page content unless the request or supplied material identifies that external runtime dependency. Image, HTML, AISVG, tickers, clocks, timers, Table, and Grid are conditional on their actual semantic need rather than default decoration. Existing specialized widgets may still be inspected, preserved, or edited when the user targets them.
+Selection follows the creation-default policy in the runtime skill: use the matching Metric Text family primitive for newly authored text. Legacy `text` and `text-ticker` remain supported for inspection, editing, and additions that preserve an existing composition's legacy typography. Do not introduce Bodymovin, Sound, Video, or Web Page content unless the request or supplied material identifies that external runtime dependency. Image, HTML, AI Graphics, tickers, clocks, timers, Table, and Grid are conditional on their actual semantic need rather than default decoration. Existing specialized widgets may still be inspected, preserved, or edited when the user targets them.
 
 | Primitive | Authoring reference | Read it for |
 | --- | --- | --- |
@@ -18,7 +18,7 @@ Selection follows the creation-default policy in the runtime skill: use the matc
 | `gradient` | [Gradient](widgets/gradient.md) | CSS linear/radial backgrounds, transparency, complete style replacement, and clearing. |
 | `html` | [HTML](widgets/html.md) | Trusted HTML fragments, full content replacement, clearing, and unsanitized-markup precautions. |
 | `image` | [Image](widgets/image.md) | Image slots, the default placeholder, fit, shift, mirroring, and load verification. |
-| `aisvg` | [AISVG](widgets/aisvg.md) | Sanitized SVG/JSON, paths, masks, filters, dynamic bindings, and widget animation. |
+| `ai-graphics` | [AI Graphics](widgets/ai-graphics.md) | Trusted HTML and inline SVG, scoped CSS, dynamic fields, responsive layout, and programmable widget animation. |
 | `bodymovin` | [Bodymovin](widgets/bodymovin.md) | Lottie JSON URL assets and Composer-driven widget Timeline animation. |
 | `bodymovin-loop` | [Bodymovin Loop](widgets/bodymovin-loop.md) | Continuously looping Lottie assets, speed, direction, and timed capture. |
 | `sound` | [Sound](widgets/sound.md) | Audio URL, volume, In/Out/loop playback policy, and Player-only verification. |

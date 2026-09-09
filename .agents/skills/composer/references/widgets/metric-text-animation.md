@@ -2,7 +2,7 @@
 
 Use `metric-text-animation` (widget `4706`) for single-line Font 2.0 text with native character or word animation. Static text uses [Metric Text](metric-text.md); multiline text uses [Metric Text ML](metric-text-ml.md).
 
-Run `primitives --primitive metric-text-animation` for catalog fields and defaults. Preserve the complete inspected `font` object (`metricfont`); ordinary Text font commands do not apply. Base text, alignment, overflow, spacing, shadows and insets follow [Metric Text](metric-text.md). Use stable-keyed declarative graphics for base construction:
+Run `primitives --primitive metric-text-animation` for catalog fields and defaults. Change its `metricfont` field with `set-metric-font` when unlinked or `set-control-font` through its defining linked control; ordinary Text font commands do not apply. Base text, font sequencing, casing, alignment, overflow, spacing, shadows and insets follow [Metric Text](metric-text.md). Use stable-keyed declarative graphics for base construction:
 
 ```json
 {

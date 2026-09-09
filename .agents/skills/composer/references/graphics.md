@@ -12,11 +12,13 @@ List the supported primitives and their control-field schemas before creating gr
 node scripts/composer-agent.js primitives
 ```
 
-The `primitives` response is the authoritative supported-name inventory for the loaded editor. Use [widgets.md](widgets.md) to choose the matching authoring guide. Prefer [Metric Text](widgets/metric-text.md) for single-line text, [Metric Text ML](widgets/metric-text-ml.md) for multiline text, [Metric Text Animation](widgets/metric-text-animation.md) for native character/word effects, [Metric Text Style](widgets/metric-text-style.md) for styled SVG text, and [Metric Text Ticker](widgets/metric-text-ticker.md) for Font 2.0 crawls. Use [Text Ticker](widgets/text-ticker.md) only for legacy-font crawls or consistency with an existing legacy composition. AISVG remains the bounded escape hatch for vector geometry or motion that standard primitives cannot express. When you know the primitive, filter to it so the schema stays small:
+The `primitives` response is the authoritative supported-name inventory for the loaded editor. Use [widgets.md](widgets.md) to choose the matching authoring guide. Prefer [Metric Text](widgets/metric-text.md) for single-line text, [Metric Text ML](widgets/metric-text-ml.md) for multiline text, [Metric Text Animation](widgets/metric-text-animation.md) for native character/word effects, [Metric Text Style](widgets/metric-text-style.md) for styled SVG text, and [Metric Text Ticker](widgets/metric-text-ticker.md) for Font 2.0 crawls. Use [Text Ticker](widgets/text-ticker.md) only for legacy-font crawls or consistency with an existing legacy composition. Use AI Graphics only when one coherent responsive HTML, inline-SVG, Canvas, or procedural presentation and its trusted widget lifecycle are the intended editable unit. When you know the primitive, filter to it so the schema stays small:
 
 ```bash
 node scripts/composer-agent.js primitives --primitive metric-text
 ```
+
+AI Graphics is the programmable escape hatch for one coherent responsive graphic that needs HTML, inline SVG, Canvas, dynamic fields, or custom lifecycle JavaScript. Native primitives remain preferable when elements need independent Composer editing.
 
 Never assume a control value shape. Read each field's schema and `runtime` object from `primitives`; for non-color fields, the runtime value reports the exact type and a complete accepted value. For an existing tile, `get` returns current `data` plus the same schema populated from current values.
 
@@ -44,9 +46,9 @@ For widget-supplied template output, build the target primitives first, then use
 
 ## Managed group and one-off primitives
 
-`graphics.apply` is a reconciler: it deletes and reorders whatever it finds in the group it manages. That group, named `AI Generated`, is the boundary of the diff, not a permission boundary. Keep generated content in it so `apply` never reaches the rest of the scene.
+`graphics.apply` is a reconciler: it deletes and reorders whatever it finds in the group it manages. That metadata-owned group uses the active composition's functional name, omitting a trailing `Presentation`; for example, `Full-Screen Presentation` produces `Full-Screen`. Its identity does not depend on the visible name. The group is the boundary of the diff, not a permission boundary. Keep generated content in it so `apply` never reaches the rest of the scene.
 
-`create` always places its unkeyed primitive in `AI Generated`. Use it only for one isolated edit or diagnosis inside an ordinary graphic sub-composition:
+`create` always places its unkeyed primitive in the active composition's managed graphics group. Use it only for one isolated edit or diagnosis inside an ordinary graphic sub-composition:
 
 ```bash
 node scripts/composer-agent.js ensure-group
@@ -57,6 +59,8 @@ node scripts/composer-agent.js delete --id <tile-id>
 To release that primitive from reconciliation ownership, create or identify the intended ordinary group, then run `move --id <tile-id> --group-id <group-id>` after readback. Do not use this sequence to place new visual primitives directly in root. Primitives are created with no In or Out animation.
 
 Prefer declarative `apply` over one-off `create` for anything beyond a single scratch element.
+
+In a fresh composition whose sole group is the empty default `Group`, the first managed graphics operation adopts and renames that group instead of creating a redundant second group. Additional groups should represent distinct functional regions and use purpose names such as `Full-Screen Background`, `Full-Screen Left Side`, or `Full-Screen Right Side`.
 
 ## Layout math
 
@@ -133,11 +137,11 @@ Rules:
 - `name` is optional and defaults to the key.
 - `layout` accepts the constrained geometry fields plus the complete documented Effect-property set.
 - `properties` keys must exist in the selected primitive schema, and values must match the current or default field type. Schema fields typed `color` or `gradient` are the exception: use an RGBA object for a solid color even when the current/default value is a structured gradient.
-- The array order is **back-to-front**: backgrounds first, foreground text last.
+- The array order is **back-to-front**: backgrounds first, foreground text last. This is the reverse viewpoint from Composer Navigator, whose index `0` is front-most. When visual overlap is wrong, verify which ordering model the current command uses before changing bounds or offsets.
 
 ### Managed group bounds and clipping
 
-A version-2 specification may configure the bounds of its existing `AI Generated` ownership group. All declarative elements are children of that group, so clipping applies to their rendered and animated content without adding a second reconciliation boundary:
+A version-2 specification may configure the bounds of its managed ownership group. All declarative elements are children of that group, so clipping applies to their rendered and animated content without adding a second reconciliation boundary:
 
 ```json
 {
@@ -170,11 +174,11 @@ Reconciliation:
 - Changing or omitting a **linked** keyed primitive is rejected as a conflict instead of silently removing links.
 - Manually created managed primitives without declarative keys are preserved, behind the declarative scene.
 - A keyed element that has left the managed group by any route is released: `apply` clears its key, reports it under `released`, and rebuilds the key as a new element.
-- An empty `elements` array clears declarative graphics but preserves unkeyed managed and user-created content.
+- An empty `elements` array clears declarative graphics but preserves unkeyed managed and user-created content. If no managed content, group layout, group control, or `$group` orchestration target remains, `apply` removes the empty managed group when the composition has another group and otherwise creates no group.
 
 The apply response maps stable keys to current Composer tile IDs, reports `created`, `updated`, `unchanged`, or `replaced`, and lists deleted keyed elements.
 
-Before reapplying, inspect the managed scope and reconcile deliberate changes made after the previous apply. Treat the new response as authoritative: omitted keys are deleted, while `replaced` keys receive new tile IDs that invalidate ID-based references and motion assignments. Read the new tile, rebuild the required references and assignments—including the `widget` Timeline effect for AISVG internal timelines—and read it back.
+Before reapplying, inspect the managed scope and reconcile deliberate changes made after the previous apply. Treat the new response as authoritative: omitted keys are deleted, while `replaced` keys receive new tile IDs that invalidate ID-based references and motion assignments. Read the new tile, rebuild the required references and assignments—including the `widget` Timeline effect for widget-owned animation—and read it back.
 
 ### Version 2 semantic layout
 
@@ -302,7 +306,7 @@ When the user explicitly requests public Transform/Effect inputs, declare them a
 }
 ```
 
-Use `{ "group": "managed", "property": "..." }` instead of `elementKey` to target the specification's `AI Generated` group. Root `controls` support only the documented Transform/Effect layout properties: `checkbox` for `visible`, and `number` for the supported numeric properties. Control keys, names, and targets must be unique. Apply creates missing controls, preserves an exact existing control/node-reference match, and rejects conflicting names or links without mutation. Omitting a previously declared control preserves it because declarative unlink is not supported; delete it only through the explicit inspected Control Node workflow.
+Use `{ "group": "managed", "property": "..." }` instead of `elementKey` to target the specification's managed graphics group. Root `controls` support only the documented Transform/Effect layout properties: `checkbox` for `visible`, and `number` for the supported numeric properties. Control keys, names, and targets must be unique. Apply creates missing controls, preserves an exact existing control/node-reference match, and rejects conflicting names or links without mutation. Omitting a previously declared control preserves it because declarative unlink is not supported; delete it only through the explicit inspected Control Node workflow.
 
 The apply response reports widget-data controls on their element and root layout controls under the top-level `controls` object keyed by declarative control key. Each reports the real `id`, `keyId`, `type`, target, link value, and `status` `created` on first apply or `preserved` on an idempotent reapply. Confirm with `control-nodes` afterward: the field and its link must match the reported identities.
 

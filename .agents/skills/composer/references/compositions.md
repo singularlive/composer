@@ -6,6 +6,73 @@ Composer opens at a root composition. A composition tile can contain another com
 
 Every command operates on the **currently active composition**. Run `inspect` and confirm `activeComposition.stack` before reading or updating anything.
 
+## Display variants
+
+Display variants represent presentation contexts, not merely resolutions. Two variants may both be `1920x1080` while one renders a compact transparent video overlay and another renders full-screen in-venue signage. Shared Control Nodes and payloads remain common; composition-tree adaptations choose the rendered elements, while Control Node relevance shapes the operator form.
+
+Model one logical graphic as one root-level sub-composition by default. Put its single shared Control Node set in that parent, and place alternate presentations as variant-relevant groups or ordinary child sub-compositions inside it. This keeps one Composition Navigator lifecycle and one payload contract while allowing substantially different layouts. Do not create one root-level composition or duplicate Control Nodes per display variant unless the user explicitly asks for independently controlled modules.
+
+Inspect the scene-level contract from any ordinary scope:
+
+```bash
+node scripts/composer-agent.js display-variants
+```
+
+The result contains the active name, ordered variant definitions, supported resolution catalog, optional legacy `virtual` marker, and scene-wide totals for element adaptations plus Control Node field/container relevance. A variant contains `name`, `resolution`, optional `description`, and optional adaptive `globals`. Resolution does not define variant identity and need not be unique.
+
+Configure variants only from root. The version-1 file is a complete ordered replacement: omitted existing variants are deleted. Names must be unique and contain only letters, digits, `-`, `.`, `_`, or `~`; use exact IDs returned in `resolutions`. Use explicit `renames` whenever a previous name becomes a new name so references migrate rather than being deleted.
+
+```json
+{
+  "version": 1,
+  "active": "Video-overlay",
+  "variants": [
+    {
+      "name": "Video-overlay",
+      "description": "Compact transparent score and clock",
+      "resolution": "1920x1080"
+    },
+    {
+      "name": "Venue-signage",
+      "description": "Full-screen in-venue presentation",
+      "resolution": "1920x1080"
+    }
+  ],
+  "renames": {
+    "Old-venue-name": "Venue-signage"
+  }
+}
+```
+
+```bash
+node scripts/composer-agent.js configure-display-variants --file <configuration.json>
+node scripts/composer-agent.js activate-display-variant --name "Venue-signage"
+```
+
+Configuration is one root undo batch around Composer's native transition. Rename/delete migration covers `displayVariantRelevance` on Control Node fields and groups plus `layout.adaptations.displayVariant` on tiles and groups across every composition; stale-name verification occurs before commit. Empty `variants` with empty `active` disables display variants. Treat configuration as high-impact and recommend a revision first. Activation alone changes the persisted active presentation through the same native resolution/global/render path and does not require a revision.
+
+Assign presentation relevance in the active composition with one manifest:
+
+```json
+{
+  "version": 1,
+  "elements": [
+    { "type": "group", "id": "<overlay-group-id>", "variants": ["Video-overlay"] },
+    { "type": "group", "id": "<signage-group-id>", "variants": ["Venue-signage"] }
+  ],
+  "controls": [
+    { "id": "Shared Score", "variants": ["Video-overlay", "Venue-signage"] }
+  ],
+  "containers": [
+    { "id": "Venue controls", "variants": ["Venue-signage"] }
+  ]
+}
+```
+
+Each target's `variants` is a non-empty array of configured names; set it to `null` to remove relevance and make the target universal. Elements accept tile or group IDs and receive the native active display-variant adaptation. Controls accept public IDs or internal `keyId` values; containers use their group IDs. One manifest may contain 1–100 total targets, rejects duplicates and unknown names before mutation, writes one active-composition undo batch, and rolls back failed readback.
+
+Element adaptation controls rendering. Control and container relevance controls whether operator inputs are hidden or muted by the host's relevance mode; it never removes values or links. For substantially different presentations, prefer shared elements where layout is genuinely common and separate variant-specific groups or child compositions inside the shared parent where composition differs. Use `create-control --reuse-existing --source-composition <parent-id>` or `reuseExisting: true` in a `create-controls` entry to link another child target to an exact existing parent control without creating a suffixed duplicate.
+
 ## Structuring graphics with sub-compositions
 
 The structural decision standard for tiles, groups, and sub-compositions lives in [authoring-quality.md](authoring-quality.md). This section describes the Composer-specific mechanics for applying it. Root is the scene's orchestration and shared-control layer. For every newly authored graphic, create one root-level ordinary sub-composition for each complete unit a user is likely to take in or out, animate, edit, or reuse independently — for example a location/time bug, a story list, a centered lower third, and a bottom ticker. Do not place newly authored visual primitives directly in root.
@@ -31,6 +98,8 @@ node scripts/composer-agent.js delete-composition --id <composition-tile-id>
 Creation uses Composer's normal on-the-fly path: a default group, default settings, an In state, and a disabled Out timeline. Navigation is scoped to compositions in the current scene.
 
 Composer automatically links the timeline of an on-the-fly composition created inside another sub-composition. The child receives `settings.linkTimeline: true` and its immediate parent's composition ID in `settings.parentTimeline`, so playing the parent also plays the child. A composition created directly in the root is not linked automatically. Individual composition commands do not toggle these settings; `orchestrate` authors the requested relationship explicitly through each module's `linked` field.
+
+Treat that immediate parent as the linked child's operator-facing lifecycle owner. Take the parent In or Out to play the child; do not use `control-composition` on the linked child itself as playback proof. For exact Timeline-position verification, open the parent and capture `--target active --timeline ...`. A scene-root capture seeks only the root timeline: when the root-level module is intentionally unlinked, root can correctly report a zero-second duration even though its nested parent/child timeline has motion. In that case, a failed root seek diagnoses the wrong verification target, not missing child animation.
 
 Deletion removes the parent tile and recursively cleans up descendants, states, composition properties, and event references. A sub-composition cannot be deleted without its contents, so the response reports a `contents` count of the elements, nested sub-compositions, and control nodes that went with it. Confirm the scope with the user before deleting.
 
@@ -77,7 +146,7 @@ node scripts/composer-agent.js delete-revision --revision-id 12
 
 Revision commands use the visible per-scene revision number, not the internal database row ID. List output includes description, timestamps, creator, and size when available; it never exposes the storage URL or internal row ID. `read-revision` fetches and validates stored content but returns only totals for compositions, groups, elements, controls, and scripts. `compare-revision` returns those totals for the current Composer model and selected revision plus numeric deltas. It deliberately does not enumerate position, size, value, script, or nested-model differences.
 
-Creating a revision saves the composition's last persisted version; it does not save unsaved edits in the current Composer tab or modify the active composition. Run `inspect` first, use a concise non-empty description (up to 500 characters), and create one only when the user explicitly asks for a snapshot. The command reads the current revision list, uses the next numeric revision ID, and returns that ID with the description. If another editor creates the same next revision first, Composer rejects the request rather than replacing a revision; re-inspect and ask the user before trying again.
+Creating a revision saves the composition's last persisted version; it does not save unsaved edits in the current Composer tab or modify the active composition. Run `inspect` first and use a concise non-empty description (up to 500 characters). Create one when the user explicitly requests a snapshot or accepts the runtime skill's AI-chat recommendation before high-impact work. The command reads the current revision list, uses the next numeric revision ID, and returns that ID with the description. If another editor creates the same next revision first, Composer rejects the request rather than replacing a revision; re-inspect and ask the user before trying again.
 
 Restoration replaces the complete scene. Run `inspect`, state that scope, and proceed only when the user explicitly requests the revision. The command validates and reads the target first, creates a persisted revision named `Automatic backup before restoring revision <number>`, waits for that backup to succeed, records the native restore audit action, then applies the stored scene with Composer's native save-script, restore, and reload flags. Its `restore-started` response reports both revision numbers; the editor reload is the final persistence transition, so reconnect and inspect afterward before claiming the restored content is active. If target reading, backup creation, or audit recording fails, scene replacement does not start. The automatic backup records the last persisted scene, not unsaved edits.
 
@@ -97,6 +166,33 @@ node scripts/composer-agent.js control-composition --id "<activeComposition.id>"
 ```
 
 Inspect immediately before and after. The response reports the previous and resulting state; sub-composition tile states also appear as `compositionState` in the following inspection. `out` resolves to `Out1` when **2 timelines** is disabled and `Out2` when it is enabled. Composer also applies linked-timeline and logic-layer behavior, so controlling one composition may transition related compositions.
+
+## Logic layers
+
+Logic layers are named Composition Navigator groups for mutually exclusive root or ordinary sub-compositions. They do not affect visual stacking. Taking one member In sends the other members Out using each composition's one- or two-timeline setting.
+
+Use logic layers primarily to prevent overlays from occupying the same screen space at the same time. Also group overlays whose different visual styles or competing purposes make simultaneous display undesirable, even when their bounds do not strictly intersect. Decide membership from the actual design: screen position, footprint, purpose, and visual compatibility. Do not group overlays that can safely coexist or are intentionally designed to overlap.
+
+Inspect all assignments before changing them, or inspect one composition directly:
+
+```bash
+node scripts/composer-agent.js logic-layers
+node scripts/composer-agent.js logic-layers --id <composition-id>
+```
+
+Assigning a composition creates the named layer when needed and reuses that layer's color when it already exists. New membership or moving between layers takes the assigned composition In through normal Composition Navigator behavior. Exact reapplication is unchanged, and changing only delay settings does not restart playback.
+
+```bash
+node scripts/composer-agent.js set-logic-layer --id <composition-id> --name "Program"
+node scripts/composer-agent.js set-logic-layer --id <composition-id> --delay auto
+node scripts/composer-agent.js set-logic-layer --id <composition-id> --delay custom --time -0.25
+node scripts/composer-agent.js set-logic-layer --id <composition-id> --remove
+node scripts/composer-agent.js rename-logic-layer --name "Program" --new-name "Primary"
+```
+
+Delay `none` starts outgoing and incoming transitions together. `auto` delays the incoming member by the current member's outgoing duration. For `custom`, positive time delays the incoming member and negative time delays the outgoing member; values are limited to `-10` through `10` seconds. Removal preserves the current In/Out state. Rename updates every member atomically and merges with an existing target name and color. Linked-timeline and widget-owned compositions cannot be assigned because their Composition Navigator logic-layer controls are not independent.
+
+When verifying a family of mutually exclusive variants, take each member In and inspect or capture it independently while confirming the other members are Out. After the last check, restore the user-requested active member and verify the complete layer state. Logic layers coordinate visibility only; use tile/group order for stacking inside a composition.
 
 ## Timelines
 
@@ -189,6 +285,8 @@ Update animation applies to supported widget tiles and runs when their propertie
 
 Use `UpdateOut` to animate the old rendered value away and `UpdateIn` to animate the new value in. Both phases store `effect`, `property`, `easing`, and `duration` directly rather than using timeline keyframes. Setting one phase preserves the other. Shared flags are changed only when their options are supplied. If an older tile has no Update-animation object, the command initializes Composer's normal defaults before applying the requested phase.
 
+`offset` is the signed delay between the two phases: a positive value delays UpdateIn, zero starts both phases together, and a negative value delays UpdateOut. A simultaneous crossfade can visibly stack old and new glyphs. Unless that overlap is intentional, use a positive offset at least as long as the UpdateOut duration so the old value leaves before the new value enters. Keep `alwaysExecute: false` for normal value replacement so an unchanged payload does not replay the animation.
+
 Read and write Update animation through its own catalog and setters:
 
 ```bash
@@ -200,6 +298,8 @@ node scripts/composer-agent.js set-update-animations --file <update-assignments.
 
 The single setter accepts `--phase in|out`, `--effect`, `--property`, `--params-file`, `--easing-file`, `--duration`, `--active`, `--always-execute`, and `--offset`. The two file options read UTF-8 JSON objects from the task's temporary JSON directory. It intentionally has no Timeline `--start`, `after`, element type, or group target. The batch file contains `{ "updateAnimations": [...] }`; every entry has a stable `key`, tile `id`, and the single-setter fields. Duplicate element/phase targets are rejected and all entries share one rollback batch.
 
+Model readback proves the assignment, not the replacement behavior. Trigger a real property change in the Player and retain checkpoints during UpdateOut, around the UpdateIn start, and after settlement. Inspect the intermediate images for doubled glyphs, blank intervals longer than intended, clipping, and layout shifts; a settled before/after pair cannot prove transition quality.
+
 ## Control nodes
 
 A control node is a composition-level input. It may directly expose a selected widget-data or tile/group Transform/Effect property, or it may remain standalone so an external payload can trigger composition-script processing. Supported agent-created types are `text`, `textarea`, `number`, `normalizednumber`, `counter`, `color`, `image`, `checkbox`, `audio`, `video`, `data`, `jsonfile`, `json`, `datetime`, `location`, `selection`, `button`, `timecontrol`, `infotext`, and `metricfont`.
@@ -207,6 +307,8 @@ A control node is a composition-level input. It may directly expose a selected w
 Composer also has a native `gradient` Control Node type, but it is intentionally outside agent creation and mutation support. A complete structured gradient is a widget-rendering value with a complex implementation-specific shape, not an appropriate public API or external-control contract. Author solid, linear, radial, and multi-stop gradients directly on compatible widget fields; composition scripts may use complete widget-runtime gradient objects when the target widget API accepts them. Do not expose those objects through a Gradient Control Node. Use a `color` Control Node targeting a Gradient field only when the intended external input is one solid color.
 
 Control fields belong to one composition, while a descendant composition may persist a link to a field defined in root or another ancestor. Targets are always resolved in the **active** composition. Unless the user explicitly asks for an ancestor-owned public control, create a linked control in the same composition as its target and a standalone control in the composition whose script consumes it. Open the target composition first, confirm it in `activeComposition.stack`, then inspect, create, and verify there. This keeps each module self-contained while still supporting intentional root-level control surfaces.
+
+Every agent-authored public control belongs in an ordinary semantic Control Node container. Organize containers around the operator's task or module rather than the controls' primitive types. Default to a Large container (`width: "double"`); use Small (`width: ""`) only for a specific compact workflow or density constraint. After creating controls, create or configure their container and verify ordered membership through `control-nodes`. Do not leave controls ungrouped as the final authored state.
 
 ### Inspect first
 

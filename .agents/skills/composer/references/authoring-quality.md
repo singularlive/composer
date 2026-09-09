@@ -36,6 +36,7 @@ Use zero captures for nonvisual or model-only work and normally one for a straig
 - Use a **tile** for one independently editable visual or widget, such as a background shape, text value, image, divider, or table. Do not combine separately aligned or separately controlled values into one tile merely to reduce element count.
 - Use a **group** when elements in the same composition need shared clipping, bounds, layer movement, or a genuinely shared animation lifecycle. Put the unit's canvas position and size on that group; make its children fill the group or use simple local insets so a human can move and resize the complete unit from one place. Position a child independently only when its role genuinely requires geometry outside that shared frame. Do not group persistent and transient elements under one hiding animation.
 - Use a **sub-composition** for a complete module the user is likely to take in or out, animate, edit, reuse, or control independently. Examples include a score bug, lower third, story list, or ticker.
+- Treat display variants of one logical graphic as presentations inside that graphic's single root-level sub-composition. Keep one shared Control Node set in the parent and place variant-specific groups or child compositions below it. Split variants into separate root modules or duplicate their controls only when the user explicitly requests independent lifecycle or payload contracts.
 - Keep sibling modules in sibling sub-compositions even when they normally appear together. Nest only when a module contains another independently controlled module.
 - Group by control and lifecycle intent, not by primitive type. A module's background, accents, images, primary text, and supporting text should remain operationally coherent.
 - Remember that ordinary sub-compositions retain the full Composer canvas coordinate system; they are control boundaries, not cropped layout regions.
@@ -45,23 +46,24 @@ Use zero captures for nonvisual or model-only work and normally one for a straig
 
 - Prefer Metric Text family widgets, Rectangle, Circle, Image, and other supported native primitives when they can express the design cleanly. Use legacy Text for new elements only when extending a composition that already uses it and consistency is more important than introducing Font 2.0; continue to understand and preserve existing Text widgets.
 - Use Table for genuinely repeated tabular content rather than manually duplicating rows.
-- Use AISVG only for the bounded vector, mask, filter, path, or motion portion that standard primitives cannot represent faithfully. Keep ordinary text and images as native elements when independent editing is valuable.
+- Use AI Graphics for one coherent programmable graphic when standard primitives cannot faithfully represent its HTML, inline SVG, Canvas, procedural geometry, or lifecycle behavior. Keep ordinary text, images, and shapes as native elements when independent editing is valuable.
 - Add composition scripts only when persisted runtime logic is required. Do not use a script to replace structure, links, timelines, or widget behavior that Composer already represents directly.
 
 ### Author for safe refinement
 
-- Give modules, tiles, groups, controls, and script-addressed widgets clear semantic names based on their roles.
+- Give modules, tiles, groups, controls, and script-addressed widgets concise semantic names based on their roles. Omit generic implementation words such as `Graphics` and `Presentation` when they add no meaning. When one composition needs multiple groups, name their distinct functions, for example `Full-Screen Background`, `Full-Screen Left Side`, and `Full-Screen Right Side`.
 - Use one version-2 declarative graphics specification per authored composition and keep element keys stable across refinement passes.
 - Prefer one atomic orchestration manifest for several related ordinary modules. Within one composition, batch related Timeline, Update, or Behavior assignments.
 - Keep declaratively managed elements inside their managed ownership group. Reuse the same specification and keys when refining instead of rebuilding equivalent elements.
 - Use top-left semantic placement, styles, regions, grids, templates, and repeats when they make layout intent clearer and eliminate duplicated coordinate math.
-- Keep layer order deliberate: structural backgrounds first, then accents and images, with foreground text and status details above them unless the requested design requires another relationship.
+- Keep layer order deliberate: structural backgrounds first, then accents and images, with foreground text and status details above them unless the requested design requires another relationship. Composer Navigator order is front-to-back, where index `0` is foremost; declarative `elements` arrays are back-to-front. Diagnose stacking before compensating with geometry when an element appears to intrude into another region.
 
 ### Design the public control contract
 
 - Identify values the user or an external system is expected to change, and give those values stable widget or Control Node contracts.
 - Keep graphic-specific controls in the same sub-composition as the elements they drive.
 - Put a font, color palette, or other theme Control Node in root when it is intentionally shared by some or all root-level graphic sub-compositions, then link each descendant target to that one root-owned source through the native ancestor-control path.
+- Put every agent-authored public Control Node in a semantic ordinary Control Node container. Group controls by operator workflow, default each container to Large (`width: "double"`), and use Small (`width: ""`) only when a concrete density or layout reason makes the narrower presentation better.
 - Use a direct link when one public input maps directly to one widget property. Use a script only when an input must be interpreted, combined, formatted, or routed.
 - Do not expose Transform or Effect properties as Control Nodes merely because they are technically linkable. Expose them only when the user asks for those exact public controls.
 - Once a script relies on a composition or widget name, treat that name as part of the runtime contract and change the structure and script together.
@@ -104,6 +106,8 @@ Use zero captures for nonvisual or model-only work and normally one for a straig
 
 - Use a small, deliberate type hierarchy with consistent roles for primary values, names, subtitles, labels, and status text.
 - Keep font family, weight, size, case, line height, and tracking consistent for repeated roles.
+- Preserve operator-entered casing by default. Apply uppercase, lowercase, capitalize, or small-caps transforms only when the user or reference explicitly requires that treatment.
+- Resolve and apply the intended font before fine-tuning text alignment, spacing, or box geometry because Metric Font metrics can materially change the rendered fit and baseline.
 - Judge readability at the intended output resolution, not only while zoomed into the editor.
 - Preserve strong foreground/background contrast. Do not rely on fine outlines or shadows to rescue weak contrast.
 - Size text boxes for their intended content and overflow behavior. Confirm that realistic longer values do not collide, clip, wrap unexpectedly, or shrink disproportionately.
@@ -119,19 +123,33 @@ Use zero captures for nonvisual or model-only work and normally one for a straig
 ### Motion and temporal quality
 
 - Use motion to reinforce information hierarchy and spatial relationships. Tightly coupled content should move coherently.
+- For layered graphics, stage structural panels, accents, primary text, and supporting text with restrained offsets when that sequence clarifies hierarchy. Do not apply one uniform effect merely for convenience, and do not let decorative motion dominate the message.
+- Avoid full-canvas directional translation for unmasked text when partial glyphs crossing the frame edge would look accidental. Move the containing panel or clipped group, or reveal the text with a synchronized fade after its support enters.
 - Keep direction, duration, easing, and stagger purposeful and reasonably consistent across related elements.
 - Account for every visible background, accent, divider, image, label, subtitle, and decorative element during In and Out.
 - Require a complete settled In state. For Out, remove every transient element cleanly while preserving anything the requested lifecycle says should remain.
 - Verify meaningful intermediate states when timing, masking, clipping, occlusion, path drawing, or staged reveals affect the design. A settled frame alone cannot prove those effects.
 - Treat composition state and timeline readback as implementation evidence, not visual proof. A reported `Out1` or `Out2` state does not prove that the frame looks correct.
 
+### Reference-driven refinement order
+
+When comparing authored output with a supplied design, resolve discrepancies in this order:
+
+1. overall bounds, placement, and silhouette;
+2. layer order and occlusion;
+3. font family, weight, casing, and type hierarchy;
+4. internal alignment, spacing, and detailed geometry;
+5. motion character, timing, and intermediate states.
+
+Do not tune downstream geometry around an incorrect layer order or temporary font. Use model readback for structure and exact values; use captures only for unresolved visual differences.
+
 ## Completion gate before user handoff
 
 Do not present composition work as finished until every applicable check below passes:
 
 1. **Scope:** The requested graphic is complete, unrelated content is preserved, and the active composition stack is correct.
-2. **Structure:** Tiles, groups, and sub-compositions follow control and lifecycle intent; names, stable keys, ownership, links, and public controls are understandable and verified through Composer readback.
-3. **Editability:** Native primitives are used where practical; AISVG, Table, widget templates, and scripts are used only for the portions that require them.
+2. **Structure:** Tiles, groups, and sub-compositions follow control and lifecycle intent; names, stable keys, ownership, links, and public controls are understandable and verified through Composer readback. Every agent-authored public control is in a semantic ordinary Control Node container, Large by default.
+3. **Editability:** Native primitives are used where practical; AI Graphics, Table, widget templates, and scripts are used only for the portions that require them.
 4. **Rendered quality:** Inspect or capture the result at the intended resolution and check theme consistency, safe bounds, clipping, hierarchy, alignment, internal Text alignment, spacing, typography, contrast, effects, and asset placement.
 5. **Dynamic content:** Exercise realistic long, short, wide, empty, and repeated values wherever those variations could affect the layout.
 6. **Animation:** For graphics with In/Out behavior, verify the settled In and intended settled Out frames. Verify intermediate states when the visual contract depends on motion between them.
