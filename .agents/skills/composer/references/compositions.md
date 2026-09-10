@@ -370,7 +370,7 @@ Use a standalone control when the value is an external/script input rather than 
 | `number` | `number`, `normalizednumber`, numeric `text` | Finite number |
 | `normalizednumber` | `normalizednumber`, `number` | Percentage from 0 to 100 |
 | `counter` | `counter`, `number`, `normalizednumber` | Integer |
-| `color` | `color`, `gradient` | Exact RGBA object with RGB from 0 to 255 and alpha from 0 to 1; gradient fields initialize from `solidColor` |
+| `color` | `color`, `gradient` | Exact RGBA object with RGB from 0 to 255 and alpha from 0 to 1; direct RGBA gradient values are preserved and structured gradients initialize from `solidColor` |
 | `image` | `image` | String image URL/value |
 | `checkbox` | `checkbox` | Boolean |
 | `audio` | `audio` | String audio URL/value |
@@ -405,7 +405,7 @@ Info Text HTML is sanitized both on agent writes and immediately before Control 
 
 Use `textarea` when longer free-form input or explicit line breaks are part of the public input contract; use `text` for concise single-line input. Prefer linking a textarea control to a widget field whose live schema type is `textarea`, such as the `text` field of the `metric-text-ml` primitive. A compatible `text` target accepts the same string value but does not guarantee multiline rendering. Textarea `rows` and `cols` configure the Control App input only; rendered line count, wrapping, and truncation remain properties of the target widget.
 
-When a Color control targets a Gradient field, the control initializes from the field's current `solidColor`. The existing widget gradient input accepts tinycolor2-compatible values and renders them as a solid gradient, so a driving widget can send a color string or RGBA object without reproducing the full gradient runtime object. This is appropriate only when the public control is intentionally a single color; it must not be used as a substitute for externally editing a structured gradient.
+When a Color control targets a Gradient field, a current direct RGBA value is preserved; a structured gradient initializes the control from its current `solidColor`. The existing widget gradient input accepts tinycolor2-compatible values and renders them as a solid gradient, so a driving widget can send a color string or RGBA object without reproducing the full gradient runtime object. This is appropriate only when the public control is intentionally a single color; it must not be used as a substitute for externally editing a structured gradient.
 
 Layout targets use Composer's native node-reference model rather than widget `dataLinks`. They work for tiles and groups and initialize from the current effective layout value, including false and zero, so creating the link does not change the rendered graphic.
 

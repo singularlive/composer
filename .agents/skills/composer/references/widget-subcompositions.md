@@ -23,7 +23,7 @@ The relationship mode describes Control Nodes only. A template with `mode: "stat
 
 A template is **dynamic** when its composition exposes Control Nodes. The widget may pass instance-specific values into those controls. A **static** template has no exposed controls; the widget can still instantiate it repeatedly, but there is no per-instance control contract.
 
-Dynamic templates may expose a Rectangle or other Gradient-backed fill as a `color` control. The control initializes from the field's current `solidColor`; instance data may then supply a tinycolor2-compatible string or color object because the existing gradient input converts it to a solid gradient.
+Dynamic templates may expose a Rectangle or other Gradient-backed fill as a `color` control. A direct RGBA field value is preserved; a structured gradient initializes the control from its current `solidColor`. Instance data may then supply a tinycolor2-compatible string or color object because the existing gradient input converts it to a solid gradient.
 
 ## Open safely
 
