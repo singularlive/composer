@@ -5,11 +5,13 @@ description: Inspect, capture, create, and refine graphics in an open Singular C
 
 # Singular Composer
 
-Control the user's currently open Singular Composer session through the bundled client:
+Control the user's currently open Singular Composer session through the bundled client. At the start of the conversation, generate one unique local connection name (for example a UUID) and retain it for that conversation only:
 
 ```bash
-node scripts/composer-agent.js <command> [options]
+node scripts/composer-agent.js <command> --connection <conversation-connection-name> [options]
 ```
+
+Pass that same `--connection` value to pairing and every later command. Never reuse it in another AI conversation or for another simultaneously connected composition. The name selects an isolated local credential profile and is not a Composer object ID or secret. `COMPOSER_AGENT_CREDENTIALS` is the supported alternative for an orchestrator that already supplies a unique credential file; do not combine it with `--connection`.
 
 The bundled CLIs are the only supported agent interface. Never replace raw composition JSON, expose credentials, or add arbitrary script execution to the paired editor relay. If a command reports `COMPOSER_AGENT_VERSION_MISMATCH`, stop authoring, tell the user to update Composer and install the matching skill, and retry only after the versions match. Cleanup commands remain available so an existing work lease or authorization can be released safely.
 
@@ -43,13 +45,13 @@ Treat the exact phrase `generate improvement handoff` as a retrospective reporti
 
 ## Authorize and hold one work lease
 
-If no reusable authorization exists, ask the user to open **Composer AI**, request its six-character code, and run `pair --code <code>`. Pass `--server` only when the user explicitly needs another environment. Never request, print, or expose the access token. Require `acknowledged: true`; otherwise report the state and wait for reconnection or fresh pairing before continuing.
+If no reusable authorization exists in this conversation's connection profile, ask the user to open **Composer AI**, request its six-character code, and run `pair --connection <conversation-connection-name> --code <code>`. Pass `--server` only when the user explicitly needs another environment. Never request, print, or expose the access token. Require `acknowledged: true`; otherwise report the state and wait for reconnection or fresh pairing before continuing.
 
 For tasks requiring editor commands, before `inspect` or any other editor command, run:
 
 ```bash
-node scripts/composer-agent.js start-work
-node scripts/composer-agent.js wait-ready
+node scripts/composer-agent.js start-work --connection <conversation-connection-name>
+node scripts/composer-agent.js wait-ready --connection <conversation-connection-name>
 ```
 
 `start-work` acquires the lease immediately even while Composer is reconnecting. `wait-ready` is the non-mutating application gate: it returns immediately when authorization, the editor socket, its command handler, and the work lease are ready, or reports the last sanitized state after a bounded timeout. Use `--timeout <milliseconds>` only when the default 30 seconds is insufficient; the accepted range is 1–120000. It never reloads or navigates Composer.
@@ -57,7 +59,7 @@ node scripts/composer-agent.js wait-ready
 If work is canceled and a command returns `OPERATION_CANCELLED`, stop and do not reconnect until the user gives a new instruction. Except for the bounded revision recommendation described below, before yielding, waiting for user input, or ending the task, always run:
 
 ```bash
-node scripts/composer-agent.js finish-work
+node scripts/composer-agent.js finish-work --connection <conversation-connection-name>
 ```
 
 Require `COMPOSER_WORK_RELEASED`. Use `status --message <text>` before asking a blocking question, then release the lease before waiting. During a long script or Player phase, send a meaningful `status` update before the ten-minute lease can expire. Use `complete` only when the user explicitly asks to disconnect or revoke authorization; normal completion uses `finish-work`.

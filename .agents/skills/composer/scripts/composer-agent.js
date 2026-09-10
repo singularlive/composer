@@ -17,19 +17,22 @@ const { createWidgetReferences } = require('./widget-script-references');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 105;
+const SKILL_VERSION = 106;
 const DEFAULT_TIMEOUT_MS = 15000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
-const CREDENTIALS_OVERRIDE_PATH = process.env.COMPOSER_AGENT_CREDENTIALS || null;
+const ENV_CREDENTIALS_OVERRIDE_PATH = process.env.COMPOSER_AGENT_CREDENTIALS || null;
 const DEFAULT_CREDENTIALS_PATH = path.join(os.homedir(), '.singular', 'composer-agent.json');
+const CONNECTION_CREDENTIALS_DIRECTORY = path.join(os.homedir(), '.singular', 'composer-agent-connections');
 const CREDENTIALS_SCOPE_PATH = path.resolve(__dirname, '..', '..', '..', '..');
 const TEMPORARY_CREDENTIALS_PATH = path.join(
   os.tmpdir(),
   'singular-composer-agent',
   crypto.createHash('sha256').update(CREDENTIALS_SCOPE_PATH).digest('hex').slice(0, 16) + '.json'
 );
-let activeCredentialsPath = CREDENTIALS_OVERRIDE_PATH || DEFAULT_CREDENTIALS_PATH;
+let credentialsOverridePath = ENV_CREDENTIALS_OVERRIDE_PATH;
+let credentialStorageCategory = ENV_CREDENTIALS_OVERRIDE_PATH ? 'override' : 'default';
+let activeCredentialsPath = credentialsOverridePath || DEFAULT_CREDENTIALS_PATH;
 const TABLE_WIDGET_ID = 1182;
 const GRID_WIDGET_ID = 3284;
 const MAX_TABLE_ROWS = 1000;
@@ -65,7 +68,7 @@ const BOOLEAN_OPTIONS = new Set([
   'replace',
   'reuse-existing'
 ]);
-const GLOBAL_COMMAND_OPTIONS = ['server', 'compact', 'template-session'];
+const GLOBAL_COMMAND_OPTIONS = ['server', 'compact', 'template-session', 'connection'];
 let activeTemplateSessionToken = null;
 
 function parseArguments(argv) {
@@ -281,9 +284,29 @@ function validatePairedServerOption(options) {
   }
 }
 
+function configureCredentialScope(options) {
+  const connection = options.connection;
+  if (connection !== undefined && ENV_CREDENTIALS_OVERRIDE_PATH) {
+    throw new Error('--connection cannot be combined with COMPOSER_AGENT_CREDENTIALS');
+  }
+  if (connection !== undefined) {
+    const profile = credentialSelection.normalizeConnectionProfile(connection);
+    credentialsOverridePath = path.join(CONNECTION_CREDENTIALS_DIRECTORY, profile + '.json');
+    credentialStorageCategory = 'connection-profile';
+    activeCredentialsPath = credentialsOverridePath;
+    return;
+  }
+  if (!ENV_CREDENTIALS_OVERRIDE_PATH) {
+    throw new Error(
+      '--connection is required to isolate this AI agent from other Composer connections. ' +
+      'Use the same connection name for pair and every later command.'
+    );
+  }
+}
+
 function readCredentials() {
-  const candidates = CREDENTIALS_OVERRIDE_PATH
-    ? [CREDENTIALS_OVERRIDE_PATH]
+  const candidates = credentialsOverridePath
+    ? [credentialsOverridePath]
     : [DEFAULT_CREDENTIALS_PATH, TEMPORARY_CREDENTIALS_PATH];
   const availableCredentials = [];
   let expiredCredentialsFound = false;
@@ -294,9 +317,9 @@ function readCredentials() {
       candidateCredentials = JSON.parse(fs.readFileSync(candidate, 'utf8'));
     } catch (err) {
       if (err.code === 'ENOENT') continue;
-      if (!CREDENTIALS_OVERRIDE_PATH && candidate === DEFAULT_CREDENTIALS_PATH &&
+      if (!credentialsOverridePath && candidate === DEFAULT_CREDENTIALS_PATH &&
           isCredentialPermissionError(err)) continue;
-      const credentialCategory = CREDENTIALS_OVERRIDE_PATH
+      const credentialCategory = credentialsOverridePath
         ? 'configured'
         : candidate === TEMPORARY_CREDENTIALS_PATH ? 'temporary' : 'default';
       const readError = new Error(
@@ -353,13 +376,13 @@ function writeCredentials(filePath, credentials) {
 }
 
 function saveCredentials(credentials) {
-  const requestedPath = CREDENTIALS_OVERRIDE_PATH || DEFAULT_CREDENTIALS_PATH;
+  const requestedPath = credentialsOverridePath || DEFAULT_CREDENTIALS_PATH;
   try {
     writeCredentials(requestedPath, credentials);
     activeCredentialsPath = requestedPath;
-    return CREDENTIALS_OVERRIDE_PATH ? 'override' : 'default';
+    return credentialsOverridePath ? credentialStorageCategory : 'default';
   } catch (error) {
-    if (CREDENTIALS_OVERRIDE_PATH || !isCredentialPermissionError(error)) {
+    if (credentialsOverridePath || !isCredentialPermissionError(error)) {
       const writeError = new Error(
         'Unable to write Composer credentials to the configured credential path. ' +
         'Choose a writable COMPOSER_AGENT_CREDENTIALS location and pair again.'
@@ -390,6 +413,22 @@ function removeTemporaryCredentials() {
   } catch (error) {
     if (error.code !== 'ENOENT') {
       const cleanupError = new Error('Unable to remove temporary Composer credentials after completion.');
+      cleanupError.code = 'CREDENTIAL_CLEANUP_FAILED';
+      throw cleanupError;
+    }
+  }
+}
+
+function removeRevokedCredentials() {
+  if (
+    activeCredentialsPath !== TEMPORARY_CREDENTIALS_PATH &&
+    credentialStorageCategory !== 'connection-profile'
+  ) return;
+  try {
+    fs.unlinkSync(activeCredentialsPath);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      const cleanupError = new Error('Unable to remove revoked Composer credentials.');
       cleanupError.code = 'CREDENTIAL_CLEANUP_FAILED';
       throw cleanupError;
     }
@@ -482,7 +521,7 @@ function readIntentSecret(options) {
 }
 
 async function finishPairing(server, pairing) {
-  const credentialStorage = saveCredentials({
+  const credentials = {
     server: server,
     accessToken: pairing.accessToken,
     socketPath: pairing.socketPath,
@@ -491,11 +530,12 @@ async function finishPairing(server, pairing) {
     capabilities: pairing.capabilities,
     pairedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + pairing.expiresIn * 1000).toISOString()
-  });
+  };
+  const credentialStorage = saveCredentials(credentials);
 
   let acknowledged = false;
   try {
-    await sendSessionMessage(null, 'pairing_acknowledged');
+    await sendSessionMessage(null, 'pairing_acknowledged', credentials);
     acknowledged = true;
   } catch (err) {
     // Pair credentials are still useful if the editor is reconnecting. The
@@ -529,8 +569,8 @@ function assertCompatibleComposerAgentVersion(authentication, allowMismatch) {
   throw error;
 }
 
-function sendSessionMessage(message, acknowledgementType) {
-  const credentials = readCredentials();
+function sendSessionMessage(message, acknowledgementType, pairedCredentials) {
+  const credentials = pairedCredentials || readCredentials();
   const activityId = message && message.type === 'activity' ? uuid.v4() : null;
   const outgoingMessage = activityId
     ? Object.assign({}, message, { activityId: activityId })
@@ -1597,6 +1637,7 @@ let invokedCommand;
 async function run() {
   const parsed = parseArguments(process.argv.slice(2));
   invokedCommand = parsed.command;
+  configureCredentialScope(parsed.options);
   activeTemplateSessionToken = parsed.options['template-session'] || null;
   let result;
   if (!['pair', 'pair-intent', 'capture'].includes(parsed.command)) {
@@ -1628,7 +1669,7 @@ async function run() {
       break;
     case 'complete':
       result = await sendSessionMessage({ type: 'session_complete' }, 'session_completed');
-      removeTemporaryCredentials();
+      removeRevokedCredentials();
       break;
     case 'inspect': {
       const params = {};
