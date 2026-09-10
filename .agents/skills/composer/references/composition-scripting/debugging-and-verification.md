@@ -325,16 +325,22 @@ Do not conflate the composition-script API with the host-page Player SDK. They i
 | Composition script inside the Player iframe | `function(event, msg, propagationEvent)` | `event` is `"payload_changed"`; `msg` contains `compositionId`, `compId`, `payload`, and composition names when available; call `comp.getPayload2()` for authoritative current values. The third argument exposes `stopPropagation()`. |
 | Host page using the Player SDK | `function(event, msg)` | `event` is `"payload_changed"`; `msg` contains the forwarded composition identity and payload. There is no propagation object. |
 
-Use this canonical composition-script pattern:
+For a script that owns one composition's theme or accent behavior, use this pattern so initialization and live editor changes follow the same path:
 
 ```javascript
+function applyTheme(comp) {
+  var payload = comp.getPayload2() || {};
+  // Apply the authoritative current values.
+}
+
+applyTheme(comp);
 comp.addListener('payload_changed', function(event, msg, propagationEvent) {
-  if (msg.compositionId !== comp.id) return;
-  var payload = comp.getPayload2();
-  // React to the authoritative current payload here.
+  applyTheme(comp);
   propagationEvent.stopPropagation();
 });
 ```
+
+Do not add `if (msg.compositionId !== comp.id) return;` to that same-composition pattern. Editor-originated Control Node changes can then be filtered out, producing a control that persists but appears disconnected until reinitialization. Add an identity filter only when the listener is deliberately excluding propagated child-composition events, and verify both local and child updates in Player.
 
 At the host level, inspect the second argument rather than treating the first event-name string as the message:
 

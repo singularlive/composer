@@ -279,6 +279,8 @@ The first apply creates and verifies the control and its link. Reapplying the st
 
 Declarative widget-data controls support `text`, `textarea`, `number`, `normalizednumber`, `counter`, `color`, `image`, `checkbox`, `audio`, `video`, `data`, `jsonfile`, `json`, `datetime`, `location`, `selection`, and `timecontrol` when the primitive's widget field has the compatible type. Tile/group Transform and Effect controls are native node references rather than widget-data links; keyed managed graphics may declare them at the specification root, while ordinary Composer-ID targets use `create-control` or `create-controls` as described in [compositions.md](compositions.md). Their availability is not an authoring default: create them only when the user explicitly asks to expose the exact Transform/Effect property as a Control Node.
 
+A `color` control linked directly to a Rectangle or other widget's `gradient` field is the supported and preferred contract when the operator should choose one solid color. Do not introduce a composition script to copy that value. The current adapter initializes the control from a structured gradient's `solidColor`, then lets the native link drive the field. If a valid solid gradient still fails with the generic exact-RGBA compatibility error, treat the installed skill as stale or mismatched, update it, and retry; the message can describe failed initialization even when the stored gradient itself is valid.
+
 When the user explicitly requests public Transform/Effect inputs, declare them at the specification root and target stable declarative keys rather than transient tile IDs:
 
 ```json

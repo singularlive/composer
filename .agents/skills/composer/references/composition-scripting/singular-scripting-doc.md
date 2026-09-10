@@ -376,7 +376,7 @@ The `context` object provides access to common objects, including global storage
 
 The `comp.addListener(eventType, callbackFunction)` method stores one handler per composition and event type. Registering again for the same pair replaces the previous handler; it does not append another listener. When extending an existing script or merging a recipe, combine the existing and new logic in one handler, preserving its scope filters and propagation behavior. Composition-script listeners are removed when that script is uninstalled.
 
-For a root or sub-composition script, the callback contract is `function(event, msg, propagationEvent)`: `event` is the event-name string, `msg` is the structured message, and `propagationEvent.stopPropagation()` stops the event from continuing to parent compositions. This is distinct from the host-page Player SDK, whose listener contract is `function(event, msg)` and has no third propagation object. For `payload_changed`, read the new values from `comp.getPayload2()`; use `msg.compositionId` when the script must ignore events propagated from child compositions.
+For a root or sub-composition script, the callback contract is `function(event, msg, propagationEvent)`: `event` is the event-name string, `msg` is the structured message, and `propagationEvent.stopPropagation()` stops the event from continuing to parent compositions. This is distinct from the host-page Player SDK, whose listener contract is `function(event, msg)` and has no third propagation object. For `payload_changed`, read the new values from `comp.getPayload2()`. Use `msg.compositionId` only when the script intentionally ignores events propagated from child compositions. A same-composition theme or accent script must apply once in `init` and again on every `payload_changed` without a composition-ID gate; filtering there can suppress live editor changes even though the control value changed.
 
 Available `eventType` options include:
 *   `payload_changed`: Occurs when the control nodes of the composition or a sub-composition change.
@@ -386,10 +386,19 @@ Available `eventType` options include:
 *   `message`: Occurs when the Graphics SDK, widgets, and interactive events send custom messages.
 *   `button_clicked`: Occurs when a button control node (model with type = 'button') is clicked.
 
-**Example `payload_changed` Listener**:
+**Example same-composition `payload_changed` listener**:
 
 ```javascript
-comp.addListener('payload_changed', (event, msg, e) => {    if (msg.compositionId === comp.id) {    console.log("listen to:", event);    console.log("msg:", msg);    }    e.stopPropagation();   });
+function applyTheme(comp) {
+  var payload = comp.getPayload2() || {};
+  // Apply the current theme values to the owned widgets.
+}
+
+applyTheme(comp);
+comp.addListener('payload_changed', function(event, msg, propagationEvent) {
+  applyTheme(comp);
+  propagationEvent.stopPropagation();
+});
 ```
 
 **Example `button_clicked` Listener**:
@@ -490,7 +499,7 @@ if (current === "In") {
 
 - **Prefer `timeline_event` over `state_changed`** — `timeline_event` is fired directly from the animation engine and provides both start and stop timing. `state_changed` is a downstream event that only fires after the state settles and cannot distinguish animation start from end.
 - `playTo()` is asynchronous — `comp.getState()` returns the current (pre-animation) state immediately after calling `playTo()`. Use `timeline_event` with `event: "stop"` to confirm the animation completed.
-- Events propagate up the composition hierarchy. Always check `msg.compositionId === comp.id` to filter events originating from the current composition.
+- Events propagate up the composition hierarchy. Filter by `msg.compositionId` only when the behavior must exclude child-composition events; do not apply that filter to same-composition payload synchronization.
 - Calling `jumpTo('In')` when the state is already `"In"` is a no-op: it fires `timeline_event` with `event: "jump"` but no `state_changed`.
 - Composition-level animation control only affects the composition's own In/Out timeline, not individual tile keyframes or widget effects.
 
@@ -855,7 +864,6 @@ This example uses the legacy text widget's HTML feature with escaped public text
         wiLowerText.setPayload({ text: htmlText });
       }
       comp.addListener('payload_changed', function(event, msg) {
-        if (msg.compositionId !== comp.id) return;
         updateComposition();
       });
       updateComposition();
@@ -903,8 +911,6 @@ This script uses the `timeline_event` listener to start a Text Ticker widget cra
       /**********************************************************************/
       // we listen to payload / control node changes
       comp.addListener('payload_changed', (event, msg, e) => {
-        // quick exit if a child composition propagated the event
-        if (msg.compositionId != comp.id) return;
         const p = comp.getPayload2();
         wiTextTicker.setPayload({
           "text": p["Messages"]

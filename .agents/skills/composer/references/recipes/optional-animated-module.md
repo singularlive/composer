@@ -95,7 +95,7 @@ Adapt this ES2017-compatible core to the inspected module names and merge it int
       sync(comp, false);
 
       comp.addListener('payload_changed', function(event, msg) {
-        if (msg.compositionId === comp.id) sync(comp, true);
+        sync(comp, true);
       });
 
       comp.addListener('timeline_event', function(event, msg) {

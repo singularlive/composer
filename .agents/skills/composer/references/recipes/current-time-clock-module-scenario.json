@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "steps": [
+    { "action": "jumpTo", "state": "In" },
+    { "action": "wait", "milliseconds": 1000 },
+    { "action": "capture", "name": "minute-0" },
+    { "action": "wait", "milliseconds": 61000 },
+    {
+      "action": "assertDom",
+      "textChangedFrom": "minute-0",
+      "minimumVisibleElementCount": 1
+    },
+    { "action": "capture", "name": "minute-1" },
+    { "action": "wait", "milliseconds": 61000 },
+    {
+      "action": "assertDom",
+      "textChangedFrom": "minute-1",
+      "minimumVisibleElementCount": 1
+    },
+    { "action": "assertLifecycle", "event": "error", "equals": 0 },
+    { "action": "capture", "name": "minute-2" }
+  ]
+}

@@ -122,7 +122,7 @@ Use the current `identityScope.sessionToken` as `--template-session` on template
 
 ## Keep runtime authorities separate
 
-The paired editor owns composition structure. Authenticated composition-script routes own persisted script text through the bundled helper. Singular Player owns runtime behavior. Never construct script REST calls directly, ask for a Composition API token, or treat a successful script write or Composer capture as runtime proof.
+The paired editor owns composition structure. Authenticated composition-script routes own persisted script text through the bundled helper. Singular Player owns runtime behavior. Never construct script REST calls directly, ask for a Composition API token, or treat a successful script write or Composer capture as runtime proof. Prefer a direct Control Node link or native widget whenever it expresses the behavior. For a same-composition script that must react to its own Control Nodes, apply once during `init` and on every `payload_changed`; do not filter those updates by `msg.compositionId`, because editor-originated changes may otherwise be ignored.
 
 Finish and verify structure and public inputs first. Then pipe a fresh `script-handoff` to the composition-script helper and follow [composition-scripts.md](references/composition-scripts.md). Verify scripts, continuous motion, tickers, timers, media, and event-driven behavior in Player.
 

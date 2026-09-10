@@ -1,6 +1,6 @@
 # Current Date and Time authoring
 
-Use `current-date-time` (widget `3616`) for a clock showing the current date or time. Its catalog metadata loads on demand; it is not a built-in toolbox shortcut. Run `primitives --primitive current-date-time` before creation and `get` before editing. Published version `3` was inspected during development; the loaded schema and instance remain authoritative.
+Use `current-date-time` (widget `3616`) for a clock showing the current date or time. Its catalog metadata loads on demand; it is not a built-in toolbox shortcut. Run `primitives --primitive current-date-time` before creation and `get` before editing. Published version `3` was inspected during development; the loaded schema and instance remain authoritative. For the complete template and shared-font workflow, follow the [Current-time clock module recipe](../recipes/current-time-clock-module.md).
 
 | Property | Default | Purpose |
 | --- | --- | --- |
