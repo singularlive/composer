@@ -468,9 +468,10 @@ async function request(url, options) {
   }
 }
 
-function composerAgentHeaders(accessToken, headers) {
+function composerAgentHeaders(accessToken, composerAgentVersion, headers) {
   return Object.assign({}, headers || {}, {
     Authorization: "Bearer " + accessToken,
+    "X-Composer-Agent-Version": String(composerAgentVersion),
   });
 }
 
@@ -484,10 +485,10 @@ async function fetchContent(host, token) {
   return fetchJson(host + "/apiv1/compositions/" + token + "/content");
 }
 
-async function fetchScriptsList(host, token, accessToken) {
+async function fetchScriptsList(host, token, accessToken, composerAgentVersion) {
   const response = await fetchJson(
     host + "/apiv1/compositions/" + token + "/scripts",
-    { headers: composerAgentHeaders(accessToken) }
+    { headers: composerAgentHeaders(accessToken, composerAgentVersion) }
   );
   if (!response || !Array.isArray(response.data) || response.data.some(entry =>
     !entry || typeof entry.id !== "string" || !entry.id)) {
@@ -514,9 +515,9 @@ function resolveScriptNames(content) {
   };
 }
 
-async function summarize(host, token, accessToken) {
+async function summarize(host, token, accessToken, composerAgentVersion) {
   const content = await fetchContent(host, token);
-  const scriptEntries = await fetchScriptsList(host, token, accessToken);
+  const scriptEntries = await fetchScriptsList(host, token, accessToken, composerAgentVersion);
   const info = resolveScriptNames(content);
   const modelsDataLinksNodeRefs = extractModelsDataLinksNodeRefs(content);
   const discoveredScriptIds = scriptEntries.map(function(entry) {
@@ -545,18 +546,18 @@ async function summarize(host, token, accessToken) {
   };
 }
 
-async function getScript(host, token, scriptId, accessToken) {
+async function getScript(host, token, scriptId, accessToken, composerAgentVersion) {
   return fetchJson(
     host + "/apiv1/compositions/" + token + "/scripts/" + scriptId,
-    { headers: composerAgentHeaders(accessToken) }
+    { headers: composerAgentHeaders(accessToken, composerAgentVersion) }
   );
 }
 
-async function putScript(host, token, scriptId, script, accessToken) {
+async function putScript(host, token, scriptId, script, accessToken, composerAgentVersion) {
   const body = JSON.stringify({ script: script });
   return request(host + "/apiv1/compositions/" + token + "/scripts/" + scriptId, {
     method: "PUT",
-    headers: composerAgentHeaders(accessToken, {
+    headers: composerAgentHeaders(accessToken, composerAgentVersion, {
       "Content-Type": "application/json",
     }),
     body: body,
@@ -599,10 +600,11 @@ async function main() {
   }
   const token = handoff.compositionToken;
   const accessToken = handoff.composerAgentAccessToken;
+  const composerAgentVersion = handoff.composerAgentVersion;
   const host = normalizeHost(handoff.host);
-  if (!token || !accessToken || !host) {
+  if (!token || !accessToken || !host || !Number.isInteger(composerAgentVersion)) {
     throw new Error(
-      "Script handoff must include host, compositionToken, and composerAgentAccessToken"
+      "Script handoff must include host, compositionToken, composerAgentAccessToken, and composerAgentVersion"
     );
   }
   const handoffScriptId = getHandoffScriptId(handoff);
@@ -610,7 +612,7 @@ async function main() {
   if (action === "summary") {
     printJson(
       args.full
-        ? await summarize(host, token, accessToken)
+        ? await summarize(host, token, accessToken, composerAgentVersion)
         : summarizeHandoff(handoff, host)
     );
     return;
@@ -621,7 +623,7 @@ async function main() {
   }
 
   if (action === "list-scripts") {
-    const handoffEntries = await fetchScriptsList(host, token, accessToken);
+    const handoffEntries = await fetchScriptsList(host, token, accessToken, composerAgentVersion);
     printJson({
       host: host,
       source: "composer-agent-handoff",
@@ -644,7 +646,7 @@ async function main() {
         "Missing script target: provide --script-id or a handoff with suggestedScript.id"
       );
     }
-    printJson(await getScript(host, token, scriptId, accessToken));
+    printJson(await getScript(host, token, scriptId, accessToken, composerAgentVersion));
     return;
   }
 
@@ -665,7 +667,7 @@ async function main() {
       throw new Error("Provide --script or --script-file for put-script");
     }
 
-    const response = await putScript(host, token, scriptId, script, accessToken);
+    const response = await putScript(host, token, scriptId, script, accessToken, composerAgentVersion);
     printJson({
       host: host,
       scriptId: scriptId,
@@ -681,7 +683,7 @@ async function main() {
         "Missing script target: provide --script-id or a handoff with suggestedScript.id"
       );
     }
-    const clearResponse = await putScript(host, token, clearScriptId, "", accessToken);
+    const clearResponse = await putScript(host, token, clearScriptId, "", accessToken, composerAgentVersion);
     printJson({
       host: host,
       scriptId: clearScriptId,

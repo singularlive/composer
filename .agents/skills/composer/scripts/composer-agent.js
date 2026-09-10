@@ -17,7 +17,7 @@ const { createWidgetReferences } = require('./widget-script-references');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 102;
+const SKILL_VERSION = 104;
 const DEFAULT_TIMEOUT_MS = 15000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
@@ -30,7 +30,6 @@ const TEMPORARY_CREDENTIALS_PATH = path.join(
   crypto.createHash('sha256').update(CREDENTIALS_SCOPE_PATH).digest('hex').slice(0, 16) + '.json'
 );
 let activeCredentialsPath = CREDENTIALS_OVERRIDE_PATH || DEFAULT_CREDENTIALS_PATH;
-let skillUpdateWarningWritten = false;
 const TABLE_WIDGET_ID = 1182;
 const GRID_WIDGET_ID = 3284;
 const MAX_TABLE_ROWS = 1000;
@@ -520,19 +519,14 @@ function createSocketUrl(credentials) {
   return socketUrl.toString();
 }
 
-function warnIfSkillUpdateAvailable(authentication) {
+function assertCompatibleComposerAgentVersion(authentication, allowMismatch) {
   const serverVersion = authentication && authentication.composerAgentVersion;
-  if (
-    skillUpdateWarningWritten ||
-    !Number.isInteger(serverVersion) ||
-    serverVersion <= SKILL_VERSION
-  ) {
-    return;
-  }
-  skillUpdateWarningWritten = true;
-  console.error(
-    `COMPOSER_SKILL_UPDATE_AVAILABLE: Composer server version ${serverVersion} is newer than downloaded skill version ${SKILL_VERSION}. Download the latest Composer skill.`
+  if (serverVersion === SKILL_VERSION || allowMismatch) return;
+  const error = new Error(
+    `Installed Composer skill version ${SKILL_VERSION} does not match Composer server version ${Number.isInteger(serverVersion) ? serverVersion : 'unknown'}. Update Composer and install the matching skill before starting work.`
   );
+  error.code = 'COMPOSER_AGENT_VERSION_MISMATCH';
+  throw error;
 }
 
 function sendSessionMessage(message, acknowledgementType) {
@@ -563,7 +557,8 @@ function sendSessionMessage(message, acknowledgementType) {
     socket.on('open', function () {
       socket.send(JSON.stringify({
         type: 'authenticate',
-        token: credentials.accessToken
+        token: credentials.accessToken,
+        composerAgentVersion: SKILL_VERSION
       }));
     });
 
@@ -576,7 +571,15 @@ function sendSessionMessage(message, acknowledgementType) {
         return;
       }
       if (response.type === 'authenticated') {
-        warnIfSkillUpdateAvailable(response);
+        try {
+          assertCompatibleComposerAgentVersion(
+            response,
+            outgoingMessage && ['work_finish', 'session_complete'].includes(outgoingMessage.type)
+          );
+        } catch (error) {
+          finish(error);
+          return;
+        }
         if (outgoingMessage) socket.send(JSON.stringify(outgoingMessage));
       } else if (
         response.type === acknowledgementType &&
@@ -676,7 +679,8 @@ function waitForComposerReady(options) {
     socket.on('open', function () {
       socket.send(JSON.stringify({
         type: 'authenticate',
-        token: credentials.accessToken
+        token: credentials.accessToken,
+        composerAgentVersion: SKILL_VERSION
       }));
     });
 
@@ -690,7 +694,12 @@ function waitForComposerReady(options) {
       }
 
       if (message.type === 'authenticated') {
-        warnIfSkillUpdateAvailable(message);
+        try {
+          assertCompatibleComposerAgentVersion(message, false);
+        } catch (error) {
+          finish(error);
+          return;
+        }
         readiness.authorization = 'active';
         sendProbe();
         probeTimer = setInterval(sendProbe, 500);
@@ -773,7 +782,8 @@ function executeCommand(method, params, commandTimeoutMs) {
     socket.on('open', function () {
       socket.send(JSON.stringify({
         type: 'authenticate',
-        token: credentials.accessToken
+        token: credentials.accessToken,
+        composerAgentVersion: SKILL_VERSION
       }));
     });
 
@@ -788,7 +798,12 @@ function executeCommand(method, params, commandTimeoutMs) {
 
       if (message.type === 'authenticated') {
         authenticated = true;
-        warnIfSkillUpdateAvailable(message);
+        try {
+          assertCompatibleComposerAgentVersion(message, false);
+        } catch (error) {
+          finish(error);
+          return;
+        }
         socket.send(JSON.stringify({ type: 'command', request: request }));
       } else if (
         message.type === 'response' &&
@@ -1459,6 +1474,7 @@ async function buildScriptHandoff(credentials, inspection) {
   return {
     version: 1,
     kind: 'composer-agent-script-handoff',
+    composerAgentVersion: SKILL_VERSION,
     host: preview.endpoint,
     compositionToken: preview.compositionToken,
     composerAgentAccessToken: credentials.accessToken,

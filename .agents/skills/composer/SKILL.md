@@ -11,7 +11,7 @@ Control the user's currently open Singular Composer session through the bundled 
 node scripts/composer-agent.js <command> [options]
 ```
 
-The bundled CLIs are the only supported agent interface. Never replace raw composition JSON, expose credentials, or add arbitrary script execution to the paired editor relay. If a command reports `COMPOSER_SKILL_UPDATE_AVAILABLE`, tell the user once and continue unless another error blocks the task.
+The bundled CLIs are the only supported agent interface. Never replace raw composition JSON, expose credentials, or add arbitrary script execution to the paired editor relay. If a command reports `COMPOSER_AGENT_VERSION_MISMATCH`, stop authoring, tell the user to update Composer and install the matching skill, and retry only after the versions match. Cleanup commands remain available so an existing work lease or authorization can be released safely.
 
 ## CLI dependencies
 
