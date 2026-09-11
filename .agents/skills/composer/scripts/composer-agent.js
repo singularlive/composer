@@ -11,13 +11,16 @@ const credentialSelection = require('./credential-selection');
 const {
   captureCompositionPreview,
   createCaptureError,
-  MAX_CAPTURE_BYTES
+  getCaptureWorkerStatus,
+  MAX_CAPTURE_BYTES,
+  resetCaptureWorker,
+  stopCaptureWorker
 } = require('./capture-composition-preview');
 const { createWidgetReferences } = require('./widget-script-references');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 108;
+const SKILL_VERSION = 111;
 const DEFAULT_TIMEOUT_MS = 15000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
@@ -74,7 +77,12 @@ let activeTemplateSessionToken = null;
 function parseArguments(argv) {
   const command = argv[0];
   const options = {};
-  for (let index = 1; index < argv.length; index++) {
+  let firstOptionIndex = 1;
+  if (command === 'capture-worker' && argv[1] && !argv[1].startsWith('--')) {
+    options.action = argv[1];
+    firstOptionIndex = 2;
+  }
+  for (let index = firstOptionIndex; index < argv.length; index++) {
     const argument = argv[index];
     if (!argument.startsWith('--')) {
       throw new Error(`Unexpected argument "${argument}"`);
@@ -219,7 +227,7 @@ function addWidgetTemplateIdentityScope(result, options) {
 }
 
 function writeWorkLifecycleReminder(command, succeeded) {
-  if (!command || command === 'pair' || command === 'pair-intent') return;
+  if (!command || ['pair', 'pair-intent', 'check-connection', 'capture-worker'].includes(command)) return;
 
   if (command === 'finish-work' && succeeded) {
     console.error('COMPOSER_WORK_RELEASED: Composer input is unlocked.');
@@ -721,7 +729,7 @@ function sendSessionMessage(message, acknowledgementType, pairedCredentials) {
   });
 }
 
-function waitForComposerReady(options) {
+function waitForComposerReady(options, requireWorkLease) {
   const credentials = readCredentials();
   const readinessId = uuid.v4();
   const timeoutMs = options.timeout === undefined ? 30000 : Number(options.timeout);
@@ -769,9 +777,11 @@ function waitForComposerReady(options) {
         readiness.authorization === 'active' &&
         readiness.editor === 'connected' &&
         readiness.commands === 'ready' &&
-        readiness.workLease === 'active'
+        (requireWorkLease === false || readiness.workLease === 'active')
       ) {
-        finish(null, Object.assign({}, readiness, { status: 'ready' }));
+        finish(null, Object.assign({}, readiness, {
+          status: requireWorkLease === false ? 'connected' : 'ready'
+        }));
       }
     }
 
@@ -1704,10 +1714,10 @@ let invokedCommand;
 async function run() {
   const parsed = parseArguments(process.argv.slice(2));
   invokedCommand = parsed.command;
-  configureCredentialScope(parsed.options);
+  if (parsed.command !== 'capture-worker') configureCredentialScope(parsed.options);
   activeTemplateSessionToken = parsed.options['template-session'] || null;
   let result;
-  if (!['pair', 'pair-intent', 'capture'].includes(parsed.command)) {
+  if (!['pair', 'pair-intent', 'capture', 'capture-worker'].includes(parsed.command)) {
     validatePairedServerOption(parsed.options);
   }
 
@@ -1730,6 +1740,10 @@ async function run() {
     case 'wait-ready':
       assertAllowedOptions(parsed.options, ['timeout', 'compact'], 'wait-ready');
       result = await waitForComposerReady(parsed.options);
+      break;
+    case 'check-connection':
+      assertAllowedOptions(parsed.options, ['timeout', 'compact'], 'check-connection');
+      result = await waitForComposerReady(parsed.options, false);
       break;
     case 'finish-work':
       result = await sendSessionMessage({ type: 'work_finish' }, 'work_finished');
@@ -2608,6 +2622,15 @@ async function run() {
     case 'capture':
       result = await captureStandalone(normalizeCaptureOptions(parsed.options));
       break;
+    case 'capture-worker': {
+      assertAllowedOptions(parsed.options, ['action', 'compact'], 'capture-worker');
+      const action = parsed.options.action;
+      if (action === 'status') result = await getCaptureWorkerStatus();
+      else if (action === 'stop') result = await stopCaptureWorker();
+      else if (action === 'reset') result = await resetCaptureWorker();
+      else throw new Error('capture-worker action must be status, stop, or reset');
+      break;
+    }
     case 'primitives':
       result = await executeCommand('primitives.list');
       if (parsed.options.primitive) {
@@ -2656,7 +2679,7 @@ async function run() {
     }
     default:
       throw new Error(
-      'Usage: composer-agent.js <pair|pair-intent|start-work|wait-ready|finish-work|status|complete|inspect|composition-tree|resolve-references|script-handoff|control-composition|timeline-link|set-timeline-link|logic-layers|set-logic-layer|rename-logic-layer|create-composition|orchestrate|create-revision|list-revisions|read-revision|compare-revision|restore-revision|delete-revision|delete-composition|open-composition|widget-subcompositions|open-widget-subcomposition|update-table|update-grid|timeline2|display-variants|configure-display-variants|activate-display-variant|set-display-variant-relevance|control-nodes|metric-fonts|set-metric-font|upgrade-metric-widgets|widget-nodes|link-widget-nodes|unlink-widget-nodes|set-control-value|set-control-font|create-table-control|set-table-control|update-table-control|link-table-control|unlink-table-control|press-control|timer-action|control-time|update-control|create-control-container|configure-control-container|delete-control-container|create-control|create-controls|delete-control|get|get-many|get-layouts|set-layouts|get-properties|set-properties|select|move|update|fonts|set-font|timeline-animations|set-timeline-animation|set-timeline-animations|update-animations|set-update-animation|set-update-animations|behaviors|set-behavior|set-behaviors|create-group|configure-group|move-group|delete-group|capture|primitives|ensure-group|create|delete|validate|apply> [options]'
+      'Usage: composer-agent.js <pair|pair-intent|check-connection|start-work|wait-ready|finish-work|status|complete|inspect|composition-tree|resolve-references|script-handoff|control-composition|timeline-link|set-timeline-link|logic-layers|set-logic-layer|rename-logic-layer|create-composition|orchestrate|create-revision|list-revisions|read-revision|compare-revision|restore-revision|delete-revision|delete-composition|open-composition|widget-subcompositions|open-widget-subcomposition|update-table|update-grid|timeline2|display-variants|configure-display-variants|activate-display-variant|set-display-variant-relevance|control-nodes|metric-fonts|set-metric-font|upgrade-metric-widgets|widget-nodes|link-widget-nodes|unlink-widget-nodes|set-control-value|set-control-font|create-table-control|set-table-control|update-table-control|link-table-control|unlink-table-control|press-control|timer-action|control-time|update-control|create-control-container|configure-control-container|delete-control-container|create-control|create-controls|delete-control|get|get-many|get-layouts|set-layouts|get-properties|set-properties|select|move|update|fonts|set-font|timeline-animations|set-timeline-animation|set-timeline-animations|update-animations|set-update-animation|set-update-animations|behaviors|set-behavior|set-behaviors|create-group|configure-group|move-group|delete-group|capture|capture-worker|primitives|ensure-group|create|delete|validate|apply> [options]'
       );
   }
 

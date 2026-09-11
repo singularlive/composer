@@ -553,12 +553,13 @@ async function getScript(host, token, scriptId, accessToken, composerAgentVersio
   );
 }
 
-async function putScript(host, token, scriptId, script, accessToken, composerAgentVersion) {
+async function putScript(host, token, scriptId, scriptName, script, accessToken, composerAgentVersion) {
   const body = JSON.stringify({ script: script });
   return request(host + "/apiv1/compositions/" + token + "/scripts/" + scriptId, {
     method: "PUT",
     headers: composerAgentHeaders(accessToken, composerAgentVersion, {
       "Content-Type": "application/json",
+      "X-Composer-Script-Name": encodeURIComponent(scriptName || scriptId),
     }),
     body: body,
   });
@@ -608,6 +609,11 @@ async function main() {
     );
   }
   const handoffScriptId = getHandoffScriptId(handoff);
+  const getScriptName = function(scriptId) {
+    return (handoff.scriptNames && handoff.scriptNames[scriptId]) ||
+      (handoff.suggestedScript && handoff.suggestedScript.id === scriptId && handoff.suggestedScript.name) ||
+      scriptId;
+  };
 
   if (action === "summary") {
     printJson(
@@ -667,7 +673,7 @@ async function main() {
       throw new Error("Provide --script or --script-file for put-script");
     }
 
-    const response = await putScript(host, token, scriptId, script, accessToken, composerAgentVersion);
+    const response = await putScript(host, token, scriptId, getScriptName(scriptId), script, accessToken, composerAgentVersion);
     printJson({
       host: host,
       scriptId: scriptId,
@@ -683,7 +689,7 @@ async function main() {
         "Missing script target: provide --script-id or a handoff with suggestedScript.id"
       );
     }
-    const clearResponse = await putScript(host, token, clearScriptId, "", accessToken, composerAgentVersion);
+    const clearResponse = await putScript(host, token, clearScriptId, getScriptName(clearScriptId), "", accessToken, composerAgentVersion);
     printJson({
       host: host,
       scriptId: clearScriptId,

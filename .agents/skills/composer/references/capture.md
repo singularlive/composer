@@ -53,6 +53,16 @@ If the check fails, make `playwright-core@1.63.0` available through the target e
 
 The bundled module uses `playwright-core` directly to start a localhost-only headless Chrome worker. It always creates isolated automation state and never opens the user's normal Chrome profile. The first standalone capture starts the worker; subsequent captures within its five-minute idle window reuse the Chrome process but create a fresh incognito context and page. The worker accepts authenticated local requests only, keeps the Composition API token out of arguments and worker state, and exits automatically after the idle window.
 
+Use local worker controls when capture recovery is needed:
+
+```bash
+node scripts/composer-agent.js capture-worker status
+node scripts/composer-agent.js capture-worker stop
+node scripts/composer-agent.js capture-worker reset
+```
+
+`status` never starts Chrome and reports only `stopped`, `idle`, `capturing`, or `unreachable`, plus worker version and idle timeout when available. `stop` asks the authenticated localhost worker to exit; `reset` additionally clears stale state so the next capture starts fresh. Neither command reads Composer credentials. Stop/reset refuse with `CAPTURE_WORKER_BUSY` during an active capture; wait for `idle` rather than interrupting an in-flight request. Output never includes PID, port, secret, or filesystem path.
+
 The headless browser must be able to reach the preview endpoint and the external origins used by that preview, including its CDN bootstrap dependencies and any data or asset URLs required by the composition script. In a restricted browser-network context, the outer preview page can fail before attaching `#SingularPlayer` and surface as `PREVIEW_FRAME_NOT_FOUND`. Re-run the same supported command from a network-enabled execution context before treating that error as a renderer defect.
 
 ## Capture examples

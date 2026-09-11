@@ -23,7 +23,7 @@ const LIFECYCLE_QUIET_WINDOW_MS = 200;
 const SCRIPT_DISCOVERY_WINDOW_MS = 250;
 const WORKER_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const WORKER_START_TIMEOUT_MS = 15000;
-const WORKER_DIRECTORY = path.join(
+const WORKER_DIRECTORY = process.env.COMPOSER_AGENT_CAPTURE_WORKER_DIRECTORY || path.join(
   os.tmpdir(),
   `composer-agent-capture-worker-${crypto.createHash('sha256').update(__dirname).digest('hex').slice(0, 12)}`
 );
@@ -1810,6 +1810,58 @@ async function captureCompositionPreview(options) {
   }
 }
 
+async function getCaptureWorkerStatus() {
+  const state = readWorkerState();
+  if (!state) return { status: 'stopped' };
+  if (!processAlive(state.pid)) {
+    removeWorkerFile(WORKER_STATE_PATH);
+    removeWorkerFile(WORKER_LOCK_PATH);
+    return { status: 'stopped', staleStateRemoved: true };
+  }
+  try {
+    const result = await requestWorker(state, '/status');
+    return {
+      status: result.status,
+      version: state.version,
+      idleTimeoutMs: state.idleTimeoutMs
+    };
+  } catch (error) {
+    return { status: 'unreachable', version: state.version };
+  }
+}
+
+async function stopCaptureWorker() {
+  const state = readWorkerState();
+  if (!state) return { status: 'stopped', changed: false };
+  if (!processAlive(state.pid)) {
+    removeWorkerFile(WORKER_STATE_PATH);
+    removeWorkerFile(WORKER_LOCK_PATH);
+    return { status: 'stopped', changed: true, staleStateRemoved: true };
+  }
+  await stopStaleWorker(state);
+  removeWorkerFile(WORKER_STATE_PATH);
+  removeWorkerFile(WORKER_LOCK_PATH);
+  return { status: 'stopped', changed: true };
+}
+
+async function resetCaptureWorker() {
+  let result;
+  try {
+    result = await stopCaptureWorker();
+  } catch (error) {
+    if (error && error.code === 'CAPTURE_WORKER_BUSY') throw error;
+    result = { changed: false, staleStateRemoved: true };
+  }
+  removeWorkerFile(WORKER_STATE_PATH);
+  removeWorkerFile(WORKER_LOCK_PATH);
+  return {
+    status: 'reset',
+    workerStopped: result.changed === true,
+    staleStateRemoved: result.staleStateRemoved === true,
+    nextCaptureStartsFresh: true
+  };
+}
+
 async function runCaptureWorker() {
   const secret = process.env.COMPOSER_AGENT_CAPTURE_WORKER_SECRET;
   if (!secret) throw new Error('Capture worker secret is required');
@@ -1859,10 +1911,18 @@ async function runCaptureWorker() {
       return;
     }
     if (request.method === 'GET' && request.url === '/status') {
-      send(200, { ok: true, result: { ready: true } });
+      send(200, { ok: true, result: { status: activeRequest ? 'capturing' : 'idle' } });
       return;
     }
     if (request.method === 'GET' && request.url === '/stop') {
+      if (activeRequest) {
+        send(409, {
+          ok: false,
+          code: 'CAPTURE_WORKER_BUSY',
+          message: 'Standalone capture worker is currently capturing; retry stop or reset after it becomes idle'
+        });
+        return;
+      }
       send(200, { ok: true, result: { stopped: true } });
       setImmediate(function () { shutdown().then(function () { process.exit(0); }); });
       return;
@@ -1947,6 +2007,9 @@ if (require.main === module) {
 
 module.exports = {
   captureCompositionPreview: captureCompositionPreview,
+  getCaptureWorkerStatus: getCaptureWorkerStatus,
+  resetCaptureWorker: resetCaptureWorker,
+  stopCaptureWorker: stopCaptureWorker,
   createCaptureError: createCaptureError,
   MAX_CAPTURE_BYTES: MAX_CAPTURE_BYTES
 };

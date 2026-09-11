@@ -17,7 +17,7 @@ The bundled CLIs are the only supported agent interface. Never replace raw compo
 
 ## CLI dependencies
 
-Use the exact dependency versions declared in the skill's `package.json`. Before first use of a CLI, verify the packages imported by that script resolve from its location. Check `playwright-core` and installed Chrome only before capture or Player verification, not as prerequisites for ordinary inspection or editing. If a required package is missing, install it through the target environment's normal Node dependency workflow, then retry.
+Use the exact dependency versions declared in the skill's `package.json`. Before first use, run `node scripts/dependency-preflight.js`; add `--capture` only before capture or Player verification so Chrome is checked only when relevant. The preflight uses built-in Node modules, verifies dependencies resolve from this skill rather than a hoisted repository root, and emits only sanitized package/version/script categories. If it fails, install through the target environment's normal Node dependency workflow, rerun the preflight, then retry.
 
 Reuse available packages. If dependency setup is unavailable or prohibited, report it and stop before pairing. Capture and Player verification use the target machine's installed Chrome; follow their routed references.
 
@@ -48,6 +48,8 @@ Treat the exact phrase `generate improvement handoff` as a retrospective reporti
 ## Authorize and hold one work lease
 
 If no reusable authorization exists in this conversation's connection profile, ask the user to open **Composer AI**, request its six-character code, and run `pair --connection <conversation-connection-name> --code <code>`. Pass `--server` only when the user explicitly needs another environment. Never request, print, or expose the access token. Require both `paired: true` and `acknowledged: true`; otherwise report the sanitized acknowledgement category and wait for reconnection or fresh pairing before continuing.
+
+To prove an existing authorization is attached to a command-ready editor without locking Composer, run `check-connection --connection <conversation-connection-name>`. Require `status: "connected"`, active authorization, a connected editor, and ready commands. Report the returned work-lease state separately; a missing lease is expected before `start-work`. This proof does not mutate, navigate, reload, or acquire work.
 
 For tasks requiring editor commands, before `inspect` or any other editor command, run:
 
