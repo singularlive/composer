@@ -8,14 +8,14 @@ AI Graphics is internal widget `4792`. Its static schema contains only the non-l
 node scripts/composer-agent.js primitives --primitive ai-graphics
 ```
 
-The field value is one parseable JSON string following `app/components/widgets/aiGraphics/AI_GRAPHICS_AUTHORING_PROMPT.md`. The definition contains `version`, `html`, `css`, `javascript`, generated `fields`, and generated `groups`. Keep HTML, CSS, and JavaScript self-contained. AI Graphics' non-linkable `definition` field has a dedicated 256 KiB serialized-value limit for Composer-agent writes; every other widget field retains the normal 32 KiB limit. Minify the complete definition before writing it, and measure the outer `JSON.stringify(definitionText)` length because quotes and backslashes in the definition add escaping overhead.
+Before generating a definition, read the shipped [AI Graphics authoring contract](ai-graphics-authoring.md) in full. The field value is one parseable JSON string containing `version`, `html`, `css`, `javascript`, generated `fields`, and generated `groups`. Keep HTML, CSS, and JavaScript self-contained. AI Graphics' non-linkable `definition` field has a dedicated 256 KiB serialized-value limit for Composer-agent writes; every other widget field retains the normal 32 KiB limit. Minify the complete definition before writing it, and measure the outer `JSON.stringify(definitionText)` length because quotes and backslashes in the definition add escaping overhead.
 
 ## Authoring workflow
 
 1. Generate the complete definition from the source-controlled AI authoring contract.
 2. Create or reconcile the `ai-graphics` tile with only its static `definition` property, then position and size the tile in Composer. Include required animation and effect runway in those bounds.
-3. Read the created tile again after the definition installs to verify its definition and layout. Generated fields are published in the Composer UI, but the current agent adapter does not merge this widget's generated model into its typed field discovery.
-4. Do not promise agent-created links to generated fields: the current Control Node adapter resolves catalog fields only. The `definition` field must remain non-linkable. If generated public inputs are required, report this limitation and ask the user to configure the links in Composer or approve a supported design alternative; never bypass typed commands or invent a field schema.
+3. Read the created tile again after the definition installs to verify its definition, generated typed fields, and layout. Wait for the widget to publish its dynamic model before creating controls; field declarations in the definition are not a substitute for live schema readback.
+4. Create and link Control Nodes to generated fields through the typed Control Node commands. Generated fields are linkable unless their definitions set `disableDataLink: true`; the static `definition` field remains non-linkable. Use the generated field's declared type and verify the persisted link after creation.
 5. Read the Timeline animation catalog and assign the `widget` effect to every authored timeline. Enable **2 timelines** when the definition owns a separate Out choreography; with it disabled, taking the composition Out reverses In and the authored Out timeline is dormant.
 6. Verify responsive geometry and finite In/Out behavior in Player. Composer model readback alone cannot prove Shadow DOM rendering or lifecycle JavaScript.
 
@@ -46,11 +46,11 @@ The field value is one parseable JSON string following `app/components/widgets/a
 
 ## Verification
 
-- Read back the tile definition, layout, In/Out effects, keyframes, and active composition's `timeline2Active` value before visual acceptance. Report generated-schema and link verification as pending when the typed adapter cannot expose them; the definition's field declarations alone are not live schema readback.
+- Read back the tile definition, generated typed fields, layout, In/Out effects, keyframes, and active composition's `timeline2Active` value before visual acceptance. For every linked generated field, read back both the Control Node and persisted data link; the definition's field declarations alone are not live schema or link verification.
 - Exercise generated controls through the actual Composer UI or equivalent persisted payload path. Read back both the value and its runtime type, then verify the rendered result; a numeric command-path test alone does not prove that a formatted numeric string from the UI is handled.
 - Open the ordinary module that owns the widget timeline and use active-composition capture. A root capture seeks only the root timeline and is the wrong target for an independently timed nested module.
 - Capture and view exact start, representative midpoint, and settled/end positions. Distinct seek reports or PNG byte sizes are diagnostics, not substitutes for viewing every retained frame.
 - At a midpoint where content is transformed, confirm that its motion envelope prevents accidental edge clipping. Restore any temporary portrait, square, or stress-test geometry and verify final layout readback before handoff.
 - Require no lifecycle script errors or unresolved font/image resources, remove temporary manifests and captures, return to the intended Composer scope, and release the work lease.
 
-Generated field types are `text`, `textarea`, `number`, `normalizednumber`, `checkbox`, `selection`, `color`, `image`, and `metricfont`. Do not define a field named `definition` or a group named `definitionGroup`. In the Composer UI, generated fields remain eligible for linking unless their definitions explicitly set `disableDataLink: true`; this does not imply support in the current agent adapter.
+Generated field types are `text`, `textarea`, `number`, `normalizednumber`, `checkbox`, `selection`, `color`, `image`, and `metricfont`. Do not define a field named `definition` or a group named `definitionGroup`. Generated fields are eligible for Composer UI and agent-created Control Node links unless their definitions explicitly set `disableDataLink: true`.
