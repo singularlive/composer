@@ -426,10 +426,6 @@ async function request(url, options) {
   const timeout = setTimeout(() => controller.abort(), 30000);
   try {
     const response = await fetch(url, Object.assign({}, options, { signal: controller.signal }));
-    if (!response.ok) {
-      if (response.body) await response.body.cancel();
-      throw new Error("HTTP " + response.status);
-    }
     const chunks = [];
     let size = 0;
     if (response.body) {
@@ -454,15 +450,27 @@ async function request(url, options) {
     try {
       json = text ? JSON.parse(text) : null;
     } catch (error) {}
+    if (!response.ok) {
+      const serverCode = json && json.error && json.error.composerAgentCode;
+      const error = new Error("HTTP " + response.status);
+      if (typeof serverCode === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(serverCode)) {
+        error.composerAgentCode = serverCode;
+      }
+      throw error;
+    }
     return { status: response.status, text: text, json: json };
   } catch (error) {
-    throw new Error(
+    const composerAgentCode = error && error.composerAgentCode;
+    const wrapped = new Error(
       "Request failed for " +
         sanitizeUrl(url) +
         ": " +
         (controller.signal.aborted ? "request deadline or response limit exceeded" :
-          (/^HTTP \d+$/.test(error.message) ? error.message : "network or response error"))
+          (composerAgentCode ? composerAgentCode + ": " + error.message :
+            (/^HTTP \d+$/.test(error.message) ? error.message : "network or response error")))
     );
+    if (composerAgentCode) wrapped.code = composerAgentCode;
+    throw wrapped;
   } finally {
     clearTimeout(timeout);
   }

@@ -20,7 +20,7 @@ const { createWidgetReferences } = require('./widget-script-references');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 112;
+const SKILL_VERSION = 114;
 const DEFAULT_TIMEOUT_MS = 15000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
@@ -72,7 +72,42 @@ const BOOLEAN_OPTIONS = new Set([
   'reuse-existing'
 ]);
 const GLOBAL_COMMAND_OPTIONS = ['server', 'compact', 'template-session', 'connection'];
+const KNOWN_COMMANDS = new Set([
+  'pair', 'pair-intent', 'check-connection', 'start-work', 'wait-ready', 'finish-work', 'status', 'complete',
+  'inspect', 'find-elements', 'composition-tree', 'resolve-references', 'script-handoff', 'control-composition',
+  'timeline-link', 'set-timeline-link', 'logic-layers', 'set-logic-layer', 'rename-logic-layer',
+  'create-composition', 'orchestrate', 'create-revision', 'list-revisions', 'read-revision', 'compare-revision',
+  'restore-revision', 'delete-revision', 'delete-composition', 'open-composition', 'widget-subcompositions',
+  'open-widget-subcomposition', 'update-table', 'update-grid', 'timeline2', 'display-variants',
+  'configure-display-variants', 'activate-display-variant', 'set-display-variant-relevance', 'control-nodes',
+  'metric-fonts', 'set-metric-font', 'upgrade-metric-widgets', 'widget-nodes', 'link-widget-nodes',
+  'unlink-widget-nodes', 'set-control-value', 'set-control-font', 'create-table-control', 'set-table-control',
+  'update-table-control', 'link-table-control', 'unlink-table-control', 'press-control', 'timer-action',
+  'control-time', 'update-control', 'create-control-container', 'configure-control-container',
+  'delete-control-container', 'create-control', 'create-controls', 'delete-control', 'get', 'get-many',
+  'get-layouts', 'set-layouts', 'get-properties', 'set-properties', 'select', 'move', 'update', 'fonts',
+  'set-font', 'timeline-animations', 'set-timeline-animation', 'set-timeline-animations', 'update-animations',
+  'set-update-animation', 'set-update-animations', 'behaviors', 'set-behavior', 'set-behaviors', 'create-group',
+  'configure-group', 'move-group', 'delete-group', 'capture', 'capture-worker', 'primitives', 'ensure-group',
+  'create', 'delete', 'validate', 'apply'
+]);
+const COMMAND_SUGGESTIONS = {
+  open: 'open-composition',
+  close: 'finish-work',
+  tree: 'composition-tree',
+  find: 'find-elements',
+  controls: 'control-nodes',
+  revisions: 'list-revisions'
+};
 let activeTemplateSessionToken = null;
+
+function unknownCommandError(command) {
+  const suggestion = COMMAND_SUGGESTIONS[command];
+  return new Error(
+    `Unknown command "${command || ''}".` +
+    (suggestion ? ` Did you mean "${suggestion}"?` : ' See references/commands.md for the command index.')
+  );
+}
 
 function parseArguments(argv) {
   const command = argv[0];
@@ -1714,6 +1749,14 @@ let invokedCommand;
 async function run() {
   const parsed = parseArguments(process.argv.slice(2));
   invokedCommand = parsed.command;
+  if (!KNOWN_COMMANDS.has(parsed.command)) throw unknownCommandError(parsed.command);
+  if (parsed.command === 'find-elements') {
+    const widgetId = Number(requireOption(parsed.options, 'widget-id'));
+    if (!Number.isInteger(widgetId) || widgetId <= 0) {
+      throw new Error('widget-id must be a positive integer');
+    }
+    parsed.options['widget-id'] = widgetId;
+  }
   if (parsed.command !== 'capture-worker') configureCredentialScope(parsed.options);
   activeTemplateSessionToken = parsed.options['template-session'] || null;
   let result;
@@ -1777,6 +1820,12 @@ async function run() {
         });
         delete owner.sessionToken;
       }
+      break;
+    }
+    case 'find-elements': {
+      result = await executeCommand('composition.elements.find', {
+        widgetId: parsed.options['widget-id']
+      });
       break;
     }
     case 'composition-tree':
@@ -2678,9 +2727,7 @@ async function run() {
       break;
     }
     default:
-      throw new Error(
-      'Usage: composer-agent.js <pair|pair-intent|check-connection|start-work|wait-ready|finish-work|status|complete|inspect|composition-tree|resolve-references|script-handoff|control-composition|timeline-link|set-timeline-link|logic-layers|set-logic-layer|rename-logic-layer|create-composition|orchestrate|create-revision|list-revisions|read-revision|compare-revision|restore-revision|delete-revision|delete-composition|open-composition|widget-subcompositions|open-widget-subcomposition|update-table|update-grid|timeline2|display-variants|configure-display-variants|activate-display-variant|set-display-variant-relevance|control-nodes|metric-fonts|set-metric-font|upgrade-metric-widgets|widget-nodes|link-widget-nodes|unlink-widget-nodes|set-control-value|set-control-font|create-table-control|set-table-control|update-table-control|link-table-control|unlink-table-control|press-control|timer-action|control-time|update-control|create-control-container|configure-control-container|delete-control-container|create-control|create-controls|delete-control|get|get-many|get-layouts|set-layouts|get-properties|set-properties|select|move|update|fonts|set-font|timeline-animations|set-timeline-animation|set-timeline-animations|update-animations|set-update-animation|set-update-animations|behaviors|set-behavior|set-behaviors|create-group|configure-group|move-group|delete-group|capture|capture-worker|primitives|ensure-group|create|delete|validate|apply> [options]'
-      );
+      throw unknownCommandError(parsed.command);
   }
 
   const output = parsed.options.compact

@@ -1,0 +1,81 @@
+# CLI basics, sessions, and recovery
+
+All commands run through the bundled client:
+
+```bash
+node scripts/composer-agent.js <command> [options]
+```
+
+`--compact` is a global option accepted by every command. It minifies JSON output without removing identities, names, runtime values, control links, or errors. Except for widget `get`, it does not reduce the response shape.
+
+For widget `get` specifically, compact output also reshapes the result: widget data is under `values` and the reduced schema is under `fields`. Full output uses `data` and `widget.fields`. Do not assume `--compact` changes whitespace alone.
+
+The client preserves stdout for command JSON and pipelines. After every relevant command success or failure, stderr emits `COMPOSER_FINALIZATION_REQUIRED` to remind the caller that any work lease acquired during the task must be released before yielding. A successful `finish-work` emits `COMPOSER_WORK_RELEASED` instead, and a successful `complete` reports authorization revocation. `pair`, `pair-intent`, `check-connection`, and local `capture-worker` controls emit no lifecycle reminder because they do not acquire a work lease.
+
+`--server <url>` is a global paired-command selector. When supplied, it must match the server stored during pairing; it never retargets credentials. This applies consistently to single and batch commands, including `set-timeline-animations`.
+
+`--connection <name>` is required on pairing and every later command unless an orchestrator supplies `COMPOSER_AGENT_CREDENTIALS`. Use one unique 1–64 character name per AI conversation and reuse it only within that conversation. It selects an isolated local credential profile so simultaneous agents and compositions cannot overwrite or route through one shared authorization. Allowed characters are letters, numbers, periods, underscores, and hyphens. Do not combine the flag with `COMPOSER_AGENT_CREDENTIALS`.
+
+`--template-session <token>` is the global widget-template edit-session guard. Obtain the opaque token from `open-widget-subcomposition` or a full `inspect` while that template is active, then pass it on every command that reads or mutates the template or its descendants. Missing tokens fail with `WIDGET_TEMPLATE_SESSION_REQUIRED`; tokens from a closed, copied, reopened, or different template fail with `WIDGET_TEMPLATE_SESSION_STALE` before the operation runs. Do not derive, cache beyond the current edit session, or treat the token as a template identity. Full `inspect`, catalog reads, root navigation, and owner-relative opening from an ordinary composition are recovery-safe exceptions. Opening a nested widget template while already inside another widget template requires that active parent template's token because owner discovery reads the parent scope first.
+
+The flags `--compact`, `--selection`, `--summary`, `--selected`, `--italic`, `--underline`, `--always-execute`, `--create`, `--remove`, `--preview`, `--replace`, and `--reuse-existing` are booleans: pass them with no value (enabled) or with an explicit `true`/`false`. `--remove` applies to `set-behavior`. `--active` always takes an explicit `true` or `false` value.
+
+Structured JSON inputs use files. Prefer a pre-approved agent-session temporary or scratch location that is already writable without another permission request; fall back to the operating-system temporary directory only when current permissions already allow it. Create one unique task directory in the selected location, write descriptive UTF-8 JSON files there, pass their paths with `--value-file`, `--params-file`, `--easing-file`, `--layout-file`, or an existing `--file` option, and remove the task directory in finally-style cleanup after success or failure. Relative paths resolve from the CLI working directory. If neither location is writable, stop and report the blocker. Value files may contain any valid JSON value; existing command validation still determines which shapes and types are accepted. `get-many --ids` accepts comma-separated text only and rejects JSON-array syntax.
+
+## Command selection policy
+
+- **Preferred** commands are the normal path for the scope they represent.
+- **Targeted only** commands remain supported because they have a distinct isolated-edit, repair, diagnosis, navigation, or unsupported-structure use case. Never decompose a supported batch or orchestration into these commands after the atomic operation fails; follow "Mutation failure recovery" below before correcting and rerunning the manifest.
+- Superseded commands and aliases with no distinct use case are absent from the CLI and this reference. Do not infer or try old names.
+
+## Isolated property edits
+
+Use this bounded path for a text, color, or other property edit on an existing target when ownership, layout, links, scripts, and lifecycle remain unchanged. It is not a shortcut for creation, reference matching, structural changes, or new behavior.
+
+1. Use the normal authorization, work lease, readiness, and copied-reference gates. Inspect the active scope and read the target with `get`, `get-properties`, or its typed inspector. Read the relevant live field schema and matching widget guide; do not infer types, selection values, or limits.
+2. Check links before writing. For a linked field, inspect and update its defining source through the dedicated typed command, preserving the link. If a shared source affects additional targets, establish that scope first and ask before expanding the user's request.
+3. Apply one bounded supported mutation, batching related fields when needed. Use specialized commands for typed models such as Metric Fonts rather than generic writes. Do not create a declarative graphic or reorganize controls just to edit an existing value.
+4. Re-read the affected values and links, verify unrelated state is preserved, and perform visual or Player checks required by the changed field. A text change may alter fitting or trigger a script; static readback does not prove those outcomes. Use the normal capture and scripting references when applicable, and report unavailable verification as pending.
+5. Restore the intended scope, clean up task files, and release the work lease. The normal cancellation, revision, and mutation-failure rules still apply.
+
+Load the full authoring standard if the task requires layout/design decisions or structural changes. Read only the command sections and widget contracts needed for this edit; do not load scripting, recipes, or graphics manifests solely because they exist.
+
+## Mutation failure recovery
+
+A timeout, connection loss, or missing response after dispatch does not prove that a mutation failed. Do not replay or alter the request solely because its response was lost.
+
+1. After confirmed validation rejection or confirmed rollback, correct the reported defect and retry the same supported operation.
+2. After an uncertain outcome, obtain authoritative readback of the affected scope before deciding whether to retry. Confirm readiness first if needed, but never reconnect after cancellation. Compare identities, values, links, and managed keys against the intended change; do not identify newly created objects by name alone.
+3. If the intended result is present, verify it and continue without replay. If readback establishes no change, retry the same stable-key request. If the result is partial, ambiguous, or unavailable, preserve state, report the uncertainty, and stop mutation until it can be resolved.
+
+Cancellation takes precedence over recovery. On `OPERATION_CANCELLED`, stop editor and script commands, clean up local task artifacts, and report any temporary state that was not restored. Await explicit authorization before restoring it; a new instruction requires fresh readiness and inspection, not blind replay of a cleanup snapshot.
+
+## Session
+
+| Command | Purpose |
+| --- | --- |
+| `pair --connection <name> [--server <url>] --code <code>` | Preflight the isolated profile, claim a one-time pairing code, atomically store a 30-day scene/user JWT authorization, and acknowledge that exact authorization in Composer. Success requires both `paired: true` and `acknowledged: true`. A failed receipt keeps `paired: true` but returns `acknowledgement.status: "failed"` with only `version-mismatch`, `authorization-rejected`, `timeout`, `editor-unavailable`, or `acknowledgement-rejected`; raw socket errors and credentials are omitted. The server defaults to `https://beta.singular.live/`; output also reports the sanitized `credentialStorage` category. |
+| `pair-intent [--server <url>] --intent-id <id> [--intent-secret -] [--device-name <name>]` | Orchestrator-only automatic pairing. Claim an authenticated short-lived intent after Composer binds it. Supply the secret through `COMPOSER_AGENT_INTENT_SECRET` or pipe it on stdin with `--intent-secret -`; literal secret arguments are rejected. The command waits up to two minutes across valid-but-unbound `409` responses and shared-rate-limit `429` responses, then stores and acknowledges credentials like `pair`. Normal runtime users should use the visible-code `pair` flow. |
+| `check-connection [--timeout <milliseconds>]` | Prove that saved authorization is active, the editor is connected, and its command handler is ready without acquiring or requiring a work lease. Success returns `status: "connected"` and reports `workLease` separately. It has the same 1–120000 ms bounded timeout and sanitized diagnostics as `wait-ready`. |
+| `start-work` | Acquire or renew the ten-minute task-level work lease. Run once before the first editor command in every task; Composer remains locked across individual command sockets. |
+| `wait-ready [--timeout <milliseconds>]` | Wait until authorization, editor connection, editor command registration, and the work lease are all ready. Returns immediately when ready, otherwise reports the last sanitized readiness state after the default 30-second timeout. The range is 1–120000 ms. It does not mutate, reload, navigate, or renew the lease. |
+| `finish-work` | Release the current work lease and Composer input while preserving the reusable JWT authorization. Run before final handoff or waiting for user input, except during revision approval under "Protect user content and public inputs" in [SKILL.md](../SKILL.md). |
+| `status --message <text>` | Show a concise update and renew an active work lease. It does not acquire a missing lease. |
+| `complete` | Revoke the saved authorization only after the user explicitly asks to disconnect the AI Agent. Ordinary task completion uses `finish-work`. |
+| `inspect` | Read the scene, preview inputs, active composition stack, selection, groups, tile summaries, and a `summary` count of groups, tiles, compositions, and controls. |
+| `composition-tree` | Recursively read the ordinary composition hierarchy from the concrete root without navigating. Widget-owned templates are listed separately by owner name and semantic field, never as ordinary children; their composition and descendant IDs are omitted. The result explicitly reports `activeScopePreserved: true` and `navigationChanged: false`. |
+| `inspect --selection` | Return only the currently selected item (`id`, `type`, `groupId`). |
+| `inspect --summary` | Return only the `summary` counts; the full tile list is omitted, so the payload stays small even in large compositions. |
+| `find-elements --widget-id <integer>` | Find up to 100 widgets of one catalog ID across ordinary scene compositions without navigating. Returns composition and tile identities, total count, and truncation state. |
+| `resolve-references --file <references.json>` | Decode and resolve 1–25 Composer references pasted from tree **Copy reference** actions without navigating or mutating. |
+| `script-handoff [--composition-id <id\|root>]` | Inspect the active composition and its local Control Nodes once, then return versioned context for the scripting fast path. With `--composition-id`, temporarily inspect that root or ordinary sub-composition as the suggested script target and restore the prior Composer scope before returning. Widget-owned templates retain their owner-field navigation workflow. |
+| `timeline-link --id <composition-id>` | Inspect an ordinary child composition's timeline-link setting and resolved immediate parent. |
+| `set-timeline-link --id <composition-id> --linked <true\|false>` | Atomically link an ordinary child to its immediate parent Timeline or unlink it, keeping `parentTimeline` and logic-layer membership consistent with Composer. |
+
+`resolve-references` accepts either a JSON array of complete copied reference strings or `{ "references": [...] }`. Each readable string ends with a deterministic short handle such as `@composer/widget ref_0123456789abcdef`; the handle contains no encoded identity and requires no stored lookup table. The live editor recomputes handles from the current scene and reports `resolved`, `missing`, or `collision`. Names embedded in copied text are labels only. Never replace a failed reference with a same-named object. References inside widget-owned template edit sessions are intentionally unavailable because their descendant IDs are session-scoped.
+
+Pairing claims are rate limited to one request per second per client address across the claim endpoints. A `429` response has not consumed the pairing code; wait for its `Retry-After` interval and retry the same `pair` command. `pair-intent` performs this bounded retry internally.
+
+After `start-work`, run `wait-ready` before the first editor command. A successful result has `status: "ready"`, `authorization: "active"`, `editor: "connected"`, `commands: "ready"`, and `workLease: "active"`. A timeout exits nonzero with `COMPOSER_NOT_READY` and writes the same sanitized fields with `status: "timeout"`; use them to distinguish an absent editor, an initializing command handler, and a missing lease. Do not substitute repeated `inspect` calls or automatic page reloads.
+
+`COMPOSER_AGENT_CREDENTIALS` has highest precedence and is never silently replaced when its configured file is unreadable or unwritable. Otherwise, `--connection` selects a credential file under the user's private Composer connection-profile directory. Pair acknowledgement uses the newly issued credential directly rather than re-reading mutable profile selection. Other read/write failures return `CREDENTIAL_READ_FAILED` or `CREDENTIAL_WRITE_FAILED` with a sanitized target category and remediation; no credential value or complete path is printed. Composer locks while the explicit work lease is active, not while individual sockets are connected. Editor commands without a lease fail with `WORK_NOT_STARTED`. **Cancel operation** releases the lease and interrupts active sockets without revoking the JWT; stop the current task on `OPERATION_CANCELLED`. **Disconnect AI Agent** revokes the authorization.

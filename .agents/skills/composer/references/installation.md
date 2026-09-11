@@ -2,6 +2,8 @@
 
 Treat the installed skill directory itself as the payload root. It must contain `SKILL.md`, `package.json`, `package-lock.json`, `scripts/`, and `references/` directly; an extra nested `composer/` directory is an invalid installation even when an installer reports success.
 
+The bundled scripts require Node.js 22.x. `dependency-preflight.js` reports `NODE_VERSION_MISMATCH` and stops before pairing when another major version is active.
+
 When developing inside the Singular repository, use the in-place `.agents/skills/composer` payload. Do not install a second copy over it or infer an external installer command. Run its preflight directly:
 
 ```bash

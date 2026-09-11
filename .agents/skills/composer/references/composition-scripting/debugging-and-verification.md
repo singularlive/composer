@@ -43,10 +43,10 @@ Use the unique writable task-temporary directory defined in [commands.md](../com
 The bundled verifier uses `playwright-core@1.63.0` directly, matching standalone capture. Run it in place. Put scenarios and any genuinely custom harness in the task-temporary directory; do not copy the verifier for behavior its declarative scenario contract already supports.
 
 ```powershell
-node -e "require('playwright-core')"
+node scripts/dependency-preflight.js --capture
 ```
 
-If the check fails, make `playwright-core@1.63.0` available through the target environment's normal Node dependency workflow. The verifier launches the target machine's installed Google Chrome through Playwright's `chrome` channel and does not require `@playwright/cli` or a Playwright-managed browser download. If Chrome is unavailable from its standard system location, report the missing prerequisite.
+If the check fails, install the exact locked dependencies through the target environment's normal Node dependency workflow and rerun it. The verifier launches the target machine's installed Google Chrome through Playwright's `chrome` channel and does not require `@playwright/cli` or a Playwright-managed browser download. If Chrome is unavailable from its standard system location, report the missing prerequisite.
 
 Run the bundled verifier from its repository location:
 
