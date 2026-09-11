@@ -28,6 +28,7 @@ const ACTIONS = new Set([
   'waitForState',
   'assertState',
   'assertDom',
+  'assertPixelsChanged',
   'capture'
 ]);
 
@@ -78,6 +79,20 @@ function assertPositiveNumber(value, label) {
   if (!Number.isFinite(value) || value < 0 || value > 100000) {
     throw new Error(`${label} must be a number between 0 and 100000`);
   }
+}
+
+function validatePixelRegion(region, label) {
+  if (!isPlainObject(region)) throw new Error(`${label} must be an object`);
+  assertAllowedKeys(region, ['unit', 'x', 'y', 'width', 'height'], label);
+  if (region.unit !== undefined && region.unit !== 'px' && region.unit !== 'percent') {
+    throw new Error(`${label}.unit must be "px" or "percent"`);
+  }
+  ['x', 'y', 'width', 'height'].forEach(function (key) {
+    if (!Number.isFinite(region[key]) || region[key] < 0 ||
+        ((key === 'width' || key === 'height') && region[key] <= 0)) {
+      throw new Error(`${label}.${key} must be a positive bounded number`);
+    }
+  });
 }
 
 function validateStep(step, index, captureNames) {
@@ -187,6 +202,28 @@ function validateStep(step, index, captureNames) {
     ['minimumWidth', 'minimumHeight'].forEach(key => {
       if (step[key] !== undefined) assertPositiveNumber(step[key], `${label}.${key}`);
     });
+    return;
+  }
+
+  if (step.action === 'assertPixelsChanged') {
+    assertAllowedKeys(step, [
+      'action', 'from', 'to', 'region', 'tolerance', 'minimumChangedPixels'
+    ], label);
+    for (const key of ['from', 'to']) {
+      if (typeof step[key] !== 'string' || !captureNames.has(step[key])) {
+        throw new Error(`${label}.${key} must name an earlier capture checkpoint`);
+      }
+    }
+    if (step.from === step.to) throw new Error(`${label}.from and .to must name different checkpoints`);
+    if (step.region !== undefined) validatePixelRegion(step.region, `${label}.region`);
+    if (step.tolerance !== undefined &&
+        (!Number.isFinite(step.tolerance) || step.tolerance < 0 || step.tolerance > 255)) {
+      throw new Error(`${label}.tolerance must be a number between 0 and 255`);
+    }
+    if (step.minimumChangedPixels !== undefined &&
+        (!Number.isSafeInteger(step.minimumChangedPixels) || step.minimumChangedPixels < 1)) {
+      throw new Error(`${label}.minimumChangedPixels must be a positive integer`);
+    }
     return;
   }
 
@@ -349,6 +386,14 @@ export async function executeVerificationScenario(options) {
           width: actual.targetBounds.width,
           height: actual.targetBounds.height
         };
+      } else if (step.action === 'assertPixelsChanged') {
+        const observed = await options.comparePixels(
+          checkpoints.get(step.from),
+          checkpoints.get(step.to),
+          step
+        );
+        entry.observed = observed;
+        if (!observed.passed) throw new Error('pixel-change assertion failed');
       } else if (step.action === 'capture') {
         const captured = await capture(step.name);
         checkpoints.set(step.name, captured);

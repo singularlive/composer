@@ -96,6 +96,8 @@ Use the operation matching the requested scope:
 - Display presentations: follow the ownership policy above; inspect `display-variants`, configure the complete ordered scene set from root, activate one natively, and assign element/control/container relevance with one `set-display-variant-relevance` manifest.
 - Individual commands: only one isolated edit, diagnosis, repair, widget-template operation, or unsupported manifest structure.
 
+For an ordinary wall clock or date/time display, use Singular's native Current Date and Time widget with a Widget Node-linked template. Do not create an operator Time control or composition-script timer when the native widget satisfies the requirement.
+
 Never decompose a failed atomic operation into serial mutations. Follow "Mutation failure recovery" in [commands.md](references/commands.md): after an uncertain outcome, obtain authoritative readback before any retry. Keep declarative keys stable and content inside its managed ownership group.
 
 Report every relay or command error directly. Preserve the original failure and Composer state instead of hiding either behind speculative recovery.

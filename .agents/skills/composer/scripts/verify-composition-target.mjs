@@ -22,6 +22,22 @@ export function resolveVerificationTarget(option, handoff) {
   return { requested: 'composition', compositionId: option };
 }
 
+export function getDefaultVerificationTargetOption(handoff) {
+  return handoff && handoff.activeComposition ? 'active' : 'root';
+}
+
+export function getVerificationTargetWarning(option, handoff) {
+  if (!handoff || !handoff.activeComposition || option === 'active') return null;
+  const active = handoff.activeComposition;
+  const activeIsRoot = Array.isArray(active.stack) && active.stack.length === 1;
+  if (activeIsRoot && (option === 'root' || option === active.id)) return null;
+  const activeTargetId = activeIsRoot ? null : active.id;
+  const requestedTargetId = option === 'root' ? null : option;
+  if (requestedTargetId === activeTargetId) return null;
+  const suggestedName = active.name || active.id || 'active composition';
+  return `Explicit verifier target "${option}" differs from the handoff target "${suggestedName}"; omit --composition-id to inherit the handoff target.`;
+}
+
 export async function prepareVerificationTarget(page, frame, request, timeoutMs = 30000) {
   try {
     await page.waitForFunction(function (id) {

@@ -83,3 +83,11 @@ The template relationship's `mode`/`controls` describe its Control Node contract
 The script handoff includes a separate `widgetNodes` snapshot of the active source and target links; the helper's fast summary preserves it. This does not put Widget Nodes into `comp.getPayload2()` or make them public controls. Full persisted summaries retain native links but are not the dedicated Widget Node discovery API; use paired `widget-nodes` in the relevant scope. For script work, follow [composition-scripts.md](composition-scripts.md) and the owning widget's payload/message reference.
 
 Model readback proves link persistence, not live behavior. Render the owning widget in the Singular Player, confirm the actual instance receives updates, and observe several frames for ticking or repeated content. An editor sample of `"0"` is not the current countdown value. Use timed capture for continuously changing widgets. After template edits, return to the parent, re-resolve the relationship, and verify the rendered owner. [Date / Time Countdown](widgets/date-time-countdown.md) documents its fields, signs, totals, and padding.
+
+When a copied or reopened template appears disconnected, use this order:
+
+1. Reopen it through the owning widget tile and composition field; discard every cached template, descendant, session, and model-key handle.
+2. Run `widget-nodes` with the new template session and inspect the target's current link. Judge the source by semantic `nodeId`, source location, target property, and current readback, not by whether `keyId` changed.
+3. If that exact semantic link is present, do not replace it merely to refresh internal IDs. Verify the owning widget in Player first.
+4. Reapply the exact semantic link only when current readback shows it missing or stale. Reinspect after the operation; `replaced` or refreshed internal metadata does not establish that the previous runtime link was broken.
+5. Declare a broken link only when current model evidence and repeated Player evidence agree. One partial transition frame, stale cached ID, or parent DOM hash is insufficient.

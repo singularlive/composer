@@ -61,10 +61,12 @@ Use zero captures for nonvisual or model-only work and normally one for a straig
 ### Design the public control contract
 
 - Identify values the user or an external system is expected to change, and give those values stable widget or Control Node contracts.
+- Keep intentionally constant design labels as native text without public Control Nodes. Labels such as `LIVE`, `NEWS`, units, and fixed category names should be exposed only when the operator or external payload is expected to change them.
 - Keep graphic-specific controls in the same sub-composition as the elements they drive.
 - Put a font, color palette, or other theme Control Node in root when it is intentionally shared by some or all root-level graphic sub-compositions, then link each descendant target to that one root-owned source through the native ancestor-control path.
 - Put every agent-authored public Control Node in a semantic ordinary Control Node container. Group controls by operator workflow, default each container to Large (`width: "double"`), and use Small (`width: ""`) only when a concrete density or layout reason makes the narrower presentation better.
 - Use a direct link when one public input maps directly to one widget property. Use a script only when an input must be interpreted, combined, formatted, or routed.
+- Match the public input to the renderer's visible capability: use a Text control for a single-line renderer, even when a Textarea link is technically compatible; reserve Textarea for renderers that visibly support line breaks or wrapping.
 - Do not expose Transform or Effect properties as Control Nodes merely because they are technically linkable. Expose them only when the user asks for those exact public controls.
 - Once a script relies on a composition or widget name, treat that name as part of the runtime contract and change the structure and script together.
 
@@ -85,6 +87,7 @@ Use zero captures for nonvisual or model-only work and normally one for a straig
 - Use variation to communicate hierarchy or state, not as accidental inconsistency. Repeated roles should use repeated visual treatment.
 - Prefer a few purposeful shapes and accents over decorative clutter.
 - Match the requested or reference theme at the level of major bounds, visual weight, color relationships, type hierarchy, and motion character before refining small details.
+- Treat reference-specific geometry and direction, including wedge points, slants, reading direction, and entrance direction, as observed design intent. Do not promote one reference's orientation into a reusable rule.
 
 ### Composition and information hierarchy
 

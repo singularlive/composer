@@ -7,6 +7,7 @@ import {
   readVerificationScenario
 } from './verify-composition-scenario.mjs';
 import {
+  getDefaultVerificationTargetOption, getVerificationTargetWarning,
   resolveVerificationTarget, prepareVerificationTarget, restoreVerificationTarget
 } from './verify-composition-target.mjs';
 
@@ -92,7 +93,14 @@ function readHandoff(filePath) {
 const handoff = readHandoff(handoffPath);
 const token = handoff.compositionToken;
 const host = String(handoff.host).replace(/\/+$/, '');
-const targetRequest = resolveVerificationTarget(getArg('--composition-id', 'root'), handoff);
+const compositionTargetOption = getArg(
+  '--composition-id',
+  getDefaultVerificationTargetOption(handoff)
+);
+const targetRequest = resolveVerificationTarget(compositionTargetOption, handoff);
+const targetWarning = hasArg('--composition-id')
+  ? getVerificationTargetWarning(compositionTargetOption, handoff)
+  : null;
 
 function readIntegrityContract(filePath) {
   if (!filePath) return null;
@@ -370,6 +378,62 @@ async function sampleVerificationTarget(target) {
   };
 }
 
+async function compareCapturedPixels(page, before, after, assertion) {
+  const beforePng = before && before.comparisonPng;
+  const afterPng = after && after.comparisonPng;
+  if (!beforePng || !afterPng) throw new Error('Pixel comparison requires two captured checkpoints');
+  return page.evaluate(async function (input) {
+    async function readImage(base64) {
+      const image = new Image();
+      image.src = 'data:image/png;base64,' + base64;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      context.drawImage(image, 0, 0);
+      return { width: canvas.width, height: canvas.height, context };
+    }
+    const first = await readImage(input.before);
+    const second = await readImage(input.after);
+    if (first.width !== second.width || first.height !== second.height) {
+      throw new Error('Captured checkpoint dimensions differ');
+    }
+    const region = input.region || { unit: 'percent', x: 0, y: 0, width: 100, height: 100 };
+    const scaleX = (region.unit || 'px') === 'percent' ? first.width / 100 : 1;
+    const scaleY = (region.unit || 'px') === 'percent' ? first.height / 100 : 1;
+    const x = Math.max(0, Math.floor(region.x * scaleX));
+    const y = Math.max(0, Math.floor(region.y * scaleY));
+    const width = Math.min(first.width - x, Math.ceil(region.width * scaleX));
+    const height = Math.min(first.height - y, Math.ceil(region.height * scaleY));
+    if (width <= 0 || height <= 0) throw new Error('Pixel comparison region is outside the target');
+    const firstPixels = first.context.getImageData(x, y, width, height).data;
+    const secondPixels = second.context.getImageData(x, y, width, height).data;
+    let changedPixels = 0;
+    for (let offset = 0; offset < firstPixels.length; offset += 4) {
+      if (Math.abs(firstPixels[offset] - secondPixels[offset]) > input.tolerance ||
+          Math.abs(firstPixels[offset + 1] - secondPixels[offset + 1]) > input.tolerance ||
+          Math.abs(firstPixels[offset + 2] - secondPixels[offset + 2]) > input.tolerance ||
+          Math.abs(firstPixels[offset + 3] - secondPixels[offset + 3]) > input.tolerance) {
+        changedPixels += 1;
+      }
+    }
+    return {
+      passed: changedPixels >= input.minimumChangedPixels,
+      changedPixels,
+      comparedPixels: width * height,
+      requiredChangedPixels: input.minimumChangedPixels,
+      region: { x, y, width, height }
+    };
+  }, {
+    before: beforePng.toString('base64'),
+    after: afterPng.toString('base64'),
+    region: assertion.region,
+    tolerance: assertion.tolerance === undefined ? 8 : assertion.tolerance,
+    minimumChangedPixels: assertion.minimumChangedPixels || 1
+  });
+}
+
 function summarizeLogs(logs) {
   return logs.reduce(function (summary, entry) {
     const level = entry.type === 'warn' ? 'warning' : entry.type;
@@ -438,8 +502,13 @@ async function main() {
   }
 
   try {
+    if (targetWarning) {
+      report.diagnostics.targetWarning = targetWarning;
+      console.warn('[verify] Warning:', targetWarning);
+    }
     ({ page, playerFrame, target, identity } = await prepareVerificationPage(browser, viewport, logs, report.runtime, verificationPages));
     report.target = { ...identity, status: 'ready' };
+    console.log('[verify] Target:', JSON.stringify(report.target));
 
     const captureFrame = async function (checkpoint) {
       await waitForCompositor(playerFrame);
@@ -449,6 +518,9 @@ async function main() {
       const pngBuffer = captureMode === 'target'
         ? await target.screenshot({ type: 'png' })
         : await page.screenshot({ type: 'png', fullPage: true });
+      const comparisonPng = captureMode === 'target'
+        ? pngBuffer
+        : await target.screenshot({ type: 'png' });
       const dimensions = getPngDimensions(pngBuffer);
       const index = report.frames.length;
       const fname = `frame-${index}.png`;
@@ -470,6 +542,7 @@ async function main() {
         integrity
       };
       if (checkpoint) frame.checkpoint = checkpoint;
+      Object.defineProperty(frame, 'comparisonPng', { value: comparisonPng });
       report.frames.push(frame);
       report.screenshot.successfulFrames += 1;
       report.visualIntegrity.passed = report.visualIntegrity.passed && integrity.passed;
@@ -483,7 +556,9 @@ async function main() {
         page,
         defaultCompositionId: identity.kind === 'composition' ? identity.compositionId : null,
         sample: () => sampleVerificationTarget(target),
-        capture: captureFrame
+        capture: captureFrame,
+        comparePixels: (before, after, assertion) =>
+          compareCapturedPixels(page, before, after, assertion)
       });
     }
 

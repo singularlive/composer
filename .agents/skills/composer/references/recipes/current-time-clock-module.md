@@ -16,6 +16,8 @@ Inspect the active composition and current geometry before mutation. Load and cr
 
 Use `timezone: "local"` only when the Player device's local timezone is intended. Fixed numeric offsets do not provide daylight-saving behavior. Do not add JavaScript merely to format or advance the clock.
 
+This is the default implementation for standard wall-clock requests. Do not add an operator-entered Time control, a manually updated Metric Text value, or a composition-script interval alongside it. Keep a composition script empty when the clock is the only requested runtime behavior.
+
 ## Build the widget-owned template
 
 Resolve the owner relationship and open its template through the widget:
@@ -58,6 +60,8 @@ Use the equivalent `color` command for a compatible color or gradient field. The
 
 Before leaving the template, verify the Widget Node link, inherited Control Node links, text geometry, and font readback. Exiting copies the template to a new composition ID. Discard the template ID, text tile ID, node keys, link locations, and session token; reopen later through the durable clock owner and `composition` field.
 
+After the first copy-on-exit, reopen once through the owner and inspect `widget-nodes` with the new session token. Confirm the current link still identifies semantic node `format` and the current Metric Text `text` field. A regenerated `keyId` is expected internal churn, not evidence of failure; follow the [Widget Node troubleshooting order](../widget-nodes.md#template-lifetime-and-verification) before reapplying anything.
+
 ## Player verification
 
 Model readback proves structure and links, not ticking. Use the provided [clock scenario](current-time-clock-module-scenario.json) against a fresh handoff whose selected target contains the visible clock:
@@ -67,4 +71,4 @@ node scripts/composer-agent.js script-handoff --compact |
   node scripts/verifyComposition.mjs --handoff-file - --scenario-file references/recipes/current-time-clock-module-scenario.json --out <task-dir>
 ```
 
-The scenario captures an initial frame and frames after two 61-second waits, requires visible DOM text to change across both minute boundaries, and requires zero Player error events. Inspect all three images to confirm complete formatted values rather than transient or unrelated text changes. Also test the requested timezone/locale and representative surrounding content. This scenario is not proof for daylight-saving transitions, untested timezones, or layouts with unrelated continuously changing text.
+The scenario compares pixels from the selected Player target across two 61-second waits and requires zero Player error events. Unlike parent DOM text hashes, target screenshots include nested widget-owned rendering. Before running it, narrow each `region` to the clock's stable bounds within the selected composition when other content can move; the included full-target percentage is a safe starting shape only when the clock is the sole changing output. Inspect all three images to confirm two distinct, complete formatted values rather than partial transition frames or unrelated motion. Also test the requested timezone/locale and representative surrounding content. This scenario is not proof for daylight-saving transitions or untested timezones.

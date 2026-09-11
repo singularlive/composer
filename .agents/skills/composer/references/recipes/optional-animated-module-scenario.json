@@ -33,6 +33,7 @@
     { "action": "wait", "milliseconds": 100 },
     { "action": "capture", "name": "parent-out-early" },
     { "action": "wait", "milliseconds": 500 },
-    { "action": "capture", "name": "parent-out-settled" }
+    { "action": "capture", "name": "parent-out-settled" },
+    { "action": "assertLifecycle", "event": "error", "equals": 0 }
   ]
 }

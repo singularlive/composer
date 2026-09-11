@@ -5,19 +5,25 @@
     { "action": "wait", "milliseconds": 1000 },
     { "action": "capture", "name": "minute-0" },
     { "action": "wait", "milliseconds": 61000 },
-    {
-      "action": "assertDom",
-      "textChangedFrom": "minute-0",
-      "minimumVisibleElementCount": 1
-    },
     { "action": "capture", "name": "minute-1" },
-    { "action": "wait", "milliseconds": 61000 },
     {
-      "action": "assertDom",
-      "textChangedFrom": "minute-1",
-      "minimumVisibleElementCount": 1
+      "action": "assertPixelsChanged",
+      "from": "minute-0",
+      "to": "minute-1",
+      "region": { "unit": "percent", "x": 0, "y": 0, "width": 100, "height": 100 },
+      "tolerance": 8,
+      "minimumChangedPixels": 1
     },
-    { "action": "assertLifecycle", "event": "error", "equals": 0 },
-    { "action": "capture", "name": "minute-2" }
+    { "action": "wait", "milliseconds": 61000 },
+    { "action": "capture", "name": "minute-2" },
+    {
+      "action": "assertPixelsChanged",
+      "from": "minute-1",
+      "to": "minute-2",
+      "region": { "unit": "percent", "x": 0, "y": 0, "width": 100, "height": 100 },
+      "tolerance": 8,
+      "minimumChangedPixels": 1
+    },
+    { "action": "assertLifecycle", "event": "error", "equals": 0 }
   ]
 }
