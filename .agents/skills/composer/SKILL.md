@@ -21,6 +21,8 @@ Use the exact dependency versions declared in the skill's `package.json`. Before
 
 Reuse available packages. If dependency setup is unavailable or prohibited, report it and stop before pairing. Capture and Player verification use the target machine's installed Chrome; follow their routed references.
 
+After installing or upgrading, follow [installation.md](references/installation.md): verify the actual payload root, protocol version, and locked dependency resolution, then reread the installed `SKILL.md` and routed references. Generate and retain one conversation connection name before pairing. Continue only when pairing reports both `paired: true` and `acknowledged: true`.
+
 ## Route the task first
 
 Read only the references required for the current task and phase. Before mutation, establish the ownership, public-input, and lifecycle constraints that affect the design; defer implementation details for later phases until those phases begin.
@@ -45,7 +47,7 @@ Treat the exact phrase `generate improvement handoff` as a retrospective reporti
 
 ## Authorize and hold one work lease
 
-If no reusable authorization exists in this conversation's connection profile, ask the user to open **Composer AI**, request its six-character code, and run `pair --connection <conversation-connection-name> --code <code>`. Pass `--server` only when the user explicitly needs another environment. Never request, print, or expose the access token. Require `acknowledged: true`; otherwise report the state and wait for reconnection or fresh pairing before continuing.
+If no reusable authorization exists in this conversation's connection profile, ask the user to open **Composer AI**, request its six-character code, and run `pair --connection <conversation-connection-name> --code <code>`. Pass `--server` only when the user explicitly needs another environment. Never request, print, or expose the access token. Require both `paired: true` and `acknowledged: true`; otherwise report the sanitized acknowledgement category and wait for reconnection or fresh pairing before continuing.
 
 For tasks requiring editor commands, before `inspect` or any other editor command, run:
 
@@ -70,7 +72,7 @@ When the user pastes one or more strings ending with `@composer/widget ref_…`,
 
 Composer is the source of truth for editor work:
 
-1. Run `inspect`, confirm `activeComposition.stack`, and read each target with `get`, `get-many`, `get-layouts`, or its typed inspector before mutation.
+1. Run `inspect`, confirm `activeComposition.stack`, and read each target with `get`, `get-many`, `get-layouts`, or its typed inspector before mutation. Use `composition-tree` when the task needs the recursive ordinary hierarchy without navigation; its widget-owned template summaries deliberately omit internal identities.
 2. Read the relevant live primitive, font, animation, Behavior, Control Node, or widget schema. Never infer IDs, paths, values, or catalog options from memory.
 3. Make one coherent, bounded change through the highest-level supported operation.
 4. Reinspect the changed scope and verify authoritative readback, links, ownership, and unrelated state.

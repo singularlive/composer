@@ -6,7 +6,7 @@ All commands run through the bundled client:
 node scripts/composer-agent.js <command> [options]
 ```
 
-Add `--compact` to `inspect`, `get`, `apply`, or `control-nodes` for minified output. Compact output still contains identities, names, runtime values, control links, and errors. For `apply`, the flag minifies JSON whitespace but intentionally does not reduce the response shape.
+Add `--compact` to `inspect`, `composition-tree`, `get`, `apply`, or `control-nodes` for minified output. Compact output still contains identities, names, runtime values, control links, and errors. For `composition-tree` and `apply`, the flag minifies JSON whitespace but intentionally does not reduce the response shape.
 
 For widget `get` specifically, compact output also reshapes the result: widget data is under `values` and the reduced schema is under `fields`. Full output uses `data` and `widget.fields`. Do not assume `--compact` changes whitespace alone.
 
@@ -54,7 +54,7 @@ Cancellation takes precedence over recovery. On `OPERATION_CANCELLED`, stop edit
 
 | Command | Purpose |
 | --- | --- |
-| `pair --connection <name> [--server <url>] --code <code>` | Claim a one-time pairing code, store a 30-day scene/user JWT authorization in the named isolated profile, and automatically acknowledge that exact authorization in Composer. `acknowledged: true` requires the editor to apply the retryable connection status and return its correlated receipt through the Redis relay. The editor resumes this authorization after reload. The server defaults to `https://beta.singular.live/`; output reports `acknowledged` and the sanitized `credentialStorage` category. |
+| `pair --connection <name> [--server <url>] --code <code>` | Preflight the isolated profile, claim a one-time pairing code, atomically store a 30-day scene/user JWT authorization, and acknowledge that exact authorization in Composer. Success requires both `paired: true` and `acknowledged: true`. A failed receipt keeps `paired: true` but returns `acknowledgement.status: "failed"` with only `version-mismatch`, `authorization-rejected`, `timeout`, `editor-unavailable`, or `acknowledgement-rejected`; raw socket errors and credentials are omitted. The server defaults to `https://beta.singular.live/`; output also reports the sanitized `credentialStorage` category. |
 | `pair-intent [--server <url>] --intent-id <id> [--intent-secret -] [--device-name <name>]` | Orchestrator-only automatic pairing. Claim an authenticated short-lived intent after Composer binds it. Supply the secret through `COMPOSER_AGENT_INTENT_SECRET` or pipe it on stdin with `--intent-secret -`; literal secret arguments are rejected. The command waits up to two minutes across valid-but-unbound `409` responses and shared-rate-limit `429` responses, then stores and acknowledges credentials like `pair`. Normal runtime users should use the visible-code `pair` flow. |
 | `start-work` | Acquire or renew the ten-minute task-level work lease. Run once before the first editor command in every task; Composer remains locked across individual command sockets. |
 | `wait-ready [--timeout <milliseconds>]` | Wait until authorization, editor connection, editor command registration, and the work lease are all ready. Returns immediately when ready, otherwise reports the last sanitized readiness state after the default 30-second timeout. The range is 1–120000 ms. It does not mutate, reload, navigate, or renew the lease. |
@@ -62,6 +62,7 @@ Cancellation takes precedence over recovery. On `OPERATION_CANCELLED`, stop edit
 | `status --message <text>` | Show a concise update and renew an active work lease. It does not acquire a missing lease. |
 | `complete` | Revoke the saved authorization only after the user explicitly asks to disconnect the AI Agent. Ordinary task completion uses `finish-work`. |
 | `inspect` | Read the scene, preview inputs, active composition stack, selection, groups, tile summaries, and a `summary` count of groups, tiles, compositions, and controls. |
+| `composition-tree` | Recursively read the ordinary composition hierarchy from the concrete root without navigating. Widget-owned templates are listed separately by owner name and semantic field, never as ordinary children; their composition and descendant IDs are omitted. The result explicitly reports `activeScopePreserved: true` and `navigationChanged: false`. |
 | `inspect --selection` | Return only the currently selected item (`id`, `type`, `groupId`). |
 | `inspect --summary` | Return only the `summary` counts; the full tile list is omitted, so the payload stays small even in large compositions. |
 | `resolve-references --file <references.json>` | Decode and resolve 1–25 Composer references pasted from tree **Copy reference** actions without navigating or mutating. |

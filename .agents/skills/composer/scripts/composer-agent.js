@@ -17,7 +17,7 @@ const { createWidgetReferences } = require('./widget-script-references');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 107;
+const SKILL_VERSION = 108;
 const DEFAULT_TIMEOUT_MS = 15000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
@@ -368,11 +368,58 @@ function isCredentialPermissionError(error) {
 function writeCredentials(filePath, credentials) {
   const directory = path.dirname(filePath);
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
-  fs.writeFileSync(
-    filePath,
-    JSON.stringify(credentials, null, 2),
-    { encoding: 'utf8', mode: 0o600 }
+  const temporaryPath = path.join(
+    directory,
+    '.' + path.basename(filePath) + '.' + process.pid + '.' + crypto.randomBytes(6).toString('hex') + '.tmp'
   );
+  try {
+    fs.writeFileSync(
+      temporaryPath,
+      JSON.stringify(credentials, null, 2),
+      { encoding: 'utf8', mode: 0o600, flag: 'wx' }
+    );
+    fs.renameSync(temporaryPath, filePath);
+  } finally {
+    try {
+      fs.unlinkSync(temporaryPath);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+}
+
+function preflightCredentialStorage() {
+  const requestedPath = credentialsOverridePath || DEFAULT_CREDENTIALS_PATH;
+  const directory = path.dirname(requestedPath);
+  const probePath = path.join(
+    directory,
+    '.composer-agent-write-probe.' + process.pid + '.' + crypto.randomBytes(6).toString('hex')
+  );
+  try {
+    fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+    if (fs.existsSync(requestedPath)) {
+      if (!fs.statSync(requestedPath).isFile()) {
+        const typeError = new Error('credential target is not a file');
+        typeError.code = 'EISDIR';
+        throw typeError;
+      }
+      fs.accessSync(requestedPath, fs.constants.W_OK);
+    }
+    fs.writeFileSync(probePath, '', { mode: 0o600, flag: 'wx' });
+    fs.unlinkSync(probePath);
+  } catch (error) {
+    try {
+      fs.unlinkSync(probePath);
+    } catch (cleanupError) {
+      if (cleanupError.code !== 'ENOENT') throw cleanupError;
+    }
+    const preflightError = new Error(
+      'Composer credential storage is not writable. Fix the selected connection profile or ' +
+      'COMPOSER_AGENT_CREDENTIALS location before requesting a new pairing code.'
+    );
+    preflightError.code = 'CREDENTIAL_WRITE_FAILED';
+    throw preflightError;
+  }
 }
 
 function saveCredentials(credentials) {
@@ -435,19 +482,24 @@ function removeRevokedCredentials() {
   }
 }
 
-async function parseErrorResponse(response) {
+async function createHttpError(response) {
   let body;
   try {
     body = await response.json();
   } catch (err) {
-    return `Request failed with status ${response.status}`;
+    return new Error(`Request failed with status ${response.status}`);
   }
-  return body && body.error && body.error.message
+  const error = new Error(body && body.error && body.error.message
     ? body.error.message
-    : `Request failed with status ${response.status}`;
+    : `Request failed with status ${response.status}`);
+  if (body && body.error && typeof body.error.composerAgentCode === 'string') {
+    error.code = body.error.composerAgentCode;
+  }
+  return error;
 }
 
 async function pair(options) {
+  preflightCredentialStorage();
   const server = normalizeServerUrl(options.server || DEFAULT_SERVER_URL);
   const code = requireOption(options, 'code').toUpperCase();
   const response = await fetch(server + '/composer-agent/pairing/claim', {
@@ -455,18 +507,20 @@ async function pair(options) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       code: code,
-      deviceName: options['device-name'] || DEFAULT_DEVICE_NAME
+      deviceName: options['device-name'] || DEFAULT_DEVICE_NAME,
+      composerAgentVersion: SKILL_VERSION
     })
   });
 
   if (!response.ok) {
-    throw new Error(await parseErrorResponse(response));
+    throw await createHttpError(response);
   }
 
   return finishPairing(server, await response.json());
 }
 
 async function pairIntent(options) {
+  preflightCredentialStorage();
   const server = normalizeServerUrl(options.server || DEFAULT_SERVER_URL);
   const intentId = requireOption(options, 'intent-id');
   const intentSecret = readIntentSecret(options);
@@ -479,15 +533,18 @@ async function pairIntent(options) {
       body: JSON.stringify({
         intentId: intentId,
         intentSecret: intentSecret,
-        deviceName: options['device-name'] || DEFAULT_DEVICE_NAME
+        deviceName: options['device-name'] || DEFAULT_DEVICE_NAME,
+        composerAgentVersion: SKILL_VERSION
       })
     });
 
     if (response.ok) {
       return finishPairing(server, await response.json());
     }
-    if (response.status !== 409 && response.status !== 429) {
-      throw new Error(await parseErrorResponse(response));
+    const responseError = await createHttpError(response);
+    if (responseError.code === 'COMPOSER_AGENT_VERSION_MISMATCH' ||
+        (response.status !== 409 && response.status !== 429)) {
+      throw responseError;
     }
     if (Date.now() + PAIRING_INTENT_RETRY_MS > deadline) {
       throw new Error('Timed out waiting for Composer to bind the pairing intent');
@@ -521,6 +578,7 @@ function readIntentSecret(options) {
 }
 
 async function finishPairing(server, pairing) {
+  assertCompatibleComposerAgentVersion({ composerAgentVersion: pairing.composerAgentVersion }, false);
   const credentials = {
     server: server,
     accessToken: pairing.accessToken,
@@ -534,18 +592,27 @@ async function finishPairing(server, pairing) {
   const credentialStorage = saveCredentials(credentials);
 
   let acknowledged = false;
+  let acknowledgement = { status: 'failed', reason: 'acknowledgement-rejected' };
   try {
     await sendSessionMessage(null, 'pairing_acknowledged', credentials);
     acknowledged = true;
+    acknowledgement = { status: 'acknowledged' };
   } catch (err) {
-    // Pair credentials are still useful if the editor is reconnecting. The
-    // caller can see that the Composer acknowledgement was not delivered.
+    if (err && err.code === 'COMPOSER_AGENT_VERSION_MISMATCH') {
+      acknowledgement.reason = 'version-mismatch';
+    } else if (err && err.code === 'SESSION_CANCELLED') {
+      acknowledgement.reason = 'authorization-rejected';
+    } else if (/Timed out waiting/.test(err && err.message || '')) {
+      acknowledgement.reason = 'timeout';
+    } else if (/Unable to connect|connection closed/i.test(err && err.message || '')) {
+      acknowledgement.reason = 'editor-unavailable';
+    }
   }
 
   console.log(JSON.stringify({
     paired: true,
     acknowledged: acknowledged,
-    sceneId: pairing.sceneId,
+    acknowledgement: acknowledgement,
     sceneName: pairing.sceneName,
     capabilities: pairing.capabilities,
     credentialStorage: credentialStorage,
@@ -1698,6 +1765,10 @@ async function run() {
       }
       break;
     }
+    case 'composition-tree':
+      assertAllowedOptions(parsed.options, ['compact'], 'composition-tree');
+      result = await executeCommand('composition.tree.inspect', {});
+      break;
     case 'resolve-references': {
       assertAllowedOptions(parsed.options, ['file', 'compact'], 'resolve-references');
       const specification = readJsonFile(
@@ -2585,7 +2656,7 @@ async function run() {
     }
     default:
       throw new Error(
-      'Usage: composer-agent.js <pair|pair-intent|start-work|wait-ready|finish-work|status|complete|inspect|resolve-references|script-handoff|control-composition|timeline-link|set-timeline-link|logic-layers|set-logic-layer|rename-logic-layer|create-composition|orchestrate|create-revision|list-revisions|read-revision|compare-revision|restore-revision|delete-revision|delete-composition|open-composition|widget-subcompositions|open-widget-subcomposition|update-table|update-grid|timeline2|display-variants|configure-display-variants|activate-display-variant|set-display-variant-relevance|control-nodes|metric-fonts|set-metric-font|upgrade-metric-widgets|widget-nodes|link-widget-nodes|unlink-widget-nodes|set-control-value|set-control-font|create-table-control|set-table-control|update-table-control|link-table-control|unlink-table-control|press-control|timer-action|control-time|update-control|create-control-container|configure-control-container|delete-control-container|create-control|create-controls|delete-control|get|get-many|get-layouts|set-layouts|get-properties|set-properties|select|move|update|fonts|set-font|timeline-animations|set-timeline-animation|set-timeline-animations|update-animations|set-update-animation|set-update-animations|behaviors|set-behavior|set-behaviors|create-group|configure-group|move-group|delete-group|capture|primitives|ensure-group|create|delete|validate|apply> [options]'
+      'Usage: composer-agent.js <pair|pair-intent|start-work|wait-ready|finish-work|status|complete|inspect|composition-tree|resolve-references|script-handoff|control-composition|timeline-link|set-timeline-link|logic-layers|set-logic-layer|rename-logic-layer|create-composition|orchestrate|create-revision|list-revisions|read-revision|compare-revision|restore-revision|delete-revision|delete-composition|open-composition|widget-subcompositions|open-widget-subcomposition|update-table|update-grid|timeline2|display-variants|configure-display-variants|activate-display-variant|set-display-variant-relevance|control-nodes|metric-fonts|set-metric-font|upgrade-metric-widgets|widget-nodes|link-widget-nodes|unlink-widget-nodes|set-control-value|set-control-font|create-table-control|set-table-control|update-table-control|link-table-control|unlink-table-control|press-control|timer-action|control-time|update-control|create-control-container|configure-control-container|delete-control-container|create-control|create-controls|delete-control|get|get-many|get-layouts|set-layouts|get-properties|set-properties|select|move|update|fonts|set-font|timeline-animations|set-timeline-animation|set-timeline-animations|update-animations|set-update-animation|set-update-animations|behaviors|set-behavior|set-behaviors|create-group|configure-group|move-group|delete-group|capture|primitives|ensure-group|create|delete|validate|apply> [options]'
       );
   }
 
