@@ -13,6 +13,7 @@ Standalone is the unified CLI capture path. It uses a private headless Chrome wo
 ```bash
 node scripts/composer-agent.js capture \
   --target <root|active> \
+  [--composition-id <ordinary-composition-id>] \
   [--template-session <token>] \
   [--wait-mode <smart|timed>] \
   [--timeline <In|Out> --at <seconds>] \
@@ -24,6 +25,7 @@ node scripts/composer-agent.js capture \
 ```
 
 - `--target` defaults to `root`. `active` captures the active scene or widget-owned sub-composition when one is open and otherwise resolves to root. An active widget-owned target requires the current opaque `--template-session <token>` from full `inspect` or `open-widget-subcomposition`; missing or stale tokens fail before Player startup.
+- `--composition-id` directly selects an ordinary composition and implies `--target active`; it cannot be combined with explicit `--target root`. The full root Player remains loaded, so root and parent scripts, transforms, and clipping stay in effect while sibling visuals are isolated only in the private capture page.
 - `--wait-mode` defaults to `smart`. `smart` waits for finite Singular timelines and a short target-scoped visual quiet window. `timed` waits for core lifecycle and assets, then captures after `--settle` without requiring the output to stop moving.
 - `--timeline` and `--at` capture an exact paused position of the root or an ordinary active composition's `In` or `Out` timeline. They must be supplied together, require `smart` mode, do not support widget-owned active compositions, and reject positions beyond the selected timeline duration instead of silently clamping them.
 - Choose the target that owns the operator-facing timeline. For a root-level module with linked nested presentations, open that module and use `--target active`; `--target root` seeks the scene root only. An intentionally unlinked root-level module does not contribute its nested duration to the root, so a zero-second root timeline is valid and means the verification target is wrong, not that the nested animation is absent.

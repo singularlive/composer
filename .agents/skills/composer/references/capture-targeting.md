@@ -64,7 +64,7 @@ An isolated anomalous frame is useful diagnostic evidence but is not sufficient 
 
 ## Isolating a sub-composition
 
-For a screenshot of one sub-composition, open it with `open-composition --id <id>` and use `capture --target active`. Open widget-owned templates through `open-widget-subcomposition` and supply the current template session. Capture isolation changes visibility only in the temporary Player page, not persistent animation settings or playback states. Return to the previous editor scope afterward when needed.
+For a screenshot of an ordinary sub-composition, use `capture --composition-id <id>` without changing editor scope, or open it with `open-composition --id <id>` and use `capture --target active`. Direct ID capture loads the complete root Player, preserving root and parent scripts, transforms, and clipping; it hides sibling visuals only in the temporary Player page. Open widget-owned templates through `open-widget-subcomposition` and supply the current template session. Capture isolation never changes persistent animation settings or playback states. Return to the previous editor scope afterward when needed.
 
 For sibling variants in one logic layer, verify each variant separately: take one member In, confirm the others are Out, capture the active member, and repeat. Record the intended final active member before changing state, then restore it and re-read the logic layer before handoff. Do not infer stacking from logic-layer membership; it expresses mutual exclusion, not z-order.
 

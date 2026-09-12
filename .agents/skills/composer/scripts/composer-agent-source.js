@@ -12,7 +12,7 @@ const { createWidgetReferences } = require('./widget-script-references');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 118;
+const SKILL_VERSION = 120;
 const PACKAGE_VERSION = '1.2.0';
 const DEFAULT_TIMEOUT_MS = 15000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -1626,11 +1626,23 @@ function validateCaptureServer(serverValue) {
 function normalizeCaptureOptions(options) {
   assertAllowedOptions(
     options,
-    ['target', 'output', 'measurements', 'timeout', 'settle', 'wait-mode', 'timeline', 'at', 'server', 'compact'],
+    ['target', 'composition-id', 'output', 'measurements', 'timeout', 'settle', 'wait-mode', 'timeline', 'at', 'server', 'compact'],
     'capture'
   );
   validateCaptureServer(options.server);
-  const target = normalizeCaptureTarget(options);
+  const compositionId = options['composition-id'] === undefined
+    ? null
+    : String(options['composition-id']).trim();
+  if (options['composition-id'] !== undefined && !compositionId) {
+    throw createCaptureError('INVALID_CAPTURE_TARGET', '--composition-id must not be empty');
+  }
+  if (compositionId && options.target !== undefined && options.target !== 'active') {
+    throw createCaptureError(
+      'INVALID_CAPTURE_TARGET',
+      '--composition-id captures an ordinary composition and requires --target active when target is explicit'
+    );
+  }
+  const target = compositionId ? 'active' : normalizeCaptureTarget(options);
   const waitMode = options['wait-mode'] || 'smart';
   if (waitMode !== 'smart' && waitMode !== 'timed') {
     throw createCaptureError(
@@ -1663,6 +1675,7 @@ function normalizeCaptureOptions(options) {
   }
   return {
     target: target,
+    compositionId: compositionId,
     outputPath: requireOption(options, 'output'),
     measurementsPath: options.measurements || null,
     waitMode: waitMode,
@@ -1716,7 +1729,9 @@ async function captureStandalone(options) {
       'Standalone capture requires a Composition API token. Generate one in Composer and inspect again.'
     );
   }
-  const activeTarget = options.target === 'active'
+  const activeTarget = options.compositionId
+    ? { compositionId: options.compositionId, widgetTileId: null }
+    : options.target === 'active'
     ? getActiveCaptureTarget(inspection)
     : { compositionId: null, widgetTileId: null };
   if (activeTarget.widgetTileId) {

@@ -128,6 +128,7 @@ The javascript string must return an object with these lifecycle functions:
 Runtime context rules:
 - Use context.root to access the authored Shadow DOM content.
 - Use context.data for the current complete dynamic field payload.
+- Generated `color` fields arrive as `{r,g,b,a}` objects on every linked update. Use `context.colors.toCss(value)` before assigning one to a CSS property; it also accepts solid-gradient objects and CSS color strings.
 - Use context.fonts.load(fontData) for metricfont values before applying a changed font.
 - Use context.fonts.computeMetrics(fontData, targetHeight, text) only when exact metric sizing is necessary.
 - Use Singular image values supplied through image fields; do not independently select or upload images.

@@ -46,7 +46,7 @@ Treat the exact phrase `generate improvement handoff` as a retrospective reporti
 
 ## Authorize and hold one work lease
 
-Composer AI availability is deployment- and account-gated. If the control is absent or pairing reports ineligibility, report the blocker and stop. For a new authorization, ask the user to open **Composer AI**, request its six-character code, and run `pair`; never request or expose the access token. Require `paired: true` and `acknowledged: true`. Use `check-connection --connection <conversation-connection-name>` for a read-only connection check.
+Composer AI availability is deployment- and account-gated. If the control is absent or pairing reports ineligibility, report the blocker and stop. For a new authorization, ask the user to open **Composer AI**, request its six-character code, and run `pair`; never request or expose the access token. When the user supplies a code, run `pair --code <code>` as the next pairing action; do not create or poll a pairing intent. `PAIRING_CODE_INVALID` is terminal for that code: report it immediately and request a fresh code without retrying. Require `paired: true` and `acknowledged: true`. Use `check-connection --connection <conversation-connection-name>` for a read-only connection check.
 
 For tasks requiring editor commands, before `inspect` or any other editor command, run:
 
