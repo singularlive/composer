@@ -74,7 +74,19 @@ ml.setPayload({
 
 Empty or whitespace-only text hides the element. The renderer preserves the saved payload when truncating the displayed DOM. HTML is unsanitized and can change measurement; prefer plain text and never interpolate untrusted markup. Renderer fallbacks above are not guaranteed catalog defaults. Keep line limits positive integers with `minLines <= maxLines` and `lineHeight > 0`.
 
-`emitEvents` sends `{ event: "bounds", leftPx, topPx, widthPx, heightPx, left, top, width, height }` through the widget custom-message channel for nonempty text. Percentage values are relative to widget dimensions; these are DOM box measurements, not glyph-ink bounds. Verify messages and persisted script consumers separately in the Player.
+`emitEvents` sends `{ event: "bounds", leftPx, topPx, widthPx, heightPx, left, top, width, height }` through the widget custom-message channel for nonempty text. Receive it from the composition message listener:
+
+```javascript
+comp.addListener("message", function (event, msg, e) {
+  var params = msg && msg.params;
+  var data = params && params.data;
+  if (data && data.event === "bounds" && params.id === MY_TILE_ID) {
+    // Consume this widget's bounds.
+  }
+});
+```
+
+`msg.params` is the widget-message envelope, `msg.params.data` is the bounds payload, and `msg.params.id` is the originating tile ID. Use that ID as the routing key when several widgets emit messages. Pixel values are widget-local logical coordinates; percentage values are relative to widget dimensions. Like the other Metric Text widgets, the bounds describe the post-layout rendered text extent and exclude shadows. For multiline text, `bounds.width` is the union width of the rendered line fragments after wrapping and truncation, not the assigned wrapping-column width or the original unwrapped string width. Height follows wrapping, truncation, line count, and line spacing. See the [inline styled text recipe](../recipes/inline-styled-text.md) for a complete consumer and dependent-layout pattern. Verify messages and persisted script consumers separately in the Player.
 
 ## Source reference
 

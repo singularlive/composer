@@ -16,6 +16,12 @@ When a visual script change does not appear to work, debug in this order:
 4. If the obvious content change works but the intended transform does not, re-check whether the target property should be driven by a dedicated widget method or by widget payload.
 5. Only after that, suspect control-node wiring, event propagation, or player-side triggering.
 
+### Safe diagnostics
+
+Never append diagnostic nodes to `document.body`, the Composer editor DOM, or a widget outside its owned runtime root. Never install a diagnostic composition script that injects an overlay into the Player page. Those nodes can outlive a definition or script swap and obstruct the operator until a full editor reload.
+
+Prefer existing lifecycle counters, target bounds, capture measurements, DOM hashes, pixel assertions, and the bounded message probe below. If a visual probe is genuinely necessary, use a throwaway standalone `capture` page and remove the probe in the same turn. Do not use the live editor surface as diagnostic output.
+
 ### Missing expected log may indicate a caught error
 
 **This is the most important debugging insight for Singular scripts.**
@@ -46,7 +52,7 @@ The bundled verifier uses `playwright-core@1.63.0` directly, matching standalone
 node scripts/dependency-preflight.js --capture
 ```
 
-If the check fails, install the exact locked dependencies through the target environment's normal Node dependency workflow and rerun it. The verifier launches the target machine's installed Google Chrome through Playwright's `chrome` channel and does not require `@playwright/cli` or a Playwright-managed browser download. If Chrome is unavailable from its standard system location, report the missing prerequisite.
+If the Playwright check fails, reinstall the complete Composer skill; the exact locked `playwright-core` payload is required and vendored under `scripts/vendor`. The verifier launches the target machine's installed Google Chrome through Playwright's `chrome` channel and does not require `@playwright/cli` or a Playwright-managed browser download. If Chrome is unavailable from its standard system location, report the missing prerequisite.
 
 Run the bundled verifier from its repository location:
 
@@ -158,7 +164,7 @@ These are diagnostic additions to report version 1: they do not change pass/fail
 
 ### Declarative Player scenario
 
-Use a scenario when runtime proof requires public Player inputs or specific checkpoints. The verifier validates the complete file before opening Player. A scenario is limited to version 1, 50 steps, 64 KiB total, 32 KiB for each payload/message/expected-state value, ten minutes of aggregate wait budget, and 60 seconds for one lifecycle or state wait.
+Use a scenario when runtime proof requires public Player inputs or specific checkpoints. The verifier validates the complete file before opening Player. A scenario is limited to version 1, 50 steps, 64 KiB total, 32 KiB for each payload/message/expected-state value, ten minutes of aggregate wait budget, and 60 seconds for one lifecycle, probe, or state wait.
 
 ```json
 {
@@ -198,13 +204,27 @@ Supported actions are:
 - `playTo` and `jumpTo`: call the public Player composition API with `state`; they accept the same optional `compositionId`.
 - `waitForLifecycle`: wait for an allowed lifecycle counter to reach `minimum`, with an optional `timeoutMs`.
 - `assertLifecycle`: require `equals`, `minimum`, or `maximum` for one allowed lifecycle counter.
+- `waitForProbe`: wait for one matching widget custom message and retain one top-level scalar from `msg.params.data`. Supply a unique `name`, the exact originating tile `sourceId`, the custom-message `event`, the requested `field`, and optional `timeoutMs`. A scenario may contain only one probe. Its value must be a finite number or a string no longer than 256 characters; the verifier stores only `{ name, value }` and never the surrounding message. Use this for a specific runtime value such as a Metric Text `bounds.widthPx`, not for general logging or payload discovery.
 - `assertState`: immediately compare the selected target's cached `getState()` with the JSON value in `equals`; accepts the same optional `compositionId` override. It does not wait for state convergence. SDK `playTo`/`jumpTo` delivery is asynchronous, so use `waitForState` when the next step requires the target's state notification.
 - `waitForState`: poll the selected target's `getState()` every 50 ms until it structurally equals the required JSON value in `equals`. Accepts the same optional `compositionId` override and integer `timeoutMs` from 1 to 60000 (default 10000); the full timeout counts toward the aggregate wait budget. Object key order is ignored, array order is significant, and matching never relies on sibling lifecycle events. Missing targets or SDK failures fail the step immediately; a nonmatching state waits only until the deadline. A match is one observed SDK state, not proof of sustained stability, completed animation, or rendered pixels. Expected and observed values are omitted from the report.
 - `assertDom`: check a 16-character `textHash`, a text change from an earlier checkpoint, minimum element/visible-element counts, or minimum target width/height. It never exposes rendered text.
 - `assertPixelsChanged`: compare two earlier named captures using `from` and `to`. An optional target-relative `region` uses `px` or `percent`; `tolerance` defaults to 8 per channel and `minimumChangedPixels` defaults to 1. The report retains only counts and bounds, never image data. Use this for canvas, SVG, cross-origin iframe, and widget-owned output that is visible in the selected target screenshot but absent from parent DOM text.
 - `capture`: save a named checkpoint. Names are unique and use up to 64 letters, digits, periods, underscores, or hyphens.
 
-Allowed lifecycle counters are `compositionLoaded`, `message`, `state_changed`, `payload_changed`, `datanode_payload_changed`, `error`, `composition_script_event`, `download_start`, and `download_complete`. A failed action reports only its step number and action type. The sanitized report includes statuses, durations, safe counters, DOM hashes, bounds, and checkpoint filenames; it never records payload/message values, expected state values, script text, rendered text, tokens, or preview URLs.
+For example, after enabling `emitEvents` on an inspected Metric Text tile:
+
+```json
+{
+  "action": "waitForProbe",
+  "name": "headline-width",
+  "sourceId": "<metric-text-tile-id>",
+  "event": "bounds",
+  "field": "widthPx",
+  "timeoutMs": 3000
+}
+```
+
+Allowed lifecycle counters are `compositionLoaded`, `message`, `state_changed`, `payload_changed`, `datanode_payload_changed`, `error`, `composition_script_event`, `download_start`, and `download_complete`. A failed action reports only its step number and action type. The sanitized report includes statuses, durations, safe counters, DOM hashes, bounds, checkpoint filenames, and at most the one explicitly requested bounded probe scalar. It never records surrounding payload/message values, expected state values, script text, rendered text, tokens, or preview URLs.
 
 Lifecycle counters remain page-wide even with a scoped target. Use target state, DOM assertions, and bounded pixel comparisons for scope-specific proof; sibling scripts continue running. DOM sampling covers the selected renderer's same-document descendants, not the internals of child widget iframes. For a native clock or another widget-owned renderer, prefer a clock-region `assertPixelsChanged` comparison plus inspected semantic-link readback over `textChangedFrom` on the parent DOM.
 

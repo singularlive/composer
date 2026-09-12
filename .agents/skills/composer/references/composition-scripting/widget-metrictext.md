@@ -76,9 +76,23 @@ mt.setPayload({ text: "Long text", overflow: "fitWidth" });
 mt.setPayload({ text: "Long text", overflow: "clip" });
 ```
 
-## Runtime verification
+## Bounds messages and runtime verification
 
-Use a complete inspected `font.fontData`, including valid `mg` metrics, rather than fabricating the schematic font object above. `setPayload({ text: ... })` uses the normal merged widget payload path and preserves that font. For `emitEvents: true`, the renderer sends `event: "bounds"` with `leftPx`, `topPx`, `widthPx`, `heightPx` and percentage `left`, `top`, `width`, `height`. Empty text returns before this message, so clearing does not promise a zero-bounds event. Verify payload changes, clearing, font readiness and resize in the Player; stored values alone are insufficient evidence.
+Use a complete inspected `font.fontData`, including valid `mg` metrics, rather than fabricating the schematic font object above. `setPayload({ text: ... })` uses the normal merged widget payload path and preserves that font. For `emitEvents: true`, the renderer sends `event: "bounds"` with `leftPx`, `topPx`, `widthPx`, `heightPx` and percentage `left`, `top`, `width`, `height`. Receive it from the composition message listener:
+
+```javascript
+comp.addListener("message", function (event, msg, e) {
+  var params = msg && msg.params;
+  var data = params && params.data;
+  if (data && data.event === "bounds" && params.id === MY_TILE_ID) {
+    // Consume this widget's bounds.
+  }
+});
+```
+
+`msg.params` is the widget-message envelope, `msg.params.data` is the bounds payload, and `msg.params.id` is the originating tile ID. Use that ID as the routing key when several widgets emit messages.
+
+The bounds describe the rendered text box after overflow processing, including metric padding rather than glyph ink alone. `none` and `clip` retain the natural rendered width; `fitScale` reports the uniformly scaled box when the natural text exceeds the available width, and `fitWidth` reports the horizontally fitted box. Use `overflow: "none"` when sizing a separate shape to natural text without compression. Empty text returns before this message, so clearing does not promise a zero-bounds event. See the [inline styled text recipe](../recipes/inline-styled-text.md) for a complete consumer and dependent-layout pattern. Verify payload changes, clearing, font readiness and resize in the Player; stored values alone are insufficient evidence.
 
 ## Source reference
 

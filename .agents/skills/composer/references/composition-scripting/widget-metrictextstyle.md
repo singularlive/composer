@@ -25,7 +25,19 @@ title.setPayload({ text: "CHAMPIONS" });
 
 The renderer uses a local animation-frame loop for fill movement/color cycling/breathing, sheen passes/drift, and glow breathing/flicker/drift/color shifting. Native In state resumes the loop; other animation states pause it. Pausing or changing unrelated properties preserves accumulated phase. These loops do not implement character/word In/Out or text-change transitions. No Widget Timeline setup is needed to publish the style UI.
 
-`bounds` messages contain `{ event: "bounds", leftPx, topPx, widthPx, heightPx, left, top, width, height }`, relative to the widget surface. Pixel values use the widget's logical layout coordinate space, while percentage values divide those logical values by the widget dimensions. They describe the transformed glyph box, not the full glow/shadow extent, and remain independent of outer Player scaling.
+`bounds` messages contain `{ event: "bounds", leftPx, topPx, widthPx, heightPx, left, top, width, height }`, relative to the widget surface. Receive them from the composition message listener:
+
+```javascript
+comp.addListener("message", function (event, msg, e) {
+	var params = msg && msg.params;
+	var data = params && params.data;
+	if (data && data.event === "bounds" && params.id === MY_TILE_ID) {
+		// Consume this widget's bounds.
+	}
+});
+```
+
+`msg.params` is the widget-message envelope, `msg.params.data` is the bounds payload, and `msg.params.id` is the originating tile ID. Use that ID as the routing key when several widgets emit messages. Pixel values use the widget's logical layout coordinate space, while percentage values divide those logical values by the widget dimensions. They describe the transformed glyph box, not the full tile or glow/shadow extent, and remain independent of outer Player scaling. `none` and `clip` report the natural glyph width; `fitScale` reports the uniformly scaled glyph box when text exceeds the available width, while `fitWidth` reports the horizontally fitted glyph box. Use `overflow: "none"` when sizing a separate shape to the natural text width. See the [inline styled text recipe](../recipes/inline-styled-text.md) for a complete consumer and dependent-layout pattern.
 
 Register the composition `message` listener before forwarding initial widget payloads. If a payload reaches Metric Text Style before its SVG DOM mounts, the widget caches and replays it after mount, then emits bounds naturally. Content, font, and widget-size renders emit later bounds; horizontal position changes do not because bounds are widget-local. Do not poll `getDomElement()` or toggle `emitEvents` to solicit initial bounds. Use `requestAnimationFrame` only to coalesce multiple received bounds events into one dependent layout pass.
 

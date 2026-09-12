@@ -15,12 +15,12 @@ const require = createRequire(import.meta.url);
 
 function loadPlaywrightCore() {
   try {
-    return require('playwright-core');
+    return require('./vendor/playwright-core');
   } catch (error) {
     if (error.code !== 'MODULE_NOT_FOUND') throw error;
   }
   throw new Error(
-    'Playwright is unavailable. Make playwright-core@1.63.0 resolvable before using Player verification.'
+    'The required vendored playwright-core@1.63.0 payload is unavailable. Reinstall the Composer skill.'
   );
 }
 
@@ -143,6 +143,9 @@ function readIntegrityContract(filePath) {
 
 const integrityContract = readIntegrityContract(integrityPath);
 const verificationScenario = readVerificationScenario(scenarioPath);
+const verificationProbeRequest = verificationScenario
+  ? verificationScenario.steps.find(step => step.action === 'waitForProbe') || null
+  : null;
 const scenarioCaptureCount = verificationScenario
   ? verificationScenario.steps.filter(step => step.action === 'capture').length
   : 0;
@@ -194,6 +197,8 @@ function buildHtml() {
       download_start: 0,
       download_complete: 0
     };
+    window.__verificationProbe = null;
+    var verificationProbeRequest = ${JSON.stringify(verificationProbeRequest)};
     window.singularDebugFirebaseTraffic = true;
     var loadPlayerSdk = function (cb) {
       var s = document.createElement('script');
@@ -208,6 +213,18 @@ function buildHtml() {
         if (eventName === 'compositionLoaded') return;
         player.addListener(eventName, function (event, message) {
           window.__verificationLifecycle[eventName] += 1;
+          if (eventName === 'message' && verificationProbeRequest && window.__verificationProbe === null) {
+            var params = message && message.params;
+            var data = params && params.data;
+            var value = data && data[verificationProbeRequest.field];
+            var validValue = typeof value === 'string'
+              ? value.length <= 256
+              : typeof value === 'number' && Number.isFinite(value);
+            if (params && data && params.id === verificationProbeRequest.sourceId &&
+                data.event === verificationProbeRequest.event && validValue) {
+              window.__verificationProbe = { name: verificationProbeRequest.name, value: value };
+            }
+          }
           if (eventName === 'composition_script_event') {
             var type = message && message.type;
             var category = type === 'eval' || type === 'ok' || type === 'error' ? type : 'unknown';
@@ -557,6 +574,7 @@ async function main() {
         defaultCompositionId: identity.kind === 'composition' ? identity.compositionId : null,
         sample: () => sampleVerificationTarget(target),
         capture: captureFrame,
+        sanitizeProbeValue: sanitizeText,
         comparePixels: (before, after, assertion) =>
           compareCapturedPixels(page, before, after, assertion)
       });

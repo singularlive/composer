@@ -85,6 +85,7 @@ Definition rules:
 - Keep the complete minified definition below the Composer agent's dedicated 256 KiB serialized-value limit. Measure the outer JSON.stringify(definitionText) length; embedded quotes and backslashes add escaping overhead. Other generated field values retain the normal 32 KiB limit.
 
 Responsive layout rules:
+- Treat coordinate spaces as nested: Composer tile percentages resolve against the immediate parent group when grouped, otherwise against the composition; script getPositionX/Y and getSizeX/Y return those stored percentages. The runtime root fills the resulting tile box. Browser getBoundingClientRect() values are viewport-relative pixels, not tile-local coordinates; normalize them against the tile/root rectangle when the Player is scaled.
 - Use one top-level authored overlay element and make it fill 100% of the runtime root's inline and block dimensions.
 - Treat the widget bounds as the complete design viewport. Composer owns the widget's position and size within the composition.
 - Do not recreate composition-level placement inside the widget with scene-relative offsets, safe-area margins, fixed coordinates, or capped outer dimensions.

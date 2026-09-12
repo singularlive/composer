@@ -25,6 +25,7 @@ const ACTIONS = new Set([
   'jumpTo',
   'waitForLifecycle',
   'assertLifecycle',
+  'waitForProbe',
   'waitForState',
   'assertState',
   'assertDom',
@@ -78,6 +79,13 @@ function assertCount(value, label) {
 function assertPositiveNumber(value, label) {
   if (!Number.isFinite(value) || value < 0 || value > 100000) {
     throw new Error(`${label} must be a number between 0 and 100000`);
+  }
+}
+
+function assertBoundedIdentifier(value, label, maximumLength) {
+  if (typeof value !== 'string' || !value.length || value.length > maximumLength ||
+      !/^[A-Za-z0-9._-]+$/.test(value)) {
+    throw new Error(`${label} must use 1-${maximumLength} letters, digits, periods, underscores, or hyphens`);
   }
 }
 
@@ -152,6 +160,19 @@ function validateStep(step, index, captureNames) {
     constraints.forEach(key => assertCount(step[key], `${label}.${key}`));
     if (step.minimum !== undefined && step.maximum !== undefined && step.minimum > step.maximum) {
       throw new Error(`${label}.minimum cannot exceed maximum`);
+    }
+    return;
+  }
+
+  if (step.action === 'waitForProbe') {
+    assertAllowedKeys(step, ['action', 'name', 'sourceId', 'event', 'field', 'timeoutMs'], label);
+    assertBoundedIdentifier(step.name, `${label}.name`, 64);
+    assertBoundedIdentifier(step.sourceId, `${label}.sourceId`, 128);
+    assertBoundedIdentifier(step.event, `${label}.event`, 64);
+    assertBoundedIdentifier(step.field, `${label}.field`, 64);
+    if (step.timeoutMs !== undefined &&
+        (!Number.isSafeInteger(step.timeoutMs) || step.timeoutMs < 1 || step.timeoutMs > MAX_STEP_TIMEOUT_MS)) {
+      throw new Error(`${label}.timeoutMs must be an integer between 1 and ${MAX_STEP_TIMEOUT_MS}`);
     }
     return;
   }
@@ -244,9 +265,14 @@ export function validateVerificationScenario(scenario) {
   }
   const captureNames = new Set();
   scenario.steps.forEach((step, index) => validateStep(step, index, captureNames));
+  if (scenario.steps.filter(step => step.action === 'waitForProbe').length > 1) {
+    throw new Error('Verification scenario supports at most one waitForProbe step');
+  }
   const totalWaitBudgetMs = scenario.steps.reduce(function (total, step) {
     if (step.action === 'wait') return total + step.milliseconds;
-    if (step.action === 'waitForLifecycle' || step.action === 'waitForState') return total + (step.timeoutMs || 10000);
+    if (step.action === 'waitForLifecycle' || step.action === 'waitForProbe' || step.action === 'waitForState') {
+      return total + (step.timeoutMs || 10000);
+    }
     return total;
   }, 0);
   if (totalWaitBudgetMs > MAX_WAIT_MS) {
@@ -343,6 +369,16 @@ export async function executeVerificationScenario(options) {
         const actual = await page.evaluate(event => window.__verificationLifecycle[event], step.event);
         entry.actual = actual;
         if (!lifecycleAssertion(step, actual)) throw new Error('lifecycle assertion failed');
+      } else if (step.action === 'waitForProbe') {
+        await page.waitForFunction(function () {
+          return window.__verificationProbe !== null;
+        }, null, { timeout: step.timeoutMs || 10000 });
+        entry.observed = await page.evaluate(function () {
+          return window.__verificationProbe;
+        });
+        if (typeof entry.observed.value === 'string' && options.sanitizeProbeValue) {
+          entry.observed.value = options.sanitizeProbeValue(entry.observed.value);
+        }
       } else if (step.action === 'assertState') {
         const actual = await runPlayerAction(page, {
           action: 'getState',

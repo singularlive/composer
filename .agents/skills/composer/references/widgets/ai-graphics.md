@@ -21,6 +21,7 @@ Before generating a definition, read the shipped [AI Graphics authoring contract
 
 ## Geometry and resolution independence
 
+- Coordinate spaces are nested. A tile's stored percentage position and size, including `getPositionX/Y()` and `getSizeX/Y()` in a composition script, resolve against its immediate parent group when grouped and against the composition when ungrouped. The AI Graphics runtime root then fills the resulting tile box. Browser `getBoundingClientRect()` values are viewport-relative pixels, not tile-local coordinates; at a 1:1 Player render they align with composition pixels, while scaled hosts require normalization against the tile/root rectangle.
 - Use one top-level authored overlay that fills the complete widget box. Composer alone owns the widget's placement and dimensions in the composition.
 - Do not recreate scene placement inside the definition with scene-relative offsets, safe-area margins, fixed coordinates, or capped outer dimensions.
 - Make the Composer widget bounds contain both settled artwork and its complete animation envelope. Reserve responsive internal motion gutters when transforms, shadows, or other requested effects need runway; the artwork does not need to occupy that reserved space.

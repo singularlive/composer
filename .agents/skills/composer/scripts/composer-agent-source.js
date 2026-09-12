@@ -4,7 +4,6 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
-const { createRequire } = require('module');
 const tinycolor = require('tinycolor2');
 const uuid = require('uuid');
 const WebSocket = require('ws');
@@ -13,8 +12,8 @@ const { createWidgetReferences } = require('./widget-script-references');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 115;
-const PACKAGE_VERSION = '1.0.0';
+const SKILL_VERSION = 118;
+const PACKAGE_VERSION = '1.2.0';
 const DEFAULT_TIMEOUT_MS = 15000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
@@ -173,27 +172,27 @@ function findSystemChrome() {
   return candidates.filter(Boolean).some(function (candidate) { return fs.existsSync(candidate); });
 }
 
-function inspectOptionalCapture() {
+function inspectPlaywrightCore(checkChrome) {
   const installedPackage = readInstalledPackage();
-  const expectedVersion = installedPackage && installedPackage.optionalDependencies &&
-    installedPackage.optionalDependencies['playwright-core'];
+  const expectedVersion = installedPackage && installedPackage.dependencies &&
+    installedPackage.dependencies['playwright-core'] || '1.63.0';
   let actualVersion = null;
   try {
-    const runtimeRequire = createRequire(path.join(__dirname, 'composer-agent.js'));
-    const metadataPath = runtimeRequire.resolve('playwright-core/package.json');
+    const metadataPath = path.join(__dirname, 'vendor', 'playwright-core', 'package.json');
     actualVersion = JSON.parse(fs.readFileSync(metadataPath, 'utf8')).version;
   } catch (error) {}
-  const browserAvailable = findSystemChrome();
+  const browserAvailable = checkChrome ? findSystemChrome() : null;
+  const playwrightReady = actualVersion === expectedVersion;
   return {
-    status: expectedVersion && actualVersion === expectedVersion && browserAvailable ? 'ready' : 'unavailable',
+    status: playwrightReady && (!checkChrome || browserAvailable) ? 'ready' : 'unavailable',
     playwright: {
       expectedVersion: expectedVersion || null,
       actualVersion: actualVersion,
-      status: expectedVersion && actualVersion === expectedVersion
+      status: playwrightReady
         ? 'ready'
         : actualVersion ? 'version-mismatch' : 'missing'
     },
-    chrome: browserAvailable ? 'available' : 'missing'
+    chrome: checkChrome ? (browserAvailable ? 'available' : 'missing') : 'not-checked'
   };
 }
 
@@ -270,9 +269,10 @@ async function runDoctor(options) {
       server = { status: 'unavailable', reason: error.code || error.message };
     }
   }
-  const capture = options.capture ? inspectOptionalCapture() : { status: 'not-checked' };
+  const playwright = inspectPlaywrightCore(false);
+  const capture = options.capture ? inspectPlaywrightCore(true) : { status: 'not-checked' };
   const nodeCompatible = Number(process.versions.node.split('.')[0]) === 22;
-  const checksPassed = nodeCompatible &&
+  const checksPassed = nodeCompatible && playwright.status === 'ready' &&
     (!options.capture || capture.status === 'ready') &&
     (!(options.connection !== undefined || ENV_CREDENTIALS_OVERRIDE_PATH) || server.status === 'compatible');
   return {
@@ -292,6 +292,10 @@ async function runDoctor(options) {
       status: 'ready',
       selfContained: true,
       dependencies: ['tinycolor2', 'uuid', 'ws']
+    },
+    requiredDependencies: {
+      status: playwright.status,
+      playwright: playwright.playwright
     },
     capture: capture,
     server: server
@@ -826,6 +830,7 @@ async function finishPairing(server, pairing) {
     sceneId: pairing.sceneId,
     sceneName: pairing.sceneName,
     capabilities: pairing.capabilities,
+    composerAgentVersion: SKILL_VERSION,
     pairedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + pairing.expiresIn * 1000).toISOString()
   };
@@ -983,6 +988,24 @@ function waitForComposerReady(options, requireWorkLease) {
     let probeTimer = null;
     const timeout = setTimeout(function () {
       const result = Object.assign({}, readiness, { status: 'timeout' });
+      const pairedVersion = Number(credentials.composerAgentVersion);
+      if (
+        readiness.authorization === 'active' &&
+        readiness.editor === 'unknown' &&
+        (!Number.isInteger(pairedVersion) || pairedVersion !== SKILL_VERSION)
+      ) {
+        result.status = 'reload-required';
+        result.editor = 'version-mismatch';
+        result.commands = 'unavailable';
+        const reloadError = new Error(
+          'The Composer AI panel has not reconnected since the Composer protocol changed. ' +
+          'Reload the Composer AI panel; pairing persists.'
+        );
+        reloadError.code = 'EDITOR_RELOAD_REQUIRED';
+        reloadError.result = result;
+        finish(reloadError);
+        return;
+      }
       const error = new Error(
         `Composer did not become ready within ${timeoutMs} ms ` +
         `(editor=${result.editor}, commands=${result.commands}, workLease=${result.workLease})`
@@ -1059,6 +1082,17 @@ function waitForComposerReady(options, requireWorkLease) {
         readiness.workExpiresAt = message.workExpiresAt || null;
         finishIfReady();
       } else if (message.type === 'editor_status') {
+        if (message.status === 'version-mismatch') {
+          readiness.editor = 'version-mismatch';
+          readiness.commands = 'unavailable';
+          const reloadError = new Error(
+            'The Composer AI panel is running an older protocol. Reload the Composer AI panel; pairing persists.'
+          );
+          reloadError.code = 'EDITOR_RELOAD_REQUIRED';
+          reloadError.result = Object.assign({}, readiness, { status: 'reload-required' });
+          finish(reloadError);
+          return;
+        }
         readiness.editor = message.status === 'connected' ? 'connected' : 'disconnected';
         if (message.status !== 'connected') readiness.commands = 'unavailable';
         else if (readiness.commands !== 'ready') readiness.commands = 'initializing';

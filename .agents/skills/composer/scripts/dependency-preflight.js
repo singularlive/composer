@@ -39,20 +39,15 @@ function inspectDependency(name, expectedVersion) {
     result.errorCode = 'DEPENDENCY_LOCK_MISMATCH';
     return result;
   }
-  let resolved;
+  const vendoredRoot = path.join(skillRoot, 'scripts', 'vendor', name);
+  let metadataPath;
   try {
-    resolved = require.resolve(name, { paths: [__dirname] });
+    metadataPath = path.join(vendoredRoot, 'package.json');
+    require.resolve(vendoredRoot);
   } catch (error) {
     result.errorCode = 'MODULE_NOT_FOUND';
     return result;
   }
-  const expectedRoot = path.join(skillRoot, 'node_modules') + path.sep;
-  if (!resolved.startsWith(expectedRoot)) {
-    result.status = 'wrong-root';
-    result.errorCode = 'DEPENDENCY_ROOT_MISMATCH';
-    return result;
-  }
-  const metadataPath = path.join(skillRoot, 'node_modules', name, 'package.json');
   try {
     const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
     result.actualVersion = metadata.version;
@@ -66,18 +61,16 @@ function inspectDependency(name, expectedVersion) {
 }
 
 const captureRequested = process.argv.includes('--capture');
-const optionalDependencies = packageJson.optionalDependencies || {};
-const dependencies = captureRequested
-  ? Object.keys(optionalDependencies).map(function (name) {
-    return inspectDependency(name, optionalDependencies[name]);
-  })
-  : [];
+const requiredDependencies = packageJson.dependencies || {};
+const dependencies = Object.keys(requiredDependencies).map(function (name) {
+  return inspectDependency(name, requiredDependencies[name]);
+});
 const nodeExpectedMajor = Number(String(packageJson.engines.node).match(/\d+/)[0]);
 const nodeActualMajor = Number(process.versions.node.split('.')[0]);
 const lockedRoot = packageLock.packages && packageLock.packages[''] || {};
-const lockMatches = JSON.stringify(optionalDependencies) === JSON.stringify(lockedRoot.optionalDependencies || {}) &&
-  Object.keys(packageJson.dependencies || {}).length === 0 &&
-  Object.keys(lockedRoot.dependencies || {}).length === 0;
+const lockMatches = JSON.stringify(requiredDependencies) === JSON.stringify(lockedRoot.dependencies || {}) &&
+  Object.keys(packageJson.optionalDependencies || {}).length === 0 &&
+  Object.keys(lockedRoot.optionalDependencies || {}).length === 0;
 const coreMetadata = packageJson.composerAgent || {};
 const coreReady = coreMetadata.coreRuntime === 'scripts/composer-agent.js' &&
   coreMetadata.protocolVersion === (versionMatch ? Number(versionMatch[1]) : null) &&

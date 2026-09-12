@@ -52,13 +52,13 @@ function normalizeEndpoint(value) {
 
 function loadPlaywrightCore() {
   try {
-    return require('playwright-core');
+    return require('./vendor/playwright-core');
   } catch (error) {
     if (error.code !== 'MODULE_NOT_FOUND') throw error;
   }
   throw createCaptureError(
     'PLAYWRIGHT_UNAVAILABLE',
-    'Playwright is unavailable. Make playwright-core@1.63.0 resolvable before using standalone capture.'
+    'The required vendored playwright-core@1.63.0 payload is unavailable. Reinstall the Composer skill.'
   );
 }
 

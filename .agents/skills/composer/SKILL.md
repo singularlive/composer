@@ -15,7 +15,7 @@ Reuse that `--connection` value for every command. Never reuse another conversat
 
 ## CLI dependencies
 
-The core CLI is self-contained. Before first use, run `node scripts/dependency-preflight.js`; add `--capture` only before capture or Player verification, where optional Playwright and Chrome are required. Run `node scripts/composer-agent.js doctor` for installation scope, duplicate copies, package/protocol versions, and core status; add `--capture` or `--connection <name>` for optional capture or server checks. On failure, follow [installation.md](references/installation.md) and stop before pairing. If any command reports `COMPOSER_AGENT_VERSION_MISMATCH`, stop authoring until Composer and the installed skill match.
+The core CLI is self-contained and Playwright Core is included as a required vendored dependency. Before first use, run `node scripts/dependency-preflight.js`; it always verifies Playwright, while `--capture` additionally checks Chrome. Run `node scripts/composer-agent.js doctor` for installation scope, duplicate copies, package/protocol versions, core and Playwright status; add `--capture` or `--connection <name>` for Chrome or server checks. On failure, follow [installation.md](references/installation.md) and stop before pairing. If any command reports `COMPOSER_AGENT_VERSION_MISMATCH`, stop authoring until Composer and the installed skill match. If `check-connection` reports `EDITOR_RELOAD_REQUIRED`, reload the Composer AI panel and retry; the existing pairing persists.
 
 ## Route the task first
 

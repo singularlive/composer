@@ -237,9 +237,9 @@ The widget object provides methods to read and update widget specific properties
 | `getPayload()` | Returns widget type specific properties as a JSON object. |
 | `setPayload(o)` | Sets one or multiple widget-specific properties. Payload fields are not tile layout dimensions; use `setSizeX()` and `setSizeY()` for the widget's canvas bounds. |
 | `getDomElement(t)` | Returns the HTML `Dom` element for the widget. |
-| `getPositionX()`, `getPositionY()` | Returns position in [-50, 50] coordinate space. 0 = center. Anchor point is center by default. |
+| `getPositionX()`, `getPositionY()` | Returns the stored percentage position in the immediate parent coordinate space. For a grouped tile, the parent is that group rather than the composition canvas. |
 | `setPositionX(o)`, `setPositionY(o)` | Sets position in [-50, 50] coordinate space. 0 = center. Anchor point is center by default. |
-| `getSizeX()`, `getSizeY()` | Returns size as percentage (0-100) of the canvas. |
+| `getSizeX()`, `getSizeY()` | Returns stored size as a percentage of the immediate parent. For a grouped tile, 100 fills the group on that axis. |
 | `setSizeX(o)`, `setSizeY(o)` | Sets size as percentage (0-100) of the canvas. |
 | `getVisibility()` | Returns visibility as a boolean. |
 | `setVisibility(o)` | Sets visibility as a boolean. |

@@ -34,6 +34,18 @@ Configure the Composer `widget` Timeline effect with a positive duration during 
 
 Native text updates require enabled `useUpdateAnimation`, settled In state, existing units and a text-only payload delta with nonempty new text. Non-text changes and clearing rebuild/snap instead. Update halves use cached Timeline durations with a 0.5-second fallback; `updateOverlap` controls their overlap. Rapid updates finish the previous update before starting the next. These source rules are not a guarantee that every loaded version behaves identically.
 
-`emitEvents` sends the same `bounds` message as Metric Text for nonempty text. Verify actual animation, font readiness, replacement, clearing, resize, reversal and conditional effects in the Player. A successful paired update or handoff is not runtime evidence.
+`emitEvents` sends the same `bounds` message as Metric Text for nonempty text. The composition listener receives the envelope as `msg.params`, the bounds payload as `msg.params.data`, and the originating tile ID as `msg.params.id`; use that ID to route messages from multiple widgets:
+
+```javascript
+comp.addListener("message", function (event, msg, e) {
+	var params = msg && msg.params;
+	var data = params && params.data;
+	if (data && data.event === "bounds" && params.id === MY_TILE_ID) {
+		// Consume this widget's bounds.
+	}
+});
+```
+
+The reported box follows Metric Text overflow semantics: `none` and `clip` retain the natural rendered width, while `fitScale` and `fitWidth` report the fitted box when text exceeds the available width. Use `overflow: "none"` to size a separate shape to natural text. Bounds describe the settled text geometry, not the transient per-unit animation extent. See the [inline styled text recipe](../recipes/inline-styled-text.md) for a complete consumer and dependent-layout pattern. Verify actual animation, font readiness, replacement, clearing, resize, reversal and conditional effects in the Player. A successful paired update or handoff is not runtime evidence.
 
 Sources: `app/components/widgets/WidgetMetricTextAnim.js`, `metricTextAnim/buildDynamicUI.js`, `metricTextAnim/effects/`, `metricTextAnim/splitContent.js`.

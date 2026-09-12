@@ -31,13 +31,6 @@ module.exports = require("crypto");
 
 /***/ }),
 /* 5 */
-/***/ ((module) => {
-
-"use strict";
-module.exports = require("module");
-
-/***/ }),
-/* 6 */
 /***/ ((module, exports, __webpack_require__) => {
 
 var __WEBPACK_AMD_DEFINE_RESULT__;// TinyColor v1.4.1
@@ -1238,7 +1231,7 @@ else // removed by dead control flow
 
 
 /***/ }),
-/* 7 */
+/* 6 */
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1254,15 +1247,15 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   validate: () => (/* reexport safe */ _validate_js__WEBPACK_IMPORTED_MODULE_6__["default"]),
 /* harmony export */   version: () => (/* reexport safe */ _version_js__WEBPACK_IMPORTED_MODULE_5__["default"])
 /* harmony export */ });
-/* harmony import */ var _v1_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(8);
-/* harmony import */ var _v3_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(13);
-/* harmony import */ var _v4_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(17);
-/* harmony import */ var _v5_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(18);
-/* harmony import */ var _nil_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(20);
-/* harmony import */ var _version_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(21);
-/* harmony import */ var _validate_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(11);
-/* harmony import */ var _stringify_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(10);
-/* harmony import */ var _parse_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(15);
+/* harmony import */ var _v1_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(7);
+/* harmony import */ var _v3_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(12);
+/* harmony import */ var _v4_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(16);
+/* harmony import */ var _v5_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(17);
+/* harmony import */ var _nil_js__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(19);
+/* harmony import */ var _version_js__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(20);
+/* harmony import */ var _validate_js__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(10);
+/* harmony import */ var _stringify_js__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(9);
+/* harmony import */ var _parse_js__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(14);
 
 
 
@@ -1274,7 +1267,7 @@ __webpack_require__.r(__webpack_exports__);
 
 
 /***/ }),
-/* 8 */
+/* 7 */
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1282,8 +1275,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
-/* harmony import */ var _rng_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(9);
-/* harmony import */ var _stringify_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(10);
+/* harmony import */ var _rng_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(8);
+/* harmony import */ var _stringify_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(9);
 
  // **`v1()` - Generate time-based UUID**
 //
@@ -1381,7 +1374,7 @@ function v1(options, buf, offset) {
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (v1);
 
 /***/ }),
-/* 9 */
+/* 8 */
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1405,7 +1398,7 @@ function rng() {
 }
 
 /***/ }),
-/* 10 */
+/* 9 */
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1413,7 +1406,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
-/* harmony import */ var _validate_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(11);
+/* harmony import */ var _validate_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(10);
 
 /**
  * Convert array of 16 byte values to UUID string format of the form:
@@ -1445,7 +1438,7 @@ function stringify(arr, offset = 0) {
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (stringify);
 
 /***/ }),
-/* 11 */
+/* 10 */
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1453,7 +1446,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
-/* harmony import */ var _regex_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(12);
+/* harmony import */ var _regex_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(11);
 
 
 function validate(uuid) {
@@ -1463,7 +1456,7 @@ function validate(uuid) {
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (validate);
 
 /***/ }),
-/* 12 */
+/* 11 */
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1474,7 +1467,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000)$/i);
 
 /***/ }),
-/* 13 */
+/* 12 */
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1482,15 +1475,15 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
-/* harmony import */ var _v35_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(14);
-/* harmony import */ var _md5_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(16);
+/* harmony import */ var _v35_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(13);
+/* harmony import */ var _md5_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(15);
 
 
 const v3 = (0,_v35_js__WEBPACK_IMPORTED_MODULE_0__["default"])('v3', 0x30, _md5_js__WEBPACK_IMPORTED_MODULE_1__["default"]);
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (v3);
 
 /***/ }),
-/* 14 */
+/* 13 */
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1501,8 +1494,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   "default": () => (/* export default binding */ __WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
 __webpack_require__.dn(__WEBPACK_DEFAULT_EXPORT__);
-/* harmony import */ var _stringify_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(10);
-/* harmony import */ var _parse_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(15);
+/* harmony import */ var _stringify_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(9);
+/* harmony import */ var _parse_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(14);
 
 
 
@@ -1569,7 +1562,7 @@ const URL = '6ba7b811-9dad-11d1-80b4-00c04fd430c8';
 }
 
 /***/ }),
-/* 15 */
+/* 14 */
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1577,7 +1570,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
-/* harmony import */ var _validate_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(11);
+/* harmony import */ var _validate_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(10);
 
 
 function parse(uuid) {
@@ -1615,7 +1608,7 @@ function parse(uuid) {
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (parse);
 
 /***/ }),
-/* 16 */
+/* 15 */
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1640,7 +1633,7 @@ function md5(bytes) {
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (md5);
 
 /***/ }),
-/* 17 */
+/* 16 */
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1648,8 +1641,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
-/* harmony import */ var _rng_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(9);
-/* harmony import */ var _stringify_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(10);
+/* harmony import */ var _rng_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(8);
+/* harmony import */ var _stringify_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(9);
 
 
 
@@ -1676,7 +1669,7 @@ function v4(options, buf, offset) {
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (v4);
 
 /***/ }),
-/* 18 */
+/* 17 */
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1684,15 +1677,15 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
-/* harmony import */ var _v35_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(14);
-/* harmony import */ var _sha1_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(19);
+/* harmony import */ var _v35_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(13);
+/* harmony import */ var _sha1_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(18);
 
 
 const v5 = (0,_v35_js__WEBPACK_IMPORTED_MODULE_0__["default"])('v5', 0x50, _sha1_js__WEBPACK_IMPORTED_MODULE_1__["default"]);
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (v5);
 
 /***/ }),
-/* 19 */
+/* 18 */
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1717,7 +1710,7 @@ function sha1(bytes) {
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (sha1);
 
 /***/ }),
-/* 20 */
+/* 19 */
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1728,7 +1721,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = ('00000000-0000-0000-0000-000000000000');
 
 /***/ }),
-/* 21 */
+/* 20 */
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -1736,7 +1729,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
-/* harmony import */ var _validate_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(11);
+/* harmony import */ var _validate_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(10);
 
 
 function version(uuid) {
@@ -1748,6 +1741,28 @@ function version(uuid) {
 }
 
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (version);
+
+/***/ }),
+/* 21 */
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+/*!
+ * ws: a node.js websocket client
+ * Copyright(c) 2011 Einar Otto Stangvik <einaros@gmail.com>
+ * MIT Licensed
+ */
+
+
+
+const WebSocket = __webpack_require__(22);
+
+WebSocket.Server = __webpack_require__(43);
+WebSocket.Receiver = __webpack_require__(38);
+WebSocket.Sender = __webpack_require__(42);
+
+module.exports = WebSocket;
+
 
 /***/ }),
 /* 22 */
@@ -1762,41 +1777,19 @@ function version(uuid) {
 
 
 
-const WebSocket = __webpack_require__(23);
-
-WebSocket.Server = __webpack_require__(44);
-WebSocket.Receiver = __webpack_require__(39);
-WebSocket.Sender = __webpack_require__(43);
-
-module.exports = WebSocket;
-
-
-/***/ }),
-/* 23 */
-/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
-
-"use strict";
-/*!
- * ws: a node.js websocket client
- * Copyright(c) 2011 Einar Otto Stangvik <einaros@gmail.com>
- * MIT Licensed
- */
-
-
-
-const EventEmitter = __webpack_require__(24);
+const EventEmitter = __webpack_require__(23);
 const crypto = __webpack_require__(4);
-const Ultron = __webpack_require__(25);
-const https = __webpack_require__(26);
-const http = __webpack_require__(27);
-const url = __webpack_require__(28);
+const Ultron = __webpack_require__(24);
+const https = __webpack_require__(25);
+const http = __webpack_require__(26);
+const url = __webpack_require__(27);
 
-const PerMessageDeflate = __webpack_require__(29);
-const EventTarget = __webpack_require__(36);
-const Extensions = __webpack_require__(37);
-const constants = __webpack_require__(38);
-const Receiver = __webpack_require__(39);
-const Sender = __webpack_require__(43);
+const PerMessageDeflate = __webpack_require__(28);
+const EventTarget = __webpack_require__(35);
+const Extensions = __webpack_require__(36);
+const constants = __webpack_require__(37);
+const Receiver = __webpack_require__(38);
+const Sender = __webpack_require__(42);
 
 const protocolVersions = [8, 13];
 const closeTimeout = 30 * 1000; // Allow 30 seconds to terminate the connection cleanly.
@@ -2496,14 +2489,14 @@ function initAsClient (address, protocols, options) {
 
 
 /***/ }),
-/* 24 */
+/* 23 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("events");
 
 /***/ }),
-/* 25 */
+/* 24 */
 /***/ ((module) => {
 
 "use strict";
@@ -2646,38 +2639,38 @@ module.exports = Ultron;
 
 
 /***/ }),
-/* 26 */
+/* 25 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("https");
 
 /***/ }),
-/* 27 */
+/* 26 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("http");
 
 /***/ }),
-/* 28 */
+/* 27 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("url");
 
 /***/ }),
-/* 29 */
+/* 28 */
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
 "use strict";
 
 
-const safeBuffer = __webpack_require__(30);
-const Limiter = __webpack_require__(32);
-const zlib = __webpack_require__(33);
+const safeBuffer = __webpack_require__(29);
+const Limiter = __webpack_require__(31);
+const zlib = __webpack_require__(32);
 
-const bufferUtil = __webpack_require__(34);
+const bufferUtil = __webpack_require__(33);
 
 const Buffer = safeBuffer.Buffer;
 
@@ -3181,11 +3174,11 @@ function inflateOnError (err) {
 
 
 /***/ }),
-/* 30 */
+/* 29 */
 /***/ ((module, exports, __webpack_require__) => {
 
 /* eslint-disable node/no-deprecated-api */
-var buffer = __webpack_require__(31)
+var buffer = __webpack_require__(30)
 var Buffer = buffer.Buffer
 
 // alternative to using Object.keys for old browsers
@@ -3249,14 +3242,14 @@ SafeBuffer.allocUnsafeSlow = function (size) {
 
 
 /***/ }),
-/* 31 */
+/* 30 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("buffer");
 
 /***/ }),
-/* 32 */
+/* 31 */
 /***/ ((module) => {
 
 "use strict";
@@ -3330,14 +3323,14 @@ module.exports = Queue;
 
 
 /***/ }),
-/* 33 */
+/* 32 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("zlib");
 
 /***/ }),
-/* 34 */
+/* 33 */
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
 "use strict";
@@ -3349,7 +3342,7 @@ module.exports = require("zlib");
 
 
 
-const safeBuffer = __webpack_require__(30);
+const safeBuffer = __webpack_require__(29);
 
 const Buffer = safeBuffer.Buffer;
 
@@ -3375,7 +3368,7 @@ const concat = (list, totalLength) => {
 };
 
 try {
-  const bufferUtil = __webpack_require__(35);
+  const bufferUtil = __webpack_require__(34);
 
   module.exports = Object.assign({ concat }, bufferUtil.BufferUtil || bufferUtil);
 } catch (e) /* istanbul ignore next */ {
@@ -3415,14 +3408,14 @@ try {
 
 
 /***/ }),
-/* 35 */
+/* 34 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("bufferutil");
 
 /***/ }),
-/* 36 */
+/* 35 */
 /***/ ((module) => {
 
 "use strict";
@@ -3580,7 +3573,7 @@ module.exports = EventTarget;
 
 
 /***/ }),
-/* 37 */
+/* 36 */
 /***/ ((module) => {
 
 "use strict";
@@ -3790,13 +3783,13 @@ module.exports = { format, parse };
 
 
 /***/ }),
-/* 38 */
+/* 37 */
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 "use strict";
 
 
-const safeBuffer = __webpack_require__(30);
+const safeBuffer = __webpack_require__(29);
 
 const Buffer = safeBuffer.Buffer;
 
@@ -3807,7 +3800,7 @@ exports.NOOP = () => {};
 
 
 /***/ }),
-/* 39 */
+/* 38 */
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
 "use strict";
@@ -3819,13 +3812,13 @@ exports.NOOP = () => {};
 
 
 
-const safeBuffer = __webpack_require__(30);
+const safeBuffer = __webpack_require__(29);
 
-const PerMessageDeflate = __webpack_require__(29);
-const isValidUTF8 = __webpack_require__(40);
-const bufferUtil = __webpack_require__(34);
-const ErrorCodes = __webpack_require__(42);
-const constants = __webpack_require__(38);
+const PerMessageDeflate = __webpack_require__(28);
+const isValidUTF8 = __webpack_require__(39);
+const bufferUtil = __webpack_require__(33);
+const ErrorCodes = __webpack_require__(41);
+const constants = __webpack_require__(37);
 
 const Buffer = safeBuffer.Buffer;
 
@@ -4367,7 +4360,7 @@ function toArrayBuffer (buf) {
 
 
 /***/ }),
-/* 40 */
+/* 39 */
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
 "use strict";
@@ -4380,7 +4373,7 @@ function toArrayBuffer (buf) {
 
 
 try {
-  const isValidUTF8 = __webpack_require__(41);
+  const isValidUTF8 = __webpack_require__(40);
 
   module.exports = typeof isValidUTF8 === 'object'
     ? isValidUTF8.Validation.isValidUTF8 // utf-8-validate@<3.0.0
@@ -4391,14 +4384,14 @@ try {
 
 
 /***/ }),
-/* 41 */
+/* 40 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("utf-8-validate");
 
 /***/ }),
-/* 42 */
+/* 41 */
 /***/ ((module) => {
 
 "use strict";
@@ -4433,7 +4426,7 @@ module.exports = {
 
 
 /***/ }),
-/* 43 */
+/* 42 */
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
 "use strict";
@@ -4445,13 +4438,13 @@ module.exports = {
 
 
 
-const safeBuffer = __webpack_require__(30);
+const safeBuffer = __webpack_require__(29);
 const crypto = __webpack_require__(4);
 
-const PerMessageDeflate = __webpack_require__(29);
-const bufferUtil = __webpack_require__(34);
-const ErrorCodes = __webpack_require__(42);
-const constants = __webpack_require__(38);
+const PerMessageDeflate = __webpack_require__(28);
+const bufferUtil = __webpack_require__(33);
+const ErrorCodes = __webpack_require__(41);
+const constants = __webpack_require__(37);
 
 const Buffer = safeBuffer.Buffer;
 
@@ -4852,7 +4845,7 @@ function viewToBuffer (view) {
 
 
 /***/ }),
-/* 44 */
+/* 43 */
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
 "use strict";
@@ -4864,17 +4857,17 @@ function viewToBuffer (view) {
 
 
 
-const safeBuffer = __webpack_require__(30);
-const EventEmitter = __webpack_require__(24);
+const safeBuffer = __webpack_require__(29);
+const EventEmitter = __webpack_require__(23);
 const crypto = __webpack_require__(4);
-const Ultron = __webpack_require__(25);
-const http = __webpack_require__(27);
-const url = __webpack_require__(28);
+const Ultron = __webpack_require__(24);
+const http = __webpack_require__(26);
+const url = __webpack_require__(27);
 
-const PerMessageDeflate = __webpack_require__(29);
-const Extensions = __webpack_require__(37);
-const constants = __webpack_require__(38);
-const WebSocket = __webpack_require__(23);
+const PerMessageDeflate = __webpack_require__(28);
+const Extensions = __webpack_require__(36);
+const constants = __webpack_require__(37);
+const WebSocket = __webpack_require__(22);
 
 const Buffer = safeBuffer.Buffer;
 
@@ -5185,7 +5178,7 @@ function abortConnection (socket, code, message) {
 
 
 /***/ }),
-/* 45 */
+/* 44 */
 /***/ ((module) => {
 
 function pairedAtTime(credentials) {
@@ -5229,7 +5222,7 @@ module.exports = {
 
 
 /***/ }),
-/* 46 */
+/* 45 */
 /***/ ((module) => {
 
 const WIDGET_SCRIPT_REFERENCES = Object.freeze({
@@ -5329,7 +5322,7 @@ module.exports = {
 
 
 /***/ }),
-/* 47 */
+/* 46 */
 /***/ ((module) => {
 
 "use strict";
@@ -5412,17 +5405,16 @@ const fs = __webpack_require__(1);
 const os = __webpack_require__(2);
 const path = __webpack_require__(3);
 const crypto = __webpack_require__(4);
-const { createRequire } = __webpack_require__(5);
-const tinycolor = __webpack_require__(6);
-const uuid = __webpack_require__(7);
-const WebSocket = __webpack_require__(22);
-const credentialSelection = __webpack_require__(45);
-const { createWidgetReferences } = __webpack_require__(46);
+const tinycolor = __webpack_require__(5);
+const uuid = __webpack_require__(6);
+const WebSocket = __webpack_require__(21);
+const credentialSelection = __webpack_require__(44);
+const { createWidgetReferences } = __webpack_require__(45);
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 115;
-const PACKAGE_VERSION = '1.0.0';
+const SKILL_VERSION = 118;
+const PACKAGE_VERSION = '1.2.0';
 const DEFAULT_TIMEOUT_MS = 15000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
@@ -5508,7 +5500,7 @@ let activeTemplateSessionToken = null;
 let captureModule = null;
 
 function getCaptureModule() {
-  if (!captureModule) captureModule = __webpack_require__(47);
+  if (!captureModule) captureModule = __webpack_require__(46);
   return captureModule;
 }
 
@@ -5581,27 +5573,27 @@ function findSystemChrome() {
   return candidates.filter(Boolean).some(function (candidate) { return fs.existsSync(candidate); });
 }
 
-function inspectOptionalCapture() {
+function inspectPlaywrightCore(checkChrome) {
   const installedPackage = readInstalledPackage();
-  const expectedVersion = installedPackage && installedPackage.optionalDependencies &&
-    installedPackage.optionalDependencies['playwright-core'];
+  const expectedVersion = installedPackage && installedPackage.dependencies &&
+    installedPackage.dependencies['playwright-core'] || '1.63.0';
   let actualVersion = null;
   try {
-    const runtimeRequire = createRequire(path.join(__dirname, 'composer-agent.js'));
-    const metadataPath = runtimeRequire.resolve('playwright-core/package.json');
+    const metadataPath = path.join(__dirname, 'vendor', 'playwright-core', 'package.json');
     actualVersion = JSON.parse(fs.readFileSync(metadataPath, 'utf8')).version;
   } catch (error) {}
-  const browserAvailable = findSystemChrome();
+  const browserAvailable = checkChrome ? findSystemChrome() : null;
+  const playwrightReady = actualVersion === expectedVersion;
   return {
-    status: expectedVersion && actualVersion === expectedVersion && browserAvailable ? 'ready' : 'unavailable',
+    status: playwrightReady && (!checkChrome || browserAvailable) ? 'ready' : 'unavailable',
     playwright: {
       expectedVersion: expectedVersion || null,
       actualVersion: actualVersion,
-      status: expectedVersion && actualVersion === expectedVersion
+      status: playwrightReady
         ? 'ready'
         : actualVersion ? 'version-mismatch' : 'missing'
     },
-    chrome: browserAvailable ? 'available' : 'missing'
+    chrome: checkChrome ? (browserAvailable ? 'available' : 'missing') : 'not-checked'
   };
 }
 
@@ -5678,9 +5670,10 @@ async function runDoctor(options) {
       server = { status: 'unavailable', reason: error.code || error.message };
     }
   }
-  const capture = options.capture ? inspectOptionalCapture() : { status: 'not-checked' };
+  const playwright = inspectPlaywrightCore(false);
+  const capture = options.capture ? inspectPlaywrightCore(true) : { status: 'not-checked' };
   const nodeCompatible = Number(process.versions.node.split('.')[0]) === 22;
-  const checksPassed = nodeCompatible &&
+  const checksPassed = nodeCompatible && playwright.status === 'ready' &&
     (!options.capture || capture.status === 'ready') &&
     (!(options.connection !== undefined || ENV_CREDENTIALS_OVERRIDE_PATH) || server.status === 'compatible');
   return {
@@ -5700,6 +5693,10 @@ async function runDoctor(options) {
       status: 'ready',
       selfContained: true,
       dependencies: ['tinycolor2', 'uuid', 'ws']
+    },
+    requiredDependencies: {
+      status: playwright.status,
+      playwright: playwright.playwright
     },
     capture: capture,
     server: server
@@ -6234,6 +6231,7 @@ async function finishPairing(server, pairing) {
     sceneId: pairing.sceneId,
     sceneName: pairing.sceneName,
     capabilities: pairing.capabilities,
+    composerAgentVersion: SKILL_VERSION,
     pairedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + pairing.expiresIn * 1000).toISOString()
   };
@@ -6391,6 +6389,24 @@ function waitForComposerReady(options, requireWorkLease) {
     let probeTimer = null;
     const timeout = setTimeout(function () {
       const result = Object.assign({}, readiness, { status: 'timeout' });
+      const pairedVersion = Number(credentials.composerAgentVersion);
+      if (
+        readiness.authorization === 'active' &&
+        readiness.editor === 'unknown' &&
+        (!Number.isInteger(pairedVersion) || pairedVersion !== SKILL_VERSION)
+      ) {
+        result.status = 'reload-required';
+        result.editor = 'version-mismatch';
+        result.commands = 'unavailable';
+        const reloadError = new Error(
+          'The Composer AI panel has not reconnected since the Composer protocol changed. ' +
+          'Reload the Composer AI panel; pairing persists.'
+        );
+        reloadError.code = 'EDITOR_RELOAD_REQUIRED';
+        reloadError.result = result;
+        finish(reloadError);
+        return;
+      }
       const error = new Error(
         `Composer did not become ready within ${timeoutMs} ms ` +
         `(editor=${result.editor}, commands=${result.commands}, workLease=${result.workLease})`
@@ -6467,6 +6483,17 @@ function waitForComposerReady(options, requireWorkLease) {
         readiness.workExpiresAt = message.workExpiresAt || null;
         finishIfReady();
       } else if (message.type === 'editor_status') {
+        if (message.status === 'version-mismatch') {
+          readiness.editor = 'version-mismatch';
+          readiness.commands = 'unavailable';
+          const reloadError = new Error(
+            'The Composer AI panel is running an older protocol. Reload the Composer AI panel; pairing persists.'
+          );
+          reloadError.code = 'EDITOR_RELOAD_REQUIRED';
+          reloadError.result = Object.assign({}, readiness, { status: 'reload-required' });
+          finish(reloadError);
+          return;
+        }
         readiness.editor = message.status === 'connected' ? 'connected' : 'disconnected';
         if (message.status !== 'connected') readiness.commands = 'unavailable';
         else if (readiness.commands !== 'ready') readiness.commands = 'initializing';

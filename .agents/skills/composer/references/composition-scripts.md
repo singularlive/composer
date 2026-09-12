@@ -68,6 +68,15 @@ For widget-owned template outputs, read [widget-nodes.md](widget-nodes.md). The 
 
 Read [composition-scripting/singular-scripting-doc.md](composition-scripting/singular-scripting-doc.md) before relying on runtime methods, listeners, or scripting patterns. Follow [composition-scripting/widget-references.md](composition-scripting/widget-references.md) to interpret handoff routes, and read the routed `composition-scripting/widget-*.md` file before authoring a widget payload. Use [composition-scripting/debugging-and-verification.md](composition-scripting/debugging-and-verification.md) for Player verification. Never guess widget APIs or payload keys.
 
+## Reusable script recipes
+
+- [Inline styled text](recipes/inline-styled-text.md): receive Metric Text `bounds` through `msg.params`, route by originating tile ID, and position adjacent text runs from `getPositionX()` and `getSizeX()`.
+- [Optional animated module](recipes/optional-animated-module.md): coordinate conditional visibility with local animation state.
+- [Breaking-news lower third](recipes/breaking-news-lower-third.md): build a reusable urgent label and replaceable headline with Update motion.
+- [Current-time clock module](recipes/current-time-clock-module.md): drive a native clock with shared typography.
+
+See the complete [recipe index](recipes.md) for authoring and verification routes.
+
 ## Designing scriptable graphics
 
 Follow the construction, public-control, lifecycle, and completion requirements in [authoring-quality.md](authoring-quality.md). For script-specific implementation, preserve a clear boundary between public input and derived presentation:
