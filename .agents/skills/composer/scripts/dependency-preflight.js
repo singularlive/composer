@@ -9,12 +9,7 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(skillRoot, 'package.jso
 const packageLock = JSON.parse(fs.readFileSync(path.join(skillRoot, 'package-lock.json'), 'utf8'));
 const cliSource = fs.readFileSync(path.join(__dirname, 'composer-agent.js'), 'utf8');
 const versionMatch = cliSource.match(/const SKILL_VERSION = (\d+);/);
-const dependencyOrigins = {
-  'playwright-core': ['capture-composition-preview.js', 'verifyComposition.mjs'],
-  tinycolor2: ['composer-agent.js'],
-  uuid: ['composer-agent.js'],
-  ws: ['composer-agent.js']
-};
+const dependencyOrigins = { 'playwright-core': ['capture-composition-preview.js', 'verifyComposition.mjs'] };
 
 function findSystemChrome() {
   const candidates = process.platform === 'win32' ? [
@@ -70,21 +65,38 @@ function inspectDependency(name, expectedVersion) {
   return result;
 }
 
-const dependencies = Object.keys(packageJson.dependencies).map(function (name) {
-  return inspectDependency(name, packageJson.dependencies[name]);
-});
+const captureRequested = process.argv.includes('--capture');
+const optionalDependencies = packageJson.optionalDependencies || {};
+const dependencies = captureRequested
+  ? Object.keys(optionalDependencies).map(function (name) {
+    return inspectDependency(name, optionalDependencies[name]);
+  })
+  : [];
 const nodeExpectedMajor = Number(String(packageJson.engines.node).match(/\d+/)[0]);
 const nodeActualMajor = Number(process.versions.node.split('.')[0]);
-const captureRequested = process.argv.includes('--capture');
-const lockMatches = JSON.stringify(packageJson.dependencies) ===
-  JSON.stringify(packageLock.packages && packageLock.packages[''] && packageLock.packages[''].dependencies);
+const lockedRoot = packageLock.packages && packageLock.packages[''] || {};
+const lockMatches = JSON.stringify(optionalDependencies) === JSON.stringify(lockedRoot.optionalDependencies || {}) &&
+  Object.keys(packageJson.dependencies || {}).length === 0 &&
+  Object.keys(lockedRoot.dependencies || {}).length === 0;
+const coreMetadata = packageJson.composerAgent || {};
+const coreReady = coreMetadata.coreRuntime === 'scripts/composer-agent.js' &&
+  coreMetadata.protocolVersion === (versionMatch ? Number(versionMatch[1]) : null) &&
+  Array.isArray(coreMetadata.coreDependenciesBundled) &&
+  coreMetadata.coreDependenciesBundled.length > 0;
 const failed = dependencies.some(function (dependency) { return dependency.status !== 'resolved'; }) ||
-  nodeExpectedMajor !== nodeActualMajor || !lockMatches || (captureRequested && !findSystemChrome());
+  nodeExpectedMajor !== nodeActualMajor || !lockMatches || !coreReady || (captureRequested && !findSystemChrome());
 
 process.stdout.write(JSON.stringify({
   status: failed ? 'failed' : 'passed',
+  packageVersion: packageJson.version,
   skillVersion: versionMatch ? Number(versionMatch[1]) : null,
   payloadRoot: 'composer-skill',
+  core: {
+    status: coreReady ? 'ready' : 'invalid',
+    selfContained: coreReady,
+    bundledDependencies: coreMetadata.coreDependenciesBundled || [],
+    errorCode: coreReady ? null : 'CORE_RUNTIME_INVALID'
+  },
   node: {
     status: nodeExpectedMajor === nodeActualMajor ? 'compatible' : 'version-mismatch',
     expectedMajor: nodeExpectedMajor,

@@ -15,7 +15,7 @@ Reuse that `--connection` value for every command. Never reuse another conversat
 
 ## CLI dependencies
 
-Before first use, run `node scripts/dependency-preflight.js`; add `--capture` only before capture or Player verification. On failure, follow [installation.md](references/installation.md) and stop before pairing. If any command reports `COMPOSER_AGENT_VERSION_MISMATCH`, stop authoring until Composer and the installed skill match.
+The core CLI is self-contained. Before first use, run `node scripts/dependency-preflight.js`; add `--capture` only before capture or Player verification, where optional Playwright and Chrome are required. Run `node scripts/composer-agent.js doctor` for installation scope, duplicate copies, package/protocol versions, and core status; add `--capture` or `--connection <name>` for optional capture or server checks. On failure, follow [installation.md](references/installation.md) and stop before pairing. If any command reports `COMPOSER_AGENT_VERSION_MISMATCH`, stop authoring until Composer and the installed skill match.
 
 ## Route the task first
 

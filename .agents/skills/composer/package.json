@@ -1,14 +1,20 @@
 {
   "name": "singular-composer-agent-skill-runtime",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
+  "composerAgent": {
+    "protocolVersion": 115,
+    "coreRuntime": "scripts/composer-agent.js",
+    "coreDependenciesBundled": [
+      "tinycolor2",
+      "uuid",
+      "ws"
+    ]
+  },
   "engines": {
     "node": "22.x"
   },
-  "dependencies": {
-    "playwright-core": "1.63.0",
-    "tinycolor2": "1.4.1",
-    "uuid": "8.3.1",
-    "ws": "3.3.3"
+  "optionalDependencies": {
+    "playwright-core": "1.63.0"
   }
 }

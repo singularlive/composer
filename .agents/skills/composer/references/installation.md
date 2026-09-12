@@ -1,8 +1,18 @@
 # Installation and upgrade
 
-Treat the installed skill directory itself as the payload root. It must contain `SKILL.md`, `package.json`, `package-lock.json`, `scripts/`, and `references/` directly; an extra nested `composer/` directory is an invalid installation even when an installer reports success.
+Install explicitly at one scope:
 
-The bundled scripts require Node.js 22.x. `dependency-preflight.js` reports `NODE_VERSION_MISMATCH` and stops before pairing when another major version is active.
+```bash
+# Available across projects
+npx skills add singularlive/composer -g -y
+
+# Current project only; takes precedence over a global copy
+npx skills add singularlive/composer -y
+```
+
+Treat the installed skill directory itself as the payload root. It must contain `SKILL.md`, `package.json`, `package-lock.json`, `scripts/`, and `references/` directly; an extra nested `composer/` directory is an invalid installation even when an installer reports success. Run `node scripts/composer-agent.js doctor` from the selected installation after installing. Its `selectedInstallation` is the runtime being invoked; `duplicateInstallations` identifies stale or shadowed copies. Project skills take precedence over global skills when both are discovered.
+
+The bundled scripts require Node.js 22.x. The core `composer-agent.js` embeds its required JavaScript dependencies and runs without `npm ci` or `node_modules`. `dependency-preflight.js` reports `NODE_VERSION_MISMATCH` and stops before pairing when another major version is active. Playwright remains optional and is checked only by `doctor --capture`, `dependency-preflight.js --capture`, capture, and Player verification.
 
 When developing inside the Singular repository, use the in-place `.agents/skills/composer` payload. Do not install a second copy over it or infer an external installer command. Run its preflight directly:
 
@@ -14,12 +24,12 @@ node .agents/skills/composer/scripts/dependency-preflight.js
 
 1. Choose one unique 1–64 character connection name for this AI conversation and retain it before changing the installation. Never reuse another conversation's profile.
 2. Stage the complete replacement in a sibling directory on the same volume. Do not delete or modify the working skill yet.
-3. Verify the staged payload shape, read its `SKILL.md` and the references routed for the task again, and check the integer `SKILL_VERSION` in `scripts/composer-agent.js` against the Composer server version.
-4. Run `npm ci --ignore-scripts` in the staged payload. Require every exact `package.json` dependency to match `package-lock.json` and resolve from the staged script location. Check `playwright-core` and Chrome only for capture or Player verification.
+3. Verify the staged payload shape, read its `SKILL.md` and the references routed for the task again, and run `node scripts/composer-agent.js doctor`. Require the semantic package version, bundled core status, and integer protocol version to be present. With a retained connection, require compatible server status.
+4. Do not run `npm ci` for ordinary Composer work. Only when capture or Player verification is needed, install the exact optional dependencies from the lockfile in writable staging before protection and run `node scripts/dependency-preflight.js --capture`.
 5. Rename the working directory to a backup and rename the verified sibling staging directory into place. A same-volume rename prevents agents from observing a partially copied skill. If replacement fails, restore the backup before retrying. Remove the backup only after the installed destination passes the same payload, version, and dependency checks.
-6. Reread the installed, not staged, `SKILL.md` and task references. Pair with the retained connection name and continue only when output reports both `paired: true` and `acknowledged: true`.
+6. Reread the installed, not staged, `SKILL.md` and task references. Run `doctor` again from that destination, resolve any duplicate installation that could shadow it, then pair with the retained connection name and continue only when output reports both `paired: true` and `acknowledged: true`.
 
-Run `node scripts/dependency-preflight.js` from the installed payload before pairing; add `--capture` only when capture or Player verification is required. Preserve its diagnostic block when reporting failure. It contains only `skillVersion`, the generic `payloadRoot`, Node expected/actual major versions, lockfile status, package expected/actual versions, originating script names, stable error codes, and optional Chrome availability. Do not replace those fields with complete paths, resolved filenames, environment values, npm cache locations, or raw module stacks.
+Run `node scripts/dependency-preflight.js` from the installed payload before pairing; add `--capture` only when capture or Player verification is required. Preserve its diagnostic block when reporting failure. It contains only package/protocol versions, bundled-core status, the generic `payloadRoot`, Node expected/actual major versions, lockfile status, optional package expected/actual versions, originating script names, stable error codes, and optional Chrome availability. `doctor` intentionally reports selected and duplicate installation paths; do not supplement either command with environment values, npm cache locations, credentials, or raw module stacks.
 
 Never trust generic installer exit text alone. Verify every requested destination independently by inspecting its final payload root, version, and dependencies. A destination that is absent, nested incorrectly, stale, or unresolved is a failed installation even if another destination succeeded.
 

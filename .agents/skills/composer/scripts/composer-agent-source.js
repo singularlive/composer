@@ -1,0 +1,2950 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const crypto = require('crypto');
+const { createRequire } = require('module');
+const tinycolor = require('tinycolor2');
+const uuid = require('uuid');
+const WebSocket = require('ws');
+const credentialSelection = require('./credential-selection');
+const { createWidgetReferences } = require('./widget-script-references');
+
+const DEFAULT_DEVICE_NAME = 'AI Agent';
+const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
+const SKILL_VERSION = 115;
+const PACKAGE_VERSION = '1.0.0';
+const DEFAULT_TIMEOUT_MS = 15000;
+const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
+const PAIRING_INTENT_RETRY_MS = 1100;
+const ENV_CREDENTIALS_OVERRIDE_PATH = process.env.COMPOSER_AGENT_CREDENTIALS || null;
+const DEFAULT_CREDENTIALS_PATH = path.join(os.homedir(), '.singular', 'composer-agent.json');
+const CONNECTION_CREDENTIALS_DIRECTORY = path.join(os.homedir(), '.singular', 'composer-agent-connections');
+const CREDENTIALS_SCOPE_PATH = path.resolve(__dirname, '..', '..', '..', '..');
+const TEMPORARY_CREDENTIALS_PATH = path.join(
+  os.tmpdir(),
+  'singular-composer-agent',
+  crypto.createHash('sha256').update(CREDENTIALS_SCOPE_PATH).digest('hex').slice(0, 16) + '.json'
+);
+let credentialsOverridePath = ENV_CREDENTIALS_OVERRIDE_PATH;
+let credentialStorageCategory = ENV_CREDENTIALS_OVERRIDE_PATH ? 'override' : 'default';
+let activeCredentialsPath = credentialsOverridePath || DEFAULT_CREDENTIALS_PATH;
+const TABLE_WIDGET_ID = 1182;
+const GRID_WIDGET_ID = 3284;
+const MAX_TABLE_ROWS = 1000;
+const MAX_TABLE_CONTENT_BYTES = 32 * 1024;
+const MAX_CAPTURE_BYTES = 8 * 1024 * 1024;
+const TABLE_OPTION_FIELDS = [
+  'layoutDirection',
+  'elementsPerPage',
+  'lineSpacing',
+  'updateStyle',
+  'pageTransitionStyle',
+  'pageTransitionOffset',
+  'showLayout',
+  'currentPage'
+];
+const GRID_OPTION_FIELDS = [
+  'cols', 'rows', 'colsSpacing', 'rowsSpacing', 'updateStyle',
+  'pageTransitionStyle', 'pageTransitionOffset', 'showLayout', 'currentPage'
+];
+
+// Flags that may be passed with no value (default true) or with an explicit
+// true/false value.
+const BOOLEAN_OPTIONS = new Set([
+  'capture',
+  'compact',
+  'selected',
+  'selection',
+  'summary',
+  'italic',
+  'underline',
+  'always-execute',
+  'create',
+  'remove',
+  'preview',
+  'replace',
+  'reuse-existing'
+]);
+const GLOBAL_COMMAND_OPTIONS = ['server', 'compact', 'template-session', 'connection'];
+const KNOWN_COMMANDS = new Set([
+  'doctor',
+  'pair', 'pair-intent', 'check-connection', 'start-work', 'wait-ready', 'finish-work', 'status', 'complete',
+  'inspect', 'find-elements', 'composition-tree', 'resolve-references', 'script-handoff', 'control-composition',
+  'timeline-link', 'set-timeline-link', 'logic-layers', 'set-logic-layer', 'rename-logic-layer',
+  'create-composition', 'orchestrate', 'create-revision', 'list-revisions', 'read-revision', 'compare-revision',
+  'restore-revision', 'delete-revision', 'delete-composition', 'open-composition', 'widget-subcompositions',
+  'open-widget-subcomposition', 'update-table', 'update-grid', 'timeline2', 'display-variants',
+  'configure-display-variants', 'activate-display-variant', 'set-display-variant-relevance', 'control-nodes',
+  'metric-fonts', 'set-metric-font', 'upgrade-metric-widgets', 'widget-nodes', 'link-widget-nodes',
+  'unlink-widget-nodes', 'set-control-value', 'set-control-font', 'create-table-control', 'set-table-control',
+  'update-table-control', 'link-table-control', 'unlink-table-control', 'press-control', 'timer-action',
+  'control-time', 'update-control', 'create-control-container', 'configure-control-container',
+  'delete-control-container', 'create-control', 'create-controls', 'delete-control', 'get', 'get-many',
+  'get-layouts', 'set-layouts', 'get-properties', 'set-properties', 'select', 'move', 'update', 'fonts',
+  'set-font', 'timeline-animations', 'set-timeline-animation', 'set-timeline-animations', 'update-animations',
+  'set-update-animation', 'set-update-animations', 'behaviors', 'set-behavior', 'set-behaviors', 'create-group',
+  'configure-group', 'move-group', 'delete-group', 'capture', 'capture-worker', 'primitives', 'ensure-group',
+  'create', 'delete', 'validate', 'apply'
+]);
+const COMMAND_SUGGESTIONS = {
+  open: 'open-composition',
+  close: 'finish-work',
+  tree: 'composition-tree',
+  find: 'find-elements',
+  controls: 'control-nodes',
+  revisions: 'list-revisions'
+};
+let activeTemplateSessionToken = null;
+let captureModule = null;
+
+function getCaptureModule() {
+  if (!captureModule) captureModule = require('./capture-composition-preview');
+  return captureModule;
+}
+
+function createCaptureError(code, message) {
+  return getCaptureModule().createCaptureError(code, message);
+}
+
+function readInstalledPackage() {
+  try {
+    return JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf8'));
+  } catch (error) {
+    return null;
+  }
+}
+
+function getInstallationScope(skillRoot) {
+  const normalizedRoot = path.resolve(skillRoot).toLowerCase();
+  const globalRoots = [
+    path.join(os.homedir(), '.agents', 'skills', 'composer'),
+    path.join(os.homedir(), '.codex', 'skills', 'composer')
+  ].map(function (candidate) { return path.resolve(candidate).toLowerCase(); });
+  if (globalRoots.includes(normalizedRoot)) return 'global';
+  return normalizedRoot.includes(path.normalize(`${path.sep}.agents${path.sep}skills${path.sep}composer`).toLowerCase())
+    ? 'project'
+    : 'custom';
+}
+
+function findSkillInstallations(selectedRoot) {
+  const candidates = [];
+  let current = path.resolve(process.cwd());
+  while (true) {
+    candidates.push(path.join(current, '.agents', 'skills', 'composer'));
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  candidates.push(path.join(os.homedir(), '.agents', 'skills', 'composer'));
+  candidates.push(path.join(os.homedir(), '.codex', 'skills', 'composer'));
+
+  const seen = new Set();
+  return candidates.filter(function (candidate) {
+    const normalized = path.resolve(candidate).toLowerCase();
+    if (seen.has(normalized) || !fs.existsSync(path.join(candidate, 'SKILL.md'))) return false;
+    seen.add(normalized);
+    return true;
+  }).map(function (candidate) {
+    const root = path.resolve(candidate);
+    const packagePath = path.join(root, 'package.json');
+    let version = null;
+    try {
+      version = JSON.parse(fs.readFileSync(packagePath, 'utf8')).version || null;
+    } catch (error) {}
+    return {
+      path: root,
+      scope: getInstallationScope(root),
+      packageVersion: version,
+      selected: root.toLowerCase() === path.resolve(selectedRoot).toLowerCase()
+    };
+  });
+}
+
+function findSystemChrome() {
+  const candidates = process.platform === 'win32' ? [
+    process.env.PROGRAMFILES && path.join(process.env.PROGRAMFILES, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    process.env['PROGRAMFILES(X86)'] && path.join(process.env['PROGRAMFILES(X86)'], 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe')
+  ] : process.platform === 'darwin' ? [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+  ] : ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable'];
+  return candidates.filter(Boolean).some(function (candidate) { return fs.existsSync(candidate); });
+}
+
+function inspectOptionalCapture() {
+  const installedPackage = readInstalledPackage();
+  const expectedVersion = installedPackage && installedPackage.optionalDependencies &&
+    installedPackage.optionalDependencies['playwright-core'];
+  let actualVersion = null;
+  try {
+    const runtimeRequire = createRequire(path.join(__dirname, 'composer-agent.js'));
+    const metadataPath = runtimeRequire.resolve('playwright-core/package.json');
+    actualVersion = JSON.parse(fs.readFileSync(metadataPath, 'utf8')).version;
+  } catch (error) {}
+  const browserAvailable = findSystemChrome();
+  return {
+    status: expectedVersion && actualVersion === expectedVersion && browserAvailable ? 'ready' : 'unavailable',
+    playwright: {
+      expectedVersion: expectedVersion || null,
+      actualVersion: actualVersion,
+      status: expectedVersion && actualVersion === expectedVersion
+        ? 'ready'
+        : actualVersion ? 'version-mismatch' : 'missing'
+    },
+    chrome: browserAvailable ? 'available' : 'missing'
+  };
+}
+
+function inspectServerCompatibility(credentials) {
+  return new Promise(function (resolve) {
+    const socket = new WebSocket(createSocketUrl(credentials));
+    let settled = false;
+    const timeout = setTimeout(function () {
+      finish({ status: 'unavailable', reason: 'timeout' });
+    }, DEFAULT_TIMEOUT_MS);
+    function finish(result) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) socket.close(1000);
+      resolve(result);
+    }
+    socket.on('open', function () {
+      socket.send(JSON.stringify({
+        type: 'authenticate',
+        token: credentials.accessToken,
+        composerAgentVersion: SKILL_VERSION
+      }));
+    });
+    socket.on('message', function (rawMessage) {
+      let response;
+      try {
+        response = JSON.parse(rawMessage.toString());
+      } catch (error) {
+        finish({ status: 'unavailable', reason: 'invalid-response' });
+        return;
+      }
+      if (response.type === 'authenticated') {
+        finish({
+          status: response.composerAgentVersion === SKILL_VERSION ? 'compatible' : 'version-mismatch',
+          serverVersion: Number.isInteger(response.composerAgentVersion) ? response.composerAgentVersion : null
+        });
+      } else if (response.type === 'error') {
+        finish({
+          status: response.error && response.error.code === 'COMPOSER_AGENT_VERSION_MISMATCH'
+            ? 'version-mismatch'
+            : 'unavailable',
+          serverVersion: response.error && Number.isInteger(response.error.serverVersion)
+            ? response.error.serverVersion
+            : null,
+          reason: response.error && response.error.code || 'relay-error'
+        });
+      }
+    });
+    socket.on('error', function () { finish({ status: 'unavailable', reason: 'connection-failed' }); });
+    socket.on('close', function () { finish({ status: 'unavailable', reason: 'connection-closed' }); });
+  });
+}
+
+async function runDoctor(options) {
+  assertAllowedOptions(options, ['capture'], 'doctor');
+  const skillRoot = path.resolve(__dirname, '..');
+  const installedPackage = readInstalledPackage();
+  const installations = findSkillInstallations(skillRoot);
+  const selectedInstallation = {
+    path: skillRoot,
+    scope: getInstallationScope(skillRoot),
+    packageVersion: installedPackage && installedPackage.version || PACKAGE_VERSION
+  };
+  let server = { status: 'not-checked' };
+  if (options.connection !== undefined || ENV_CREDENTIALS_OVERRIDE_PATH) {
+    configureCredentialScope(options);
+    try {
+      const credentials = readCredentials();
+      if (options.server !== undefined) validatePairedServerOption(options);
+      server = await inspectServerCompatibility(credentials);
+      server.origin = new URL(credentials.server).origin;
+    } catch (error) {
+      server = { status: 'unavailable', reason: error.code || error.message };
+    }
+  }
+  const capture = options.capture ? inspectOptionalCapture() : { status: 'not-checked' };
+  const nodeCompatible = Number(process.versions.node.split('.')[0]) === 22;
+  const checksPassed = nodeCompatible &&
+    (!options.capture || capture.status === 'ready') &&
+    (!(options.connection !== undefined || ENV_CREDENTIALS_OVERRIDE_PATH) || server.status === 'compatible');
+  return {
+    status: checksPassed ? 'passed' : 'failed',
+    packageVersion: selectedInstallation.packageVersion,
+    protocolVersion: SKILL_VERSION,
+    selectedInstallation: selectedInstallation,
+    installations: installations,
+    duplicateInstallations: installations.filter(function (installation) { return !installation.selected; }),
+    effectiveRuntime: 'this command uses selectedInstallation; project skills override global skills when both are discovered',
+    node: {
+      status: nodeCompatible ? 'compatible' : 'version-mismatch',
+      expectedMajor: 22,
+      actualMajor: Number(process.versions.node.split('.')[0])
+    },
+    core: {
+      status: 'ready',
+      selfContained: true,
+      dependencies: ['tinycolor2', 'uuid', 'ws']
+    },
+    capture: capture,
+    server: server
+  };
+}
+
+function unknownCommandError(command) {
+  const suggestion = COMMAND_SUGGESTIONS[command];
+  return new Error(
+    `Unknown command "${command || ''}".` +
+    (suggestion ? ` Did you mean "${suggestion}"?` : ' See references/commands.md for the command index.')
+  );
+}
+
+function parseArguments(argv) {
+  const command = argv[0];
+  const options = {};
+  let firstOptionIndex = 1;
+  if (command === 'capture-worker' && argv[1] && !argv[1].startsWith('--')) {
+    options.action = argv[1];
+    firstOptionIndex = 2;
+  }
+  for (let index = firstOptionIndex; index < argv.length; index++) {
+    const argument = argv[index];
+    if (!argument.startsWith('--')) {
+      throw new Error(`Unexpected argument "${argument}"`);
+    }
+    const name = argument.slice(2);
+    if (BOOLEAN_OPTIONS.has(name)) {
+      const booleanValue = argv[index + 1];
+      if (booleanValue === 'true' || booleanValue === 'false') {
+        options[name] = booleanValue === 'true';
+        index++;
+      } else {
+        options[name] = true;
+      }
+      continue;
+    }
+    const value = argv[index + 1];
+    if (!value || value.startsWith('--')) {
+      throw new Error(`Missing value for --${name}`);
+    }
+
+    options[name] = value;
+    index++;
+  }
+  return { command, options };
+}
+
+function readJsonFile(filePath, description) {
+  const inputPath = path.resolve(filePath);
+  try {
+    return JSON.parse(fs.readFileSync(inputPath, 'utf8'));
+  } catch (err) {
+    throw new Error(`Unable to read ${description}: ${err.message}`);
+  }
+}
+
+function readJsonOptionFile(options, name, description, required) {
+  const filePath = required
+    ? requireOption(options, name)
+    : options[name];
+  if (filePath === undefined) return undefined;
+  return readJsonFile(filePath, description);
+}
+
+function decodeComposerReference(value, index) {
+  if (typeof value !== 'string') {
+    throw new Error(`references[${index}] must be a copied Composer reference string`);
+  }
+  const match = value.trim().match(/(?:^|\s)@composer\/(widget|composition|group)\s+(ref_[a-f0-9]{16})$/);
+  if (!match) {
+    throw new Error(`references[${index}] is not a valid copied Composer reference`);
+  }
+  return {
+    version: 1,
+    expectedType: match[1],
+    handle: match[2]
+  };
+}
+
+function parseIds(value) {
+  if (value.trim().startsWith('[')) {
+    throw new Error('--ids accepts comma-separated IDs only; JSON arrays are not supported');
+  }
+  const ids = value.split(',').map(function (id) {
+    return id.trim();
+  }).filter(Boolean);
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw new Error('--ids must be a comma-separated list');
+  }
+  return ids;
+}
+
+function compactResult(command, result) {
+  if (command === 'get' && result && result.widget) {
+    return {
+      elementType: result.elementType,
+      managed: result.managed,
+      element: {
+        id: result.element.id,
+        name: result.element.name,
+        type: result.element.type,
+        widget: result.element.widget,
+        version: result.element.version,
+        layout: result.element.layout,
+        effects: result.element.effects,
+        keyframes: result.element.keyframes
+      },
+      values: result.data,
+      fields: (result.widget.fields || []).map(function (field) {
+        // Dynamic effect choices/ranges cannot be recovered from primitives.
+        if (result.widget.id === 4706 || result.widget.id === 4758) return field;
+        return {
+          id: field.id,
+          title: field.title,
+          type: field.type,
+          runtime: field.runtime
+        };
+      }),
+      subCompositions: result.widget.subCompositions || []
+    };
+  }
+  return result;
+}
+
+function createWidgetTemplateIdentityScope(options) {
+  const scope = {
+    kind: 'widget-template-edit-session',
+    lifetime: 'current-open-template-only',
+    discardAfter: ['leave-template', 'reopen-template', 'later-task-or-turn'],
+    internalIds: [
+      'compositionId',
+      'descendantElementIds',
+      'controlNodeKeyIds',
+      'widgetNodeKeyIds',
+      'linkLocations'
+    ],
+    widgetNodeAddressing: 'declared-field-id'
+  };
+  if (options && options.compositionId) {
+    scope.sessionCompositionId = options.compositionId;
+  }
+  if (options && options.sessionToken) {
+    scope.sessionToken = options.sessionToken;
+    scope.requiredOption = '--template-session';
+    scope.enforcement = {
+      missing: 'WIDGET_TEMPLATE_SESSION_REQUIRED',
+      stale: 'WIDGET_TEMPLATE_SESSION_STALE'
+    };
+  }
+  if (options && options.widgetTileId && options.widgetFieldId) {
+    scope.durableLocator = {
+      widgetTileId: options.widgetTileId,
+      widgetFieldId: options.widgetFieldId
+    };
+  }
+  return scope;
+}
+
+function addWidgetTemplateIdentityScope(result, options) {
+  if (!result || typeof result !== 'object') return result;
+  result.identityScope = createWidgetTemplateIdentityScope(options || {});
+  return result;
+}
+
+function writeWorkLifecycleReminder(command, succeeded) {
+  if (!command || ['doctor', 'pair', 'pair-intent', 'check-connection', 'capture-worker'].includes(command)) return;
+
+  if (command === 'finish-work' && succeeded) {
+    console.error('COMPOSER_WORK_RELEASED: Composer input is unlocked.');
+    return;
+  }
+
+  if (command === 'complete' && succeeded) {
+    console.error('COMPOSER_AUTHORIZATION_REVOKED: Composer work is released and the saved authorization is revoked.');
+    return;
+  }
+
+  console.error(
+    'COMPOSER_FINALIZATION_REQUIRED: If start-work succeeded in this task, run finish-work before yielding.'
+  );
+}
+
+function requireOption(options, name) {
+  if (!options[name]) {
+    throw new Error(`--${name} is required`);
+  }
+  return options[name];
+}
+
+function assertAllowedOptions(options, allowed, command) {
+  Object.keys(options).forEach(function (name) {
+    if (!allowed.includes(name) && !GLOBAL_COMMAND_OPTIONS.includes(name)) {
+      throw new Error(`--${name} is not available for ${command}`);
+    }
+  });
+}
+
+function requireBooleanOption(options, name) {
+  const value = requireOption(options, name);
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw new Error(`--${name} must be "true" or "false"`);
+}
+
+// Directional effects take a named direction; dial effects take a numeric angle.
+function parseAnimationProperty(raw) {
+  const numeric = Number(raw);
+  return raw.trim() !== '' && Number.isFinite(numeric) ? numeric : raw;
+}
+
+function normalizeServerUrl(value) {
+  const parsed = new URL(value);
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new Error('--server must use http or https');
+  }
+  parsed.pathname = '/';
+  parsed.search = '';
+  parsed.hash = '';
+  return parsed.toString().replace(/\/$/, '');
+}
+
+function validatePairedServerOption(options) {
+  if (options.server === undefined) return;
+  const requestedServer = normalizeServerUrl(options.server);
+  const pairedServer = normalizeServerUrl(readCredentials().server);
+  if (requestedServer !== pairedServer) {
+    throw new Error('--server must match the paired Composer server. Pair with the requested server first.');
+  }
+}
+
+function configureCredentialScope(options) {
+  const connection = options.connection;
+  if (connection !== undefined && ENV_CREDENTIALS_OVERRIDE_PATH) {
+    throw new Error('--connection cannot be combined with COMPOSER_AGENT_CREDENTIALS');
+  }
+  if (connection !== undefined) {
+    const profile = credentialSelection.normalizeConnectionProfile(connection);
+    credentialsOverridePath = path.join(CONNECTION_CREDENTIALS_DIRECTORY, profile + '.json');
+    credentialStorageCategory = 'connection-profile';
+    activeCredentialsPath = credentialsOverridePath;
+    return;
+  }
+  if (!ENV_CREDENTIALS_OVERRIDE_PATH) {
+    throw new Error(
+      '--connection is required to isolate this AI agent from other Composer connections. ' +
+      'Use the same connection name for pair and every later command.'
+    );
+  }
+}
+
+function readCredentials() {
+  const candidates = credentialsOverridePath
+    ? [credentialsOverridePath]
+    : [DEFAULT_CREDENTIALS_PATH, TEMPORARY_CREDENTIALS_PATH];
+  const availableCredentials = [];
+  let expiredCredentialsFound = false;
+  let incompleteCredentialsFound = false;
+  for (const candidate of candidates) {
+    let candidateCredentials;
+    try {
+      candidateCredentials = JSON.parse(fs.readFileSync(candidate, 'utf8'));
+    } catch (err) {
+      if (err.code === 'ENOENT') continue;
+      if (!credentialsOverridePath && candidate === DEFAULT_CREDENTIALS_PATH &&
+          isCredentialPermissionError(err)) continue;
+      const credentialCategory = credentialsOverridePath
+        ? 'configured'
+        : candidate === TEMPORARY_CREDENTIALS_PATH ? 'temporary' : 'default';
+      const readError = new Error(
+        `Unable to read Composer credentials from the ${credentialCategory} credential location. ` +
+        'Pair again or select a valid writable COMPOSER_AGENT_CREDENTIALS file.'
+      );
+      readError.code = 'CREDENTIAL_READ_FAILED';
+      throw readError;
+    }
+
+    if (candidateCredentials.expiresAt &&
+        new Date(candidateCredentials.expiresAt).getTime() <= Date.now()) {
+      expiredCredentialsFound = true;
+      if (candidate === TEMPORARY_CREDENTIALS_PATH) {
+        activeCredentialsPath = candidate;
+        removeTemporaryCredentials();
+      }
+      continue;
+    }
+
+    if (!credentialSelection.isCompleteCredential(candidateCredentials)) {
+      incompleteCredentialsFound = true;
+      continue;
+    }
+    availableCredentials.push({ path: candidate, credentials: candidateCredentials });
+  }
+  const selected = credentialSelection.selectNewestCredentialCandidate(availableCredentials);
+  if (!selected) {
+    if (expiredCredentialsFound) {
+      throw new Error('Stored Composer credentials have expired. Pair again.');
+    }
+    if (incompleteCredentialsFound) {
+      throw new Error('Stored Composer credentials are incomplete. Pair again.');
+    }
+    throw new Error('Composer is not paired. Run the pair command first.');
+  }
+
+  activeCredentialsPath = selected.path;
+  return selected.credentials;
+}
+
+function isCredentialPermissionError(error) {
+  return error && ['EACCES', 'EPERM', 'EROFS'].includes(error.code);
+}
+
+function writeCredentials(filePath, credentials) {
+  const directory = path.dirname(filePath);
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const temporaryPath = path.join(
+    directory,
+    '.' + path.basename(filePath) + '.' + process.pid + '.' + crypto.randomBytes(6).toString('hex') + '.tmp'
+  );
+  try {
+    fs.writeFileSync(
+      temporaryPath,
+      JSON.stringify(credentials, null, 2),
+      { encoding: 'utf8', mode: 0o600, flag: 'wx' }
+    );
+    fs.renameSync(temporaryPath, filePath);
+  } finally {
+    try {
+      fs.unlinkSync(temporaryPath);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+}
+
+function preflightCredentialStorage() {
+  const requestedPath = credentialsOverridePath || DEFAULT_CREDENTIALS_PATH;
+  const directory = path.dirname(requestedPath);
+  const probePath = path.join(
+    directory,
+    '.composer-agent-write-probe.' + process.pid + '.' + crypto.randomBytes(6).toString('hex')
+  );
+  try {
+    fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+    if (fs.existsSync(requestedPath)) {
+      if (!fs.statSync(requestedPath).isFile()) {
+        const typeError = new Error('credential target is not a file');
+        typeError.code = 'EISDIR';
+        throw typeError;
+      }
+      fs.accessSync(requestedPath, fs.constants.W_OK);
+    }
+    fs.writeFileSync(probePath, '', { mode: 0o600, flag: 'wx' });
+    fs.unlinkSync(probePath);
+  } catch (error) {
+    try {
+      fs.unlinkSync(probePath);
+    } catch (cleanupError) {
+      if (cleanupError.code !== 'ENOENT') throw cleanupError;
+    }
+    const preflightError = new Error(
+      'Composer credential storage is not writable. Fix the selected connection profile or ' +
+      'COMPOSER_AGENT_CREDENTIALS location before requesting a new pairing code.'
+    );
+    preflightError.code = 'CREDENTIAL_WRITE_FAILED';
+    throw preflightError;
+  }
+}
+
+function saveCredentials(credentials) {
+  const requestedPath = credentialsOverridePath || DEFAULT_CREDENTIALS_PATH;
+  try {
+    writeCredentials(requestedPath, credentials);
+    activeCredentialsPath = requestedPath;
+    return credentialsOverridePath ? credentialStorageCategory : 'default';
+  } catch (error) {
+    if (credentialsOverridePath || !isCredentialPermissionError(error)) {
+      const writeError = new Error(
+        'Unable to write Composer credentials to the configured credential path. ' +
+        'Choose a writable COMPOSER_AGENT_CREDENTIALS location and pair again.'
+      );
+      writeError.code = 'CREDENTIAL_WRITE_FAILED';
+      throw writeError;
+    }
+  }
+
+  try {
+    writeCredentials(TEMPORARY_CREDENTIALS_PATH, credentials);
+    activeCredentialsPath = TEMPORARY_CREDENTIALS_PATH;
+    return 'temporary';
+  } catch (error) {
+    const writeError = new Error(
+      'Unable to write Composer credentials to the default or temporary credential location. ' +
+      'Set COMPOSER_AGENT_CREDENTIALS to a writable file and pair again.'
+    );
+    writeError.code = 'CREDENTIAL_WRITE_FAILED';
+    throw writeError;
+  }
+}
+
+function removeTemporaryCredentials() {
+  if (activeCredentialsPath !== TEMPORARY_CREDENTIALS_PATH) return;
+  try {
+    fs.unlinkSync(TEMPORARY_CREDENTIALS_PATH);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      const cleanupError = new Error('Unable to remove temporary Composer credentials after completion.');
+      cleanupError.code = 'CREDENTIAL_CLEANUP_FAILED';
+      throw cleanupError;
+    }
+  }
+}
+
+function removeRevokedCredentials() {
+  if (
+    activeCredentialsPath !== TEMPORARY_CREDENTIALS_PATH &&
+    credentialStorageCategory !== 'connection-profile'
+  ) return;
+  try {
+    fs.unlinkSync(activeCredentialsPath);
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      const cleanupError = new Error('Unable to remove revoked Composer credentials.');
+      cleanupError.code = 'CREDENTIAL_CLEANUP_FAILED';
+      throw cleanupError;
+    }
+  }
+}
+
+async function createHttpError(response) {
+  let body;
+  try {
+    body = await response.json();
+  } catch (err) {
+    return new Error(`Request failed with status ${response.status}`);
+  }
+  const error = new Error(body && body.error && body.error.message
+    ? body.error.message
+    : `Request failed with status ${response.status}`);
+  if (body && body.error && typeof body.error.composerAgentCode === 'string') {
+    error.code = body.error.composerAgentCode;
+  }
+  return error;
+}
+
+async function pair(options) {
+  preflightCredentialStorage();
+  const server = normalizeServerUrl(options.server || DEFAULT_SERVER_URL);
+  const code = requireOption(options, 'code').toUpperCase();
+  const response = await fetch(server + '/composer-agent/pairing/claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      code: code,
+      deviceName: options['device-name'] || DEFAULT_DEVICE_NAME,
+      composerAgentVersion: SKILL_VERSION
+    })
+  });
+
+  if (!response.ok) {
+    throw await createHttpError(response);
+  }
+
+  return finishPairing(server, await response.json());
+}
+
+async function pairIntent(options) {
+  preflightCredentialStorage();
+  const server = normalizeServerUrl(options.server || DEFAULT_SERVER_URL);
+  const intentId = requireOption(options, 'intent-id');
+  const intentSecret = readIntentSecret(options);
+  const deadline = Date.now() + PAIRING_INTENT_WAIT_MS;
+
+  while (true) {
+    const response = await fetch(server + '/composer-agent/pairing/claim-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        intentId: intentId,
+        intentSecret: intentSecret,
+        deviceName: options['device-name'] || DEFAULT_DEVICE_NAME,
+        composerAgentVersion: SKILL_VERSION
+      })
+    });
+
+    if (response.ok) {
+      return finishPairing(server, await response.json());
+    }
+    const responseError = await createHttpError(response);
+    if (responseError.code === 'COMPOSER_AGENT_VERSION_MISMATCH' ||
+        (response.status !== 409 && response.status !== 429)) {
+      throw responseError;
+    }
+    if (Date.now() + PAIRING_INTENT_RETRY_MS > deadline) {
+      throw new Error('Timed out waiting for Composer to bind the pairing intent');
+    }
+    await new Promise(function (resolve) {
+      setTimeout(resolve, PAIRING_INTENT_RETRY_MS);
+    });
+  }
+}
+
+// The intent secret is a credential. Only accept inputs that keep it out of
+// the process argument list and shell history: COMPOSER_AGENT_INTENT_SECRET or
+// `--intent-secret -` with the secret piped through stdin.
+function readIntentSecret(options) {
+  const flagValue = options['intent-secret'];
+  if (flagValue === '-') {
+    const stdinValue = fs.readFileSync(0, 'utf8').trim();
+    if (!stdinValue) {
+      throw new Error('--intent-secret - requires the intent secret on stdin');
+    }
+    return stdinValue;
+  }
+  if (flagValue !== undefined) {
+    throw new Error('--intent-secret only accepts "-"; use stdin or COMPOSER_AGENT_INTENT_SECRET');
+  }
+  const envValue = process.env.COMPOSER_AGENT_INTENT_SECRET;
+  if (envValue) return envValue;
+  throw new Error(
+    'intent secret is required: set COMPOSER_AGENT_INTENT_SECRET or pass --intent-secret - with the secret on stdin'
+  );
+}
+
+async function finishPairing(server, pairing) {
+  assertCompatibleComposerAgentVersion({ composerAgentVersion: pairing.composerAgentVersion }, false);
+  const credentials = {
+    server: server,
+    accessToken: pairing.accessToken,
+    socketPath: pairing.socketPath,
+    sceneId: pairing.sceneId,
+    sceneName: pairing.sceneName,
+    capabilities: pairing.capabilities,
+    pairedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + pairing.expiresIn * 1000).toISOString()
+  };
+  const credentialStorage = saveCredentials(credentials);
+
+  let acknowledged = false;
+  let acknowledgement = { status: 'failed', reason: 'acknowledgement-rejected' };
+  try {
+    await sendSessionMessage(null, 'pairing_acknowledged', credentials);
+    acknowledged = true;
+    acknowledgement = { status: 'acknowledged' };
+  } catch (err) {
+    if (err && err.code === 'COMPOSER_AGENT_VERSION_MISMATCH') {
+      acknowledgement.reason = 'version-mismatch';
+    } else if (err && err.code === 'SESSION_CANCELLED') {
+      acknowledgement.reason = 'authorization-rejected';
+    } else if (/Timed out waiting/.test(err && err.message || '')) {
+      acknowledgement.reason = 'timeout';
+    } else if (/Unable to connect|connection closed/i.test(err && err.message || '')) {
+      acknowledgement.reason = 'editor-unavailable';
+    }
+  }
+
+  console.log(JSON.stringify({
+    paired: true,
+    acknowledged: acknowledged,
+    acknowledgement: acknowledgement,
+    sceneName: pairing.sceneName,
+    capabilities: pairing.capabilities,
+    credentialStorage: credentialStorage,
+    expiresIn: pairing.expiresIn
+  }, null, 2));
+}
+
+function createSocketUrl(credentials) {
+  const socketUrl = new URL(credentials.socketPath, credentials.server);
+  socketUrl.protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+  return socketUrl.toString();
+}
+
+function assertCompatibleComposerAgentVersion(authentication, allowMismatch) {
+  const serverVersion = authentication && authentication.composerAgentVersion;
+  if (serverVersion === SKILL_VERSION || allowMismatch) return;
+  const error = new Error(
+    `Installed Composer skill version ${SKILL_VERSION} does not match Composer server version ${Number.isInteger(serverVersion) ? serverVersion : 'unknown'}. Update Composer and install the matching skill before starting work.`
+  );
+  error.code = 'COMPOSER_AGENT_VERSION_MISMATCH';
+  throw error;
+}
+
+function sendSessionMessage(message, acknowledgementType, pairedCredentials) {
+  const credentials = pairedCredentials || readCredentials();
+  const activityId = message && message.type === 'activity' ? uuid.v4() : null;
+  const outgoingMessage = activityId
+    ? Object.assign({}, message, { activityId: activityId })
+    : message;
+
+  return new Promise(function (resolve, reject) {
+    const socket = new WebSocket(createSocketUrl(credentials));
+    let settled = false;
+    const timeout = setTimeout(function () {
+      finish(new Error('Timed out waiting for the open Composer session'));
+    }, DEFAULT_TIMEOUT_MS);
+
+    function finish(err, result) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+        socket.close(1000);
+      }
+      if (err) reject(err);
+      else resolve(result);
+    }
+
+    socket.on('open', function () {
+      socket.send(JSON.stringify({
+        type: 'authenticate',
+        token: credentials.accessToken,
+        composerAgentVersion: SKILL_VERSION
+      }));
+    });
+
+    socket.on('message', function (rawMessage) {
+      let response;
+      try {
+        response = JSON.parse(rawMessage.toString());
+      } catch (err) {
+        finish(new Error('Composer relay returned invalid JSON'));
+        return;
+      }
+      if (response.type === 'authenticated') {
+        try {
+          assertCompatibleComposerAgentVersion(
+            response,
+            outgoingMessage && ['work_finish', 'session_complete'].includes(outgoingMessage.type)
+          );
+        } catch (error) {
+          finish(error);
+          return;
+        }
+        if (outgoingMessage) socket.send(JSON.stringify(outgoingMessage));
+      } else if (
+        response.type === acknowledgementType &&
+        (!activityId || response.activityId === activityId)
+      ) {
+        finish(null, { sent: true });
+      } else if (response.type === 'session_cancelled') {
+        const cancelledError = new Error('Composer operation was canceled by the user. Pair again.');
+        cancelledError.code = 'SESSION_CANCELLED';
+        finish(cancelledError);
+      } else if (response.type === 'operation_cancelled') {
+        const interruptedError = new Error('Composer operation was canceled by the user.');
+        interruptedError.code = 'OPERATION_CANCELLED';
+        finish(interruptedError);
+      } else if (response.type === 'error') {
+        finish(new Error(response.error && response.error.message
+          ? response.error.message
+          : 'Composer relay error'));
+      }
+    });
+
+    socket.on('error', function (err) {
+      finish(new Error(`Unable to connect to Composer: ${err.message}`));
+    });
+
+    socket.on('close', function (code, reason) {
+      if (!settled) {
+        const detail = reason ? `: ${reason.toString()}` : '';
+        finish(new Error('Composer connection closed' + detail + ` (code ${code})`));
+      }
+    });
+  });
+}
+
+function waitForComposerReady(options, requireWorkLease) {
+  const credentials = readCredentials();
+  const readinessId = uuid.v4();
+  const timeoutMs = options.timeout === undefined ? 30000 : Number(options.timeout);
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120000) {
+    throw new Error('--timeout must be an integer from 1 to 120000 milliseconds');
+  }
+
+  return new Promise(function (resolve, reject) {
+    const socket = new WebSocket(createSocketUrl(credentials));
+    const readiness = {
+      status: 'waiting',
+      authorization: 'pending',
+      editor: 'unknown',
+      commands: 'unknown',
+      workLease: 'unknown',
+      workExpiresAt: null
+    };
+    let settled = false;
+    let probeTimer = null;
+    const timeout = setTimeout(function () {
+      const result = Object.assign({}, readiness, { status: 'timeout' });
+      const error = new Error(
+        `Composer did not become ready within ${timeoutMs} ms ` +
+        `(editor=${result.editor}, commands=${result.commands}, workLease=${result.workLease})`
+      );
+      error.code = 'COMPOSER_NOT_READY';
+      error.result = result;
+      finish(error);
+    }, timeoutMs);
+
+    function finish(err, result) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (probeTimer) clearInterval(probeTimer);
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+        socket.close(1000);
+      }
+      if (err) reject(err);
+      else resolve(result);
+    }
+
+    function finishIfReady() {
+      if (
+        readiness.authorization === 'active' &&
+        readiness.editor === 'connected' &&
+        readiness.commands === 'ready' &&
+        (requireWorkLease === false || readiness.workLease === 'active')
+      ) {
+        finish(null, Object.assign({}, readiness, {
+          status: requireWorkLease === false ? 'connected' : 'ready'
+        }));
+      }
+    }
+
+    function sendProbe() {
+      if (socket.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({
+        type: 'readiness_request',
+        readinessId: readinessId
+      }));
+    }
+
+    socket.on('open', function () {
+      socket.send(JSON.stringify({
+        type: 'authenticate',
+        token: credentials.accessToken,
+        composerAgentVersion: SKILL_VERSION
+      }));
+    });
+
+    socket.on('message', function (rawMessage) {
+      let message;
+      try {
+        message = JSON.parse(rawMessage.toString());
+      } catch (err) {
+        finish(new Error('Composer relay returned invalid JSON'));
+        return;
+      }
+
+      if (message.type === 'authenticated') {
+        try {
+          assertCompatibleComposerAgentVersion(message, false);
+        } catch (error) {
+          finish(error);
+          return;
+        }
+        readiness.authorization = 'active';
+        sendProbe();
+        probeTimer = setInterval(sendProbe, 500);
+        finishIfReady();
+      } else if (message.type === 'readiness_status') {
+        readiness.authorization = message.authorization || readiness.authorization;
+        readiness.workLease = message.workLease || readiness.workLease;
+        readiness.workExpiresAt = message.workExpiresAt || null;
+        finishIfReady();
+      } else if (message.type === 'editor_status') {
+        readiness.editor = message.status === 'connected' ? 'connected' : 'disconnected';
+        if (message.status !== 'connected') readiness.commands = 'unavailable';
+        else if (readiness.commands !== 'ready') readiness.commands = 'initializing';
+        finishIfReady();
+      } else if (
+        message.type === 'readiness_acknowledged' &&
+        message.readinessId === readinessId
+      ) {
+        readiness.editor = 'connected';
+        readiness.commands = 'ready';
+        finishIfReady();
+      } else if (message.type === 'session_cancelled') {
+        const cancelledError = new Error('Composer operation was canceled by the user. Pair again.');
+        cancelledError.code = 'SESSION_CANCELLED';
+        finish(cancelledError);
+      } else if (message.type === 'operation_cancelled') {
+        const interruptedError = new Error('Composer operation was canceled by the user.');
+        interruptedError.code = 'OPERATION_CANCELLED';
+        finish(interruptedError);
+      } else if (message.type === 'error') {
+        finish(new Error(message.error && message.error.message
+          ? message.error.message
+          : 'Composer relay error'));
+      }
+    });
+
+    socket.on('error', function (err) {
+      finish(new Error(`Unable to connect to Composer: ${err.message}`));
+    });
+
+    socket.on('close', function (code, reason) {
+      if (!settled) {
+        const detail = reason ? `: ${reason.toString()}` : '';
+        finish(new Error('Composer connection closed' + detail + ` (code ${code})`));
+      }
+    });
+  });
+}
+
+function executeCommand(method, params, commandTimeoutMs) {
+  const credentials = readCredentials();
+  const request = {
+    id: uuid.v4(),
+    method: method,
+    params: params || {}
+  };
+  if (activeTemplateSessionToken) {
+    request.templateSessionToken = activeTemplateSessionToken;
+  }
+
+  return new Promise(function (resolve, reject) {
+    const socket = new WebSocket(createSocketUrl(credentials));
+    let authenticated = false;
+    let settled = false;
+    const timeout = setTimeout(function () {
+      finish(new Error('Timed out waiting for the open Composer session'));
+    }, commandTimeoutMs || DEFAULT_TIMEOUT_MS);
+
+    function finish(err, result) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+        socket.close(1000);
+      }
+      if (err) reject(err);
+      else resolve(result);
+    }
+
+    socket.on('open', function () {
+      socket.send(JSON.stringify({
+        type: 'authenticate',
+        token: credentials.accessToken,
+        composerAgentVersion: SKILL_VERSION
+      }));
+    });
+
+    socket.on('message', function (rawMessage) {
+      let message;
+      try {
+        message = JSON.parse(rawMessage.toString());
+      } catch (err) {
+        finish(new Error('Composer relay returned invalid JSON'));
+        return;
+      }
+
+      if (message.type === 'authenticated') {
+        authenticated = true;
+        try {
+          assertCompatibleComposerAgentVersion(message, false);
+        } catch (error) {
+          finish(error);
+          return;
+        }
+        socket.send(JSON.stringify({ type: 'command', request: request }));
+      } else if (
+        message.type === 'response' &&
+        message.response &&
+        message.response.id === request.id
+      ) {
+        if (message.response.error) {
+          const commandError = new Error(message.response.error.message || 'Composer command failed');
+          commandError.code = message.response.error.code;
+          finish(commandError);
+        } else {
+          finish(null, message.response.result);
+        }
+      } else if (
+        message.type === 'editor_status' &&
+        message.status === 'disconnected'
+      ) {
+        finish(new Error('The paired Composer session is not open'));
+      } else if (message.type === 'session_cancelled') {
+        const cancelledError = new Error('Composer operation was canceled by the user. Pair again.');
+        cancelledError.code = 'SESSION_CANCELLED';
+        finish(cancelledError);
+      } else if (message.type === 'operation_cancelled') {
+        const interruptedError = new Error('Composer operation was canceled by the user.');
+        interruptedError.code = 'OPERATION_CANCELLED';
+        finish(interruptedError);
+      } else if (message.type === 'error') {
+        finish(new Error(message.error && message.error.message
+          ? message.error.message
+          : 'Composer relay error'));
+      }
+    });
+
+    socket.on('error', function (err) {
+      finish(new Error(`Unable to connect to Composer: ${err.message}`));
+    });
+
+    socket.on('close', function (code, reason) {
+      if (!settled) {
+        const detail = reason ? `: ${reason.toString()}` : '';
+        const prefix = authenticated
+          ? 'Composer connection closed'
+          : 'Composer authentication failed';
+        finish(new Error(prefix + detail + ` (code ${code})`));
+      }
+    });
+  });
+}
+
+function getElementParams(options) {
+  const elementType = requireOption(options, 'type');
+  if (elementType !== 'tile' && elementType !== 'group') {
+    throw new Error('--type must be "tile" or "group"');
+  }
+  return {
+    elementType: elementType,
+    id: requireOption(options, 'id')
+  };
+}
+
+function requireWidgetTile(result, id) {
+  if (!result || result.elementType !== 'tile' || !result.element || result.element.type !== 'widget') {
+    throw new Error(`tile "${id}" is not a widget`);
+  }
+  return result;
+}
+
+function selectWidgetSubComposition(result, options, allowUnassigned) {
+  const subCompositions = result.widget && Array.isArray(result.widget.subCompositions)
+    ? result.widget.subCompositions
+    : [];
+  const fieldId = options.field;
+  const matches = fieldId
+    ? subCompositions.filter(function (item) { return item.fieldId === fieldId; })
+    : subCompositions;
+  if (matches.length === 0) {
+    throw new Error(fieldId
+      ? `widget tile "${result.element.id}" has no sub-composition field "${fieldId}"`
+      : `widget tile "${result.element.id}" has no sub-compositions`);
+  }
+  if (matches.length > 1) {
+    throw new Error(`widget tile "${result.element.id}" has multiple sub-compositions; pass --field`);
+  }
+  const selected = matches[0];
+  if (selected.compositionId && !selected.exists) {
+    throw new Error(
+      `widget sub-composition "${selected.fieldId}" on tile "${result.element.id}" references a missing composition`
+    );
+  }
+  if (!selected.compositionId && !allowUnassigned) {
+    throw new Error(
+      `widget sub-composition "${selected.fieldId}" on tile "${result.element.id}" is not assigned`
+    );
+  }
+  return selected;
+}
+
+async function inspectWidgetSubCompositions(options) {
+  const id = requireOption(options, 'id');
+  const result = requireWidgetTile(await executeCommand('element.get', {
+    elementType: 'tile',
+    id: id
+  }), id);
+  return {
+    tile: {
+      id: result.element.id,
+      name: result.element.name,
+      widget: result.widget && result.widget.id,
+      version: result.widget && result.widget.version
+    },
+    subCompositions: result.widget && result.widget.subCompositions || []
+  };
+}
+
+async function openWidgetSubComposition(options) {
+  const id = requireOption(options, 'id');
+  const result = requireWidgetTile(await executeCommand('element.get', {
+    elementType: 'tile',
+    id: id
+  }), id);
+  const subComposition = selectWidgetSubComposition(result, options, options.create === true);
+  const opened = await executeCommand('composition.open', {
+    widgetTileId: result.element.id,
+    fieldId: subComposition.fieldId,
+    createIfMissing: true
+  });
+  const relationship = opened && opened.widgetSubComposition;
+  const scoped = addWidgetTemplateIdentityScope(opened, {
+    compositionId: relationship && relationship.compositionId,
+    widgetTileId: result.element.id,
+    widgetFieldId: subComposition.fieldId,
+    sessionToken: relationship && relationship.sessionToken
+  });
+  if (relationship) delete relationship.sessionToken;
+  return scoped;
+}
+
+function isPlainObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function validateTableControlValue(control, value, pathLabel, widgetLabel = 'table') {
+  if (!['text', 'image', 'number', 'color'].includes(control.type)) {
+    throw new Error(`${widgetLabel} template control "${control.id}" has unsupported type "${control.type}"`);
+  }
+  if ((control.type === 'text' || control.type === 'image') && typeof value !== 'string') {
+    throw new Error(`${pathLabel} must be a string for ${control.type} control "${control.id}"`);
+  }
+  if (control.type === 'number' && (typeof value !== 'number' || !Number.isFinite(value))) {
+    throw new Error(`${pathLabel} must be a finite number for control "${control.id}"`);
+  }
+  if (
+    control.type === 'color' &&
+    !tinycolor(value).isValid()
+  ) {
+    throw new Error(`${pathLabel} must be a tinycolor2-compatible value for control "${control.id}"`);
+  }
+}
+
+function validateTableOption(name, value) {
+  if (name === 'layoutDirection' && !['horizontal', 'vertical'].includes(value)) {
+    throw new Error('options.layoutDirection must be "horizontal" or "vertical"');
+  }
+  if (name === 'updateStyle' && !['update', 'timeline'].includes(value)) {
+    throw new Error('options.updateStyle must be "update" or "timeline"');
+  }
+  if (
+    name === 'pageTransitionStyle' &&
+    !['topToBottom', 'bottomToTop', 'random'].includes(value)
+  ) {
+    throw new Error('options.pageTransitionStyle is invalid');
+  }
+  if (name === 'showLayout' && typeof value !== 'boolean') {
+    throw new Error('options.showLayout must be a boolean');
+  }
+  if (name === 'elementsPerPage') {
+    const numeric = Number(value);
+    if (!Number.isInteger(numeric) || numeric < 1 || numeric > 100) {
+      throw new Error('options.elementsPerPage must be an integer from 1 to 100');
+    }
+  }
+  if (name === 'lineSpacing' || name === 'pageTransitionOffset') {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      throw new Error(`options.${name} must be a non-negative number`);
+    }
+  }
+  if (name === 'currentPage') {
+    const numeric = Number(value);
+    if (!Number.isInteger(numeric) || numeric < 0) {
+      throw new Error('options.currentPage must be a non-negative integer');
+    }
+  }
+}
+
+function validateGridOption(name, value) {
+  if (name === 'showLayout' || name === 'updateStyle') {
+    return validateTableOption(name, value);
+  }
+  if (name === 'pageTransitionStyle') {
+    if (!['topToBottom', 'bottomToTop', 'leftToRight', 'rightToLeft', 'random'].includes(value)) {
+      throw new Error('options.pageTransitionStyle is invalid');
+    }
+    return;
+  }
+  if (typeof value === 'string' && Buffer.byteLength(JSON.stringify(value), 'utf8') > MAX_TABLE_CONTENT_BYTES) {
+    throw new Error(`options.${name} exceeds the 32 KB widget-data limit`);
+  }
+  const numeric = Number(value);
+  if (!['string', 'number'].includes(typeof value) ||
+      (typeof value === 'string' && !value.trim()) || !Number.isFinite(numeric)) {
+    throw new Error(`options.${name} must be a finite number or numeric string`);
+  }
+  const limits = {
+    cols: [1, 100], rows: [1, 100], colsSpacing: [-100, 100], rowsSpacing: [-100, 100],
+    pageTransitionOffset: [0, 30], currentPage: [0, 99]
+  };
+  const range = limits[name];
+  if (!range || numeric < range[0] || numeric > range[1] ||
+      (['cols', 'rows', 'currentPage'].includes(name) && !Number.isInteger(numeric))) {
+    throw new Error(`options.${name} is outside the supported Grid range`);
+  }
+}
+
+function normalizeTableOption(currentValue, value, name, isGrid) {
+  (isGrid ? validateGridOption : validateTableOption)(name, value);
+  if (typeof currentValue === 'string') return String(value);
+  if (typeof currentValue === 'boolean' && typeof value === 'boolean') return value;
+  if (typeof currentValue === 'number' && typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  throw new Error(`options.${name} must preserve the ${isGrid ? 'grid' : 'table'} widget's current runtime type`);
+}
+
+async function updateTable(options, isGrid = false) {
+  const widgetTitle = isGrid ? 'Grid' : 'Table';
+  const widgetLabel = widgetTitle.toLowerCase();
+  const id = requireOption(options, 'id');
+  const specification = readJsonFile(requireOption(options, 'file'), `${widgetLabel} specification`);
+  if (!isPlainObject(specification) || !Array.isArray(specification.rows)) {
+    throw new Error(`${widgetLabel} specification must contain a rows array`);
+  }
+  if (specification.rows.length > MAX_TABLE_ROWS) {
+    throw new Error(`${widgetLabel} specification supports at most ${MAX_TABLE_ROWS} rows`);
+  }
+  const table = requireWidgetTile(await executeCommand('element.get', {
+    elementType: 'tile',
+    id: id
+  }), id);
+  if (!table.widget || (isGrid ? table.widget.id !== GRID_WIDGET_ID :
+    (table.widget.id !== TABLE_WIDGET_ID && table.widget.name !== 'Table'))) {
+    throw new Error(`widget tile "${id}" is not a supported ${widgetTitle} widget`);
+  }
+  const subComposition = selectWidgetSubComposition(table, { field: 'composition' });
+  const controls = Array.isArray(subComposition.controls) ? subComposition.controls : [];
+  const controlsById = new Map();
+  controls.forEach(function (control) {
+    if (!control.id || controlsById.has(control.id)) {
+      throw new Error(`the ${widgetLabel} template exposes duplicate or unnamed control nodes`);
+    }
+    controlsById.set(control.id, control);
+  });
+  specification.rows.forEach(function (row, rowIndex) {
+    if (!isPlainObject(row)) {
+      throw new Error(`rows[${rowIndex}] must be an object`);
+    }
+    const keys = Object.keys(row);
+    keys.forEach(function (key) {
+      if (!controlsById.has(key)) {
+        throw new Error(`rows[${rowIndex}].${key} is not exposed by the ${widgetLabel} template`);
+      }
+      validateTableControlValue(controlsById.get(key), row[key], `rows[${rowIndex}].${key}`, widgetLabel);
+    });
+    controls.forEach(function (control) {
+      if (!Object.prototype.hasOwnProperty.call(row, control.id)) {
+        throw new Error(`rows[${rowIndex}] is missing template control "${control.id}"`);
+      }
+    });
+  });
+
+  const tableContent = JSON.stringify({ content: specification.rows }, null, 2);
+  if (Buffer.byteLength(tableContent, 'utf8') > MAX_TABLE_CONTENT_BYTES) {
+    throw new Error(`serialized ${widgetLabel} content exceeds the 32 KB widget-data limit`);
+  }
+  const requestedOptions = specification.options === undefined ? {} : specification.options;
+  if (!isPlainObject(requestedOptions)) {
+    throw new Error(`${widgetLabel} specification options must be an object`);
+  }
+  Object.keys(requestedOptions).forEach(function (name) {
+    if (!(isGrid ? GRID_OPTION_FIELDS : TABLE_OPTION_FIELDS).includes(name)) {
+      throw new Error(`unsupported ${widgetLabel} option "${name}"`);
+    }
+  });
+  const updates = Object.keys(requestedOptions).map(function (name) {
+    if (!Object.prototype.hasOwnProperty.call(table.data, name)) {
+      throw new Error(`${widgetLabel} widget has no data field "${name}"`);
+    }
+    return {
+      name: name,
+      previous: table.data[name],
+      value: normalizeTableOption(table.data[name], requestedOptions[name], name, isGrid)
+    };
+  });
+  if (isGrid) {
+    const cols = requestedOptions.cols === undefined ? table.data.cols : requestedOptions.cols;
+    const rows = requestedOptions.rows === undefined ? table.data.rows : requestedOptions.rows;
+    validateGridOption('cols', cols);
+    validateGridOption('rows', rows);
+    if (Number(cols) * Number(rows) > 1000) {
+      throw new Error('Grid supports at most 1,000 visible cells (options.cols * options.rows)');
+    }
+    // A dimension swap may otherwise briefly exceed the renderer's allocation
+    // cap. Apply shrinking dimensions before growing dimensions.
+    updates.sort((a, b) => {
+      const rank = update => ['cols', 'rows'].includes(update.name)
+        ? (Number(update.value) <= Number(update.previous) ? -1 : 1) : 0;
+      return rank(a) - rank(b);
+    });
+  }
+  updates.push({
+    name: 'tableContent',
+    previous: table.data.tableContent,
+    value: tableContent
+  });
+
+  const attempted = [];
+  let verified;
+  try {
+    for (const update of updates) {
+      attempted.push(update);
+      await executeCommand('element.update', {
+        elementType: 'tile',
+        id: id,
+        namespace: 'data',
+        path: update.name,
+        value: update.value
+      });
+    }
+    verified = requireWidgetTile(await executeCommand('element.get', { elementType: 'tile', id: id }), id);
+    if (!verified.widget || verified.widget.id !== table.widget.id ||
+        verified.data.composition !== table.data.composition ||
+        updates.some(update => verified.data[update.name] !== update.value)) {
+      throw new Error(`${widgetTitle} readback did not match the requested update`);
+    }
+  } catch (err) {
+    const isCancelled = error => error.code === 'OPERATION_CANCELLED' || error.code === 'SESSION_CANCELLED';
+    if (isCancelled(err)) throw err;
+    const restored = new Set();
+    async function readRecoveryState() {
+      const current = requireWidgetTile(await executeCommand('element.get', { elementType: 'tile', id: id }), id);
+      if (!current.widget || current.widget.id !== table.widget.id ||
+          current.widget.version !== table.widget.version ||
+          current.data.composition !== table.data.composition ||
+          JSON.stringify(current.widget.subCompositions) !== JSON.stringify(table.widget.subCompositions)) {
+        throw new Error('Recovery target changed');
+      }
+      for (const update of updates) {
+        const value = current.data[update.name];
+        if (value !== update.previous &&
+            (!attempted.includes(update) || restored.has(update.name) || value !== update.value)) {
+          throw new Error('Recovery values conflict');
+        }
+      }
+      return current;
+    }
+    try {
+      let current = await readRecoveryState();
+      for (const update of attempted.slice().reverse()) {
+        if (current.data[update.name] !== update.previous) {
+          await executeCommand('element.update', {
+            elementType: 'tile',
+            id: id,
+            namespace: 'data',
+            path: update.name,
+            value: update.previous
+          });
+          restored.add(update.name);
+          current = await readRecoveryState();
+        } else {
+          restored.add(update.name);
+        }
+      }
+    } catch (recoveryError) {
+      if (isCancelled(recoveryError)) throw recoveryError;
+      const uncertain = new Error(
+        `TABLE_UPDATE_RECOVERY_UNCERTAIN: ${widgetTitle} update failed and recovery is incomplete or unverified; inspect before retrying. Original failure: ${err.message}`
+      );
+      uncertain.code = 'TABLE_UPDATE_RECOVERY_UNCERTAIN';
+      uncertain.cause = err;
+      throw uncertain;
+    }
+    throw err;
+  }
+
+  return {
+    [isGrid ? 'grid' : 'table']: { id: id, name: verified.element.name, widget: verified.widget.id },
+    widgetSubComposition: subComposition,
+    rows: specification.rows.length,
+    options: Object.keys(requestedOptions).reduce(function (result, name) {
+      result[name] = verified.data[name];
+      return result;
+    }, {}),
+    tableContent: verified.data.tableContent
+  };
+}
+
+function parseCaptureSeconds(options, name, defaultValue, allowZero) {
+  if (options[name] === undefined) return defaultValue;
+  const value = Number(options[name]);
+  if (!Number.isFinite(value) || (allowZero ? value < 0 : value <= 0)) {
+    throw new Error(`--${name} must be ${allowZero ? 'a non-negative' : 'a positive'} number of seconds`);
+  }
+  return value;
+}
+
+function normalizeCaptureTarget(options) {
+  const target = options.target || 'root';
+  if (target !== 'root' && target !== 'active') {
+    throw createCaptureError('INVALID_CAPTURE_TARGET', '--target must be "root" or "active"');
+  }
+  return target;
+}
+
+function validateCaptureServer(serverValue) {
+  if (serverValue === undefined) return null;
+  const requestedServer = normalizeServerUrl(serverValue);
+  const pairedServer = normalizeServerUrl(readCredentials().server);
+  if (requestedServer !== pairedServer) {
+    throw createCaptureError(
+      'CAPTURE_SERVER_MISMATCH',
+      '--server must match the paired Composer server. Pair with the requested server before capturing.'
+    );
+  }
+  return requestedServer;
+}
+
+function normalizeCaptureOptions(options) {
+  assertAllowedOptions(
+    options,
+    ['target', 'output', 'measurements', 'timeout', 'settle', 'wait-mode', 'timeline', 'at', 'server', 'compact'],
+    'capture'
+  );
+  validateCaptureServer(options.server);
+  const target = normalizeCaptureTarget(options);
+  const waitMode = options['wait-mode'] || 'smart';
+  if (waitMode !== 'smart' && waitMode !== 'timed') {
+    throw createCaptureError(
+      'INVALID_CAPTURE_WAIT_MODE',
+      '--wait-mode must be "smart" or "timed"'
+    );
+  }
+  const hasTimeline = options.timeline !== undefined;
+  const hasAt = options.at !== undefined;
+  if (hasTimeline !== hasAt) {
+    throw createCaptureError(
+      'INVALID_CAPTURE_TIMELINE',
+      '--timeline and --at must be provided together'
+    );
+  }
+  let timeline = null;
+  let atSeconds = null;
+  if (hasTimeline) {
+    timeline = options.timeline;
+    if (timeline !== 'In' && timeline !== 'Out') {
+      throw createCaptureError('INVALID_CAPTURE_TIMELINE', '--timeline must be "In" or "Out"');
+    }
+    atSeconds = parseCaptureSeconds(options, 'at', null, true);
+    if (waitMode !== 'smart') {
+      throw createCaptureError(
+        'INVALID_CAPTURE_TIMELINE',
+        'Timeline-position capture requires --wait-mode smart'
+      );
+    }
+  }
+  return {
+    target: target,
+    outputPath: requireOption(options, 'output'),
+    measurementsPath: options.measurements || null,
+    waitMode: waitMode,
+    timeoutMs: parseCaptureSeconds(options, 'timeout', 30, false) * 1000,
+    settleMs: parseCaptureSeconds(
+      options,
+      'settle',
+      waitMode === 'timed' ? 2 : 0,
+      true
+    ) * 1000,
+    timeline: timeline,
+    atSeconds: atSeconds
+  };
+}
+
+function getActiveCaptureTarget(inspection) {
+  const activeComposition = inspection && inspection.activeComposition;
+  const stack = activeComposition && activeComposition.stack;
+  if (!Array.isArray(stack) || stack.length <= 1) {
+    return { compositionId: null, widgetTileId: null };
+  }
+  const activeEntry = stack[stack.length - 1];
+  return {
+    compositionId: activeComposition.id || (activeEntry && activeEntry.id) || null,
+    widgetTileId: activeComposition.widgetSubComposition &&
+      activeComposition.widgetSubComposition.widgetTileId || null
+  };
+}
+
+function validateCaptureFile(result) {
+  if (!result || !result.output || !fs.existsSync(result.output)) {
+    throw createCaptureError('CAPTURE_FAILED', 'Capture did not create the requested PNG');
+  }
+  const sizeBytes = fs.statSync(result.output).size;
+  if (sizeBytes <= 0) {
+    throw createCaptureError('CAPTURE_FAILED', 'Capture created an empty PNG');
+  }
+  if (sizeBytes > MAX_CAPTURE_BYTES) {
+    throw createCaptureError('CAPTURE_TOO_LARGE', 'Composer preview capture exceeds the 8 MB limit');
+  }
+  result.sizeBytes = sizeBytes;
+  return result;
+}
+
+async function captureStandalone(options) {
+  const inspection = await executeCommand('composition.inspect', { capture: true });
+  const preview = inspection && inspection.preview;
+  if (!preview || !preview.compositionToken) {
+    throw createCaptureError(
+      'COMPOSITION_TOKEN_REQUIRED',
+      'Standalone capture requires a Composition API token. Generate one in Composer and inspect again.'
+    );
+  }
+  const activeTarget = options.target === 'active'
+    ? getActiveCaptureTarget(inspection)
+    : { compositionId: null, widgetTileId: null };
+  if (activeTarget.widgetTileId) {
+    const widgetScope = inspection.activeComposition &&
+      inspection.activeComposition.widgetSubComposition;
+    const currentToken = widgetScope && widgetScope.sessionToken;
+    if (!activeTemplateSessionToken) {
+      const error = new Error(
+        'The active widget-owned template requires --template-session from its current inspect or open-widget-subcomposition result'
+      );
+      error.code = 'WIDGET_TEMPLATE_SESSION_REQUIRED';
+      throw error;
+    }
+    if (!currentToken || activeTemplateSessionToken !== currentToken) {
+      const error = new Error(
+        'The supplied widget-template session does not match the active edit session; inspect the template and use its current token'
+      );
+      error.code = 'WIDGET_TEMPLATE_SESSION_STALE';
+      throw error;
+    }
+  }
+  const result = await getCaptureModule().captureCompositionPreview({
+    endpoint: preview.endpoint,
+    width: preview.width,
+    height: preview.height,
+    compositionToken: preview.compositionToken,
+    outputPath: options.outputPath,
+    measurementsPath: options.measurementsPath,
+    target: options.target,
+    compositionId: activeTarget.compositionId,
+    widgetTileId: activeTarget.widgetTileId,
+    waitMode: options.waitMode,
+    timeoutMs: options.timeoutMs,
+    settleMs: options.settleMs,
+    timeline: options.timeline,
+    atSeconds: options.atSeconds
+  });
+  result.editorResolution = { width: preview.width, height: preview.height };
+  return validateCaptureFile(result);
+}
+
+function createActiveCompositionStructure(inspection) {
+  const tiles = Array.isArray(inspection.tiles) ? inspection.tiles : [];
+  const tileById = {};
+  tiles.forEach(function (tile) {
+    tileById[tile.id] = tile;
+  });
+
+  return {
+    compName: inspection.activeComposition.name,
+    compId: inspection.activeComposition.id,
+    children: [],
+    groups: (inspection.groups || []).map(function (group) {
+      return {
+        id: group.id,
+        name: group.name,
+        tiles: (group.itemIds || []).map(function (tileId) {
+          return tileById[tileId];
+        }).filter(Boolean)
+      };
+    }),
+    tiles: tiles
+  };
+}
+
+function createScriptControlContext(inspection, controlInspection) {
+  const controlNode = controlInspection && controlInspection.controlNode;
+  const fields = controlNode && Array.isArray(controlNode.fields)
+    ? controlNode.fields
+    : [];
+  const links = controlInspection && Array.isArray(controlInspection.links)
+    ? controlInspection.links
+    : [];
+
+  return {
+    compName: inspection.activeComposition.name,
+    compId: inspection.activeComposition.id,
+    models: fields.map(function (field) {
+      return {
+        keyId: field.keyId,
+        id: field.id,
+        title: field.title || field.id,
+        type: field.type,
+        index: field.index,
+        value: field.value
+      };
+    }),
+    datalinks: links.map(function (link) {
+      return {
+        tileId: link.tileId,
+        property: link.propertyId,
+        link: {
+          location: link.location,
+          locationId: link.locationId,
+          index: link.index,
+          key: link.key,
+          keyId: link.keyId,
+          type: link.type
+        }
+      };
+    }),
+    noderefs: controlInspection && Array.isArray(controlInspection.nodeRefs)
+      ? controlInspection.nodeRefs
+      : []
+  };
+}
+
+async function buildScriptHandoff(credentials, inspection) {
+  const preview = inspection && inspection.preview;
+  const inspectedActiveComposition = inspection && inspection.activeComposition;
+  const activeComposition = inspectedActiveComposition && {
+    ...inspectedActiveComposition,
+    widgetSubComposition: inspectedActiveComposition.widgetSubComposition && {
+      ...inspectedActiveComposition.widgetSubComposition
+    }
+  };
+  if (activeComposition && activeComposition.widgetSubComposition) {
+    delete activeComposition.widgetSubComposition.sessionToken;
+  }
+  if (!preview || !preview.endpoint || !preview.compositionToken) {
+    throw new Error('The open composition does not expose a Composition API token');
+  }
+  if (!activeComposition || !activeComposition.id) {
+    throw new Error('Composer did not report an active composition for script handoff');
+  }
+
+  const controlInspection = inspection.scriptControlContext ||
+    await executeCommand('controlNode.inspect', {});
+  const isRoot = Array.isArray(activeComposition.stack) &&
+    activeComposition.stack.length === 1;
+  const scriptNames = {
+    global: 'Global Script',
+    overlay: 'Overlay Script'
+  };
+  scriptNames[activeComposition.id] = activeComposition.name ||
+    (isRoot ? 'Root Composition' : activeComposition.id);
+
+  return {
+    version: 1,
+    kind: 'composer-agent-script-handoff',
+    composerAgentVersion: SKILL_VERSION,
+    host: preview.endpoint,
+    compositionToken: preview.compositionToken,
+    composerAgentAccessToken: credentials.accessToken,
+    scene: inspection.scene,
+    preview: {
+      width: preview.width,
+      height: preview.height
+    },
+    activeComposition: activeComposition,
+    mainComposition: isRoot ? activeComposition.id : null,
+    suggestedScript: {
+      id: activeComposition.id,
+      name: scriptNames[activeComposition.id],
+      type: isRoot ? 'root' : 'composition'
+    },
+    scriptIds: [activeComposition.id],
+    scriptNames: scriptNames,
+    compositionStructure: createActiveCompositionStructure(inspection),
+    widgetReferences: createWidgetReferences(inspection.tiles),
+    widgetNodes: inspection.scriptWidgetContext || null,
+    modelsDataLinksNodeRefs: [
+      createScriptControlContext(inspection, controlInspection)
+    ],
+    scope: 'active-composition'
+  };
+}
+
+async function createScriptHandoff(options) {
+  const credentials = readCredentials();
+  const requestedOption = options && options['composition-id'];
+  if (!requestedOption) {
+    return buildScriptHandoff(credentials, await executeCommand('composition.inspect', {
+      scriptHandoff: true
+    }));
+  }
+
+  const originalInspection = await executeCommand('composition.inspect', {});
+  const originalComposition = originalInspection && originalInspection.activeComposition;
+  if (!originalComposition || !originalComposition.id) {
+    throw new Error('Composer did not report an active composition before scoped script handoff');
+  }
+  if (originalComposition.widgetSubComposition) {
+    throw new Error(
+      '--composition-id cannot preserve a widget-owned editing scope because its composition ID ' +
+      'may change on exit; return to root or an ordinary sub-composition first'
+    );
+  }
+  const originalStack = Array.isArray(originalComposition.stack)
+    ? originalComposition.stack
+    : [];
+  const rootRequested = requestedOption === 'root';
+  let requestedCompositionId = rootRequested && originalStack.length === 1
+    ? originalComposition.id
+    : requestedOption;
+  const shouldRestore = rootRequested
+    ? originalStack.length !== 1
+    : requestedCompositionId !== originalComposition.id;
+  let handoff;
+  let handoffError = null;
+  let restoreError = null;
+
+  try {
+    if (shouldRestore) {
+      const navigation = await executeCommand('composition.open', {
+        id: rootRequested ? 'root' : requestedCompositionId,
+        ordinaryOnly: !rootRequested
+      });
+      const openedId = navigation && navigation.activeComposition && navigation.activeComposition.id;
+      if (rootRequested && openedId) {
+        requestedCompositionId = openedId;
+      } else if (openedId !== requestedCompositionId) {
+        throw new Error(`Composer did not open ordinary composition "${requestedCompositionId}"`);
+      }
+      if (!openedId) throw new Error('Composer did not report the opened composition');
+    }
+
+    const inspection = await executeCommand('composition.inspect', {
+      scriptHandoff: true
+    });
+    const activeComposition = inspection && inspection.activeComposition;
+    if (!activeComposition || activeComposition.id !== requestedCompositionId) {
+      throw new Error(`Composer did not inspect requested composition "${requestedCompositionId}"`);
+    }
+    if (activeComposition.widgetSubComposition) {
+      throw new Error(
+        '--composition-id supports root and ordinary sub-compositions only; ' +
+        'use open-widget-subcomposition for widget-owned templates'
+      );
+    }
+    handoff = await buildScriptHandoff(credentials, inspection);
+  } catch (error) {
+    handoffError = error;
+  }
+
+  if (shouldRestore) {
+    try {
+      const restoreTarget = originalStack.length === 1 ? 'root' : originalComposition.id;
+      const restoration = await executeCommand('composition.open', { id: restoreTarget });
+      const restoredId = restoration && restoration.activeComposition && restoration.activeComposition.id;
+      if (restoredId !== originalComposition.id) {
+        throw new Error(`Composer did not restore composition "${originalComposition.id}"`);
+      }
+    } catch (error) {
+      restoreError = error;
+    }
+  }
+
+  if (handoffError) {
+    if (restoreError) {
+      handoffError.message += `; navigation restoration also failed: ${restoreError.message}`;
+    }
+    throw handoffError;
+  }
+  if (restoreError) throw restoreError;
+  return handoff;
+}
+
+let invokedCommand;
+
+async function run() {
+  const parsed = parseArguments(process.argv.slice(2));
+  invokedCommand = parsed.command;
+  if (!KNOWN_COMMANDS.has(parsed.command)) throw unknownCommandError(parsed.command);
+  if (parsed.command === 'doctor') {
+    const report = await runDoctor(parsed.options);
+    console.log(JSON.stringify(report, null, parsed.options.compact ? 0 : 2));
+    if (report.status !== 'passed') process.exitCode = 1;
+    return;
+  }
+  if (parsed.command === 'find-elements') {
+    const widgetId = Number(requireOption(parsed.options, 'widget-id'));
+    if (!Number.isInteger(widgetId) || widgetId <= 0) {
+      throw new Error('widget-id must be a positive integer');
+    }
+    parsed.options['widget-id'] = widgetId;
+  }
+  if (parsed.command !== 'capture-worker') configureCredentialScope(parsed.options);
+  activeTemplateSessionToken = parsed.options['template-session'] || null;
+  let result;
+  if (!['pair', 'pair-intent', 'capture', 'capture-worker'].includes(parsed.command)) {
+    validatePairedServerOption(parsed.options);
+  }
+
+  switch (parsed.command) {
+    case 'pair':
+      await pair(parsed.options);
+      return;
+    case 'pair-intent':
+      await pairIntent(parsed.options);
+      return;
+    case 'status':
+      result = await sendSessionMessage({
+        type: 'activity',
+        message: requireOption(parsed.options, 'message')
+      }, 'activity_sent');
+      break;
+    case 'start-work':
+      result = await sendSessionMessage({ type: 'work_start' }, 'work_started');
+      break;
+    case 'wait-ready':
+      assertAllowedOptions(parsed.options, ['timeout', 'compact'], 'wait-ready');
+      result = await waitForComposerReady(parsed.options);
+      break;
+    case 'check-connection':
+      assertAllowedOptions(parsed.options, ['timeout', 'compact'], 'check-connection');
+      result = await waitForComposerReady(parsed.options, false);
+      break;
+    case 'finish-work':
+      result = await sendSessionMessage({ type: 'work_finish' }, 'work_finished');
+      break;
+    case 'complete':
+      result = await sendSessionMessage({ type: 'session_complete' }, 'session_completed');
+      removeRevokedCredentials();
+      break;
+    case 'inspect': {
+      const params = {};
+      if (parsed.options.selection) params.selection = true;
+      if (parsed.options.summary) params.summary = true;
+      result = await executeCommand('composition.inspect', params);
+      // Fallback filtering keeps the flags working against servers that return
+      // the full inspection payload instead of honoring the params.
+      if (parsed.options.selection && result && result.selection) {
+        result = { selection: result.selection };
+      } else if (parsed.options.summary && result && result.summary) {
+        result = { summary: result.summary };
+      } else if (
+        result && result.activeComposition &&
+        result.activeComposition.widgetSubComposition
+      ) {
+        const owner = result.activeComposition.widgetSubComposition;
+        const sessionToken = owner.sessionToken;
+        result.activeComposition.identityScope = createWidgetTemplateIdentityScope({
+          compositionId: result.activeComposition.id,
+          widgetTileId: owner.widgetTileId,
+          widgetFieldId: owner.widgetFieldId,
+          sessionToken: sessionToken
+        });
+        delete owner.sessionToken;
+      }
+      break;
+    }
+    case 'find-elements': {
+      result = await executeCommand('composition.elements.find', {
+        widgetId: parsed.options['widget-id']
+      });
+      break;
+    }
+    case 'composition-tree':
+      assertAllowedOptions(parsed.options, ['compact'], 'composition-tree');
+      result = await executeCommand('composition.tree.inspect', {});
+      break;
+    case 'resolve-references': {
+      assertAllowedOptions(parsed.options, ['file', 'compact'], 'resolve-references');
+      const specification = readJsonFile(
+        requireOption(parsed.options, 'file'),
+        'Composer references file'
+      );
+      const references = Array.isArray(specification)
+        ? specification
+        : specification.references;
+      if (!Array.isArray(references)) {
+        throw new Error('Composer references file must be an array or contain a references array');
+      }
+      result = await executeCommand('reference.resolveMany', {
+        references: references.map(decodeComposerReference)
+      });
+      break;
+    }
+    case 'script-handoff':
+      assertAllowedOptions(parsed.options, ['composition-id', 'compact'], 'script-handoff');
+      result = await createScriptHandoff(parsed.options);
+      break;
+    case 'control-composition': {
+      const state = requireOption(parsed.options, 'state').toLowerCase();
+      if (state !== 'in' && state !== 'out') {
+        throw new Error('--state must be "in" or "out"');
+      }
+      result = await executeCommand('composition.control', {
+        id: requireOption(parsed.options, 'id'),
+        state: state === 'in' ? 'In' : 'Out'
+      });
+      break;
+    }
+    case 'timeline-link':
+      assertAllowedOptions(parsed.options, ['id', 'compact'], 'timeline-link');
+      result = await executeCommand('composition.timelineLink.inspect', {
+        id: requireOption(parsed.options, 'id')
+      });
+      break;
+    case 'set-timeline-link':
+      assertAllowedOptions(parsed.options, ['id', 'linked', 'compact'], 'set-timeline-link');
+      result = await executeCommand('composition.timelineLink.set', {
+        id: requireOption(parsed.options, 'id'),
+        linked: requireBooleanOption(parsed.options, 'linked')
+      });
+      break;
+    case 'logic-layers': {
+      assertAllowedOptions(parsed.options, ['id', 'compact'], 'logic-layers');
+      const params = {};
+      if (parsed.options.id) params.id = parsed.options.id;
+      result = await executeCommand('composition.logicLayers.inspect', params);
+      break;
+    }
+    case 'set-logic-layer': {
+      assertAllowedOptions(parsed.options, ['id', 'name', 'delay', 'time', 'remove', 'compact'], 'set-logic-layer');
+      const params = { id: requireOption(parsed.options, 'id') };
+      if (parsed.options.remove) params.remove = true;
+      if (parsed.options.name !== undefined) params.name = parsed.options.name;
+      if (parsed.options.delay !== undefined) params.delay = parsed.options.delay.toLowerCase();
+      if (parsed.options.time !== undefined) params.time = Number(parsed.options.time);
+      result = await executeCommand('composition.logicLayer.set', params);
+      break;
+    }
+    case 'rename-logic-layer':
+      assertAllowedOptions(parsed.options, ['name', 'new-name', 'compact'], 'rename-logic-layer');
+      result = await executeCommand('composition.logicLayer.rename', {
+        name: requireOption(parsed.options, 'name'),
+        newName: requireOption(parsed.options, 'new-name')
+      });
+      break;
+    case 'create-composition': {
+      const params = { name: requireOption(parsed.options, 'name') };
+      if (parsed.options['group-id']) {
+        params.groupId = parsed.options['group-id'];
+      }
+      result = await executeCommand('composition.create', params);
+      break;
+    }
+    case 'orchestrate':
+      result = await executeCommand(
+        'composition.orchestrate',
+        readJsonFile(requireOption(parsed.options, 'file'), 'composition orchestration manifest')
+      );
+      break;
+    case 'create-revision':
+      result = await executeCommand('composition.revision.create', {
+        description: requireOption(parsed.options, 'description')
+      });
+      break;
+    case 'list-revisions':
+      result = await executeCommand('composition.revision.list', {});
+      break;
+    case 'read-revision':
+      result = await executeCommand('composition.revision.read', {
+        revisionId: requireOption(parsed.options, 'revision-id')
+      });
+      break;
+    case 'compare-revision':
+      result = await executeCommand('composition.revision.compare', {
+        revisionId: requireOption(parsed.options, 'revision-id')
+      });
+      break;
+    case 'restore-revision':
+      result = await executeCommand('composition.revision.restore', {
+        revisionId: requireOption(parsed.options, 'revision-id')
+      });
+      break;
+    case 'delete-revision':
+      result = await executeCommand('composition.revision.delete', {
+        revisionId: requireOption(parsed.options, 'revision-id')
+      });
+      break;
+    case 'delete-composition':
+      result = await executeCommand('composition.delete', {
+        id: requireOption(parsed.options, 'id')
+      });
+      break;
+    case 'open-composition':
+      result = await executeCommand('composition.open', {
+        id: requireOption(parsed.options, 'id')
+      });
+      break;
+    case 'widget-subcompositions':
+      result = await inspectWidgetSubCompositions(parsed.options);
+      break;
+    case 'open-widget-subcomposition':
+      result = await openWidgetSubComposition(parsed.options);
+      break;
+    case 'update-table':
+      result = await updateTable(parsed.options);
+      break;
+    case 'update-grid':
+      result = await updateTable(parsed.options, true);
+      break;
+    case 'timeline2':
+      result = await executeCommand('composition.timeline2.set', {
+        active: requireBooleanOption(parsed.options, 'active')
+      });
+      break;
+    case 'display-variants':
+      assertAllowedOptions(parsed.options, ['compact'], 'display-variants');
+      result = await executeCommand('displayVariants.inspect', {});
+      break;
+    case 'configure-display-variants':
+      assertAllowedOptions(parsed.options, ['file', 'compact'], 'configure-display-variants');
+      result = await executeCommand(
+        'displayVariants.configure',
+        readJsonFile(requireOption(parsed.options, 'file'), 'display variant configuration')
+      );
+      break;
+    case 'activate-display-variant':
+      assertAllowedOptions(parsed.options, ['name', 'compact'], 'activate-display-variant');
+      result = await executeCommand('displayVariants.activate', {
+        name: requireOption(parsed.options, 'name')
+      });
+      break;
+    case 'set-display-variant-relevance':
+      assertAllowedOptions(parsed.options, ['file', 'compact'], 'set-display-variant-relevance');
+      result = await executeCommand(
+        'displayVariants.relevance.setMany',
+        readJsonFile(requireOption(parsed.options, 'file'), 'display variant relevance manifest')
+      );
+      break;
+    case 'control-nodes':
+      result = await executeCommand('controlNode.inspect');
+      break;
+    case 'metric-fonts': {
+      assertAllowedOptions(parsed.options, ['source', 'family', 'compact'], 'metric-fonts');
+      result = await executeCommand('metricFonts.list', {
+        source: parsed.options.source,
+        family: parsed.options.family
+      });
+      break;
+    }
+    case 'set-metric-font': {
+      assertAllowedOptions(parsed.options, [
+        'id', 'property', 'family', 'weight', 'style', 'subset', 'font-source', 'compact'
+      ], 'set-metric-font');
+      result = await executeCommand('widget.metricFont.set', {
+        id: requireOption(parsed.options, 'id'),
+        property: parsed.options.property,
+        family: parsed.options.family,
+        weight: parsed.options.weight,
+        style: parsed.options.style,
+        subset: parsed.options.subset,
+        source: parsed.options['font-source']
+      });
+      break;
+    }
+    case 'upgrade-metric-widgets':
+      assertAllowedOptions(parsed.options, ['ids', 'compact'], 'upgrade-metric-widgets');
+      result = await executeCommand('widget.metric.upgradeMany', {
+        ids: parseIds(requireOption(parsed.options, 'ids'))
+      });
+      break;
+    case 'widget-nodes': {
+      assertAllowedOptions(parsed.options, ['source-composition', 'compact'], 'widget-nodes');
+      result = await executeCommand('widgetNode.inspect', {
+        sourceCompositionId: parsed.options['source-composition']
+      });
+      addWidgetTemplateIdentityScope(result, {
+        compositionId: result && result.compositionId,
+        sessionToken: activeTemplateSessionToken
+      });
+      break;
+    }
+    case 'link-widget-nodes':
+    case 'unlink-widget-nodes': {
+      assertAllowedOptions(parsed.options, ['file', 'compact'], parsed.command);
+      const manifest = readJsonFile(requireOption(parsed.options, 'file'), 'Widget Node link specification');
+      result = await executeCommand(parsed.command === 'link-widget-nodes' ? 'widgetNode.linkMany' : 'widgetNode.unlinkMany', {
+        links: Array.isArray(manifest) ? manifest : manifest && manifest.links
+      });
+      addWidgetTemplateIdentityScope(result, {
+        compositionId: result && result.compositionId,
+        sessionToken: activeTemplateSessionToken
+      });
+      break;
+    }
+    case 'set-control-value': {
+      assertAllowedOptions(parsed.options, ['id', 'value-file', 'compact'], 'set-control-value');
+      result = await executeCommand('controlNode.value.set', {
+        id: requireOption(parsed.options, 'id'),
+        value: readJsonOptionFile(
+          parsed.options,
+          'value-file',
+          'control-node value file',
+          true
+        )
+      });
+      break;
+    }
+    case 'press-control': {
+      assertAllowedOptions(parsed.options, ['id', 'compact'], 'press-control');
+      result = await executeCommand('controlNode.button.press', {
+        id: requireOption(parsed.options, 'id')
+      });
+      break;
+    }
+    case 'timer-action':
+    case 'control-time': {
+      assertAllowedOptions(parsed.options, ['id', 'action', 'compact'], parsed.command);
+      const action = requireOption(parsed.options, 'action');
+      if (!['start', 'play', 'pause', 'reset'].includes(action)) {
+        throw new Error('--action must be "start", "play", "pause", or "reset"');
+      }
+      result = await executeCommand('controlNode.timeControl.control', {
+        id: requireOption(parsed.options, 'id'),
+        action: action
+      });
+      break;
+    }
+    case 'set-control-font': {
+      assertAllowedOptions(parsed.options, [
+        'id', 'family', 'weight', 'style', 'subset', 'font-source', 'compact'
+      ], 'set-control-font');
+      result = await executeCommand('controlNode.metricFont.set', {
+        id: requireOption(parsed.options, 'id'),
+        family: parsed.options.family,
+        weight: parsed.options.weight,
+        style: parsed.options.style,
+        subset: parsed.options.subset,
+        source: parsed.options['font-source']
+      });
+      break;
+    }
+    case 'create-table-control': {
+      assertAllowedOptions(parsed.options, ['file', 'source-composition', 'compact'], 'create-table-control');
+      const tableSpecification = readJsonFile(
+        requireOption(parsed.options, 'file'),
+        'Table Control Node specification'
+      );
+      result = await executeCommand(
+        'controlNode.table.create',
+        {
+          ...tableSpecification,
+          sourceCompositionId: parsed.options['source-composition']
+        }
+      );
+      break;
+    }
+    case 'set-table-control': {
+      assertAllowedOptions(parsed.options, ['id', 'file', 'compact'], 'set-table-control');
+      const tableRows = readJsonFile(requireOption(parsed.options, 'file'), 'Table Control Node rows');
+      result = await executeCommand('controlNode.table.set', {
+        id: requireOption(parsed.options, 'id'),
+        rows: Array.isArray(tableRows) ? tableRows : tableRows && tableRows.rows
+      });
+      break;
+    }
+    case 'update-table-control': {
+      assertAllowedOptions(parsed.options, ['id', 'file', 'preview', 'compact'], 'update-table-control');
+      const tableUpdate = readJsonFile(
+        requireOption(parsed.options, 'file'),
+        'Table Control Node update specification'
+      );
+      if (!tableUpdate || Array.isArray(tableUpdate) || typeof tableUpdate !== 'object') {
+        throw new Error('Table Control Node update specification must be a JSON object');
+      }
+      result = await executeCommand('controlNode.table.update', {
+        ...tableUpdate,
+        id: requireOption(parsed.options, 'id'),
+        preview: parsed.options.preview === true
+      });
+      break;
+    }
+    case 'link-table-control': {
+      assertAllowedOptions(parsed.options, [
+        'id', 'tile-id', 'property', 'source-composition', 'replace', 'compact'
+      ], 'link-table-control');
+      result = await executeCommand('controlNode.table.link', {
+        id: requireOption(parsed.options, 'id'),
+        tileId: requireOption(parsed.options, 'tile-id'),
+        propertyId: requireOption(parsed.options, 'property'),
+        sourceCompositionId: parsed.options['source-composition'],
+        replace: parsed.options.replace === true
+      });
+      break;
+    }
+    case 'unlink-table-control': {
+      assertAllowedOptions(parsed.options, ['tile-id', 'property', 'compact'], 'unlink-table-control');
+      result = await executeCommand('controlNode.table.unlink', {
+        tileId: requireOption(parsed.options, 'tile-id'),
+        propertyId: requireOption(parsed.options, 'property')
+      });
+      break;
+    }
+    case 'update-control': {
+      const patch = readJsonFile(
+        requireOption(parsed.options, 'file'),
+        'control node metadata patch'
+      );
+      result = await executeCommand('controlNode.metadata.update', {
+        id: requireOption(parsed.options, 'id'),
+        patch: patch
+      });
+      break;
+    }
+    case 'create-control-container': {
+      assertAllowedOptions(parsed.options, ['file', 'compact'], 'create-control-container');
+      result = await executeCommand('controlNode.container.create', readJsonFile(
+        requireOption(parsed.options, 'file'), 'Control Node container specification'
+      ));
+      break;
+    }
+    case 'configure-control-container': {
+      assertAllowedOptions(parsed.options, ['id', 'file', 'compact'], 'configure-control-container');
+      result = await executeCommand('controlNode.container.configure', {
+        ...readJsonFile(requireOption(parsed.options, 'file'), 'Control Node container configuration'),
+        id: requireOption(parsed.options, 'id')
+      });
+      break;
+    }
+    case 'delete-control-container': {
+      assertAllowedOptions(parsed.options, ['id', 'compact'], 'delete-control-container');
+      result = await executeCommand('controlNode.container.delete', {
+        id: requireOption(parsed.options, 'id')
+      });
+      break;
+    }
+    case 'create-control': {
+      assertAllowedOptions(parsed.options, [
+        'name', 'node-type', 'target', 'tile-id', 'element-type',
+        'element-id', 'property', 'value-file', 'info-mode', 'replace',
+        'reuse-existing',
+        'source-composition', 'options-file', 'options-url', 'use-reload',
+        'family', 'weight', 'style', 'subset', 'font-source', 'compact'
+      ], 'create-control');
+      const type = requireOption(parsed.options, 'node-type');
+      if (![
+        'text', 'textarea', 'number', 'normalizednumber', 'counter', 'color',
+        'image', 'checkbox', 'audio', 'video', 'data', 'jsonfile', 'json', 'datetime', 'location', 'selection', 'button', 'timecontrol', 'infotext', 'metricfont'
+      ].includes(type)) {
+        throw new Error(
+          '--node-type must be "text", "textarea", "number", "normalizednumber", ' +
+          '"counter", "color", "image", "checkbox", "audio", "video", "data", ' +
+          '"jsonfile", "json", "datetime", "location", "selection", "button", "timecontrol", "infotext", or "metricfont"'
+        );
+      }
+      const target = parsed.options.target || (parsed.options['element-id'] ? 'layout' : 'data');
+      if (!['data', 'layout', 'standalone'].includes(target)) {
+        throw new Error('--target must be "data", "layout", or "standalone"');
+      }
+      if (target === 'standalone' && !['button', 'timecontrol', 'metricfont'].includes(type)) {
+        requireOption(parsed.options, 'value-file');
+      }
+      const metricFontOptions = ['family', 'weight', 'style', 'subset', 'font-source'];
+      const hasMetricFontOptions = metricFontOptions.some(function (option) {
+        return parsed.options[option] !== undefined;
+      });
+      if (type === 'metricfont') {
+        if (parsed.options['value-file'] !== undefined) {
+          throw new Error('Metric Font creation accepts font flags instead of --value-file');
+        }
+        if (target !== 'standalone' && hasMetricFontOptions) {
+          throw new Error('Linked Metric Font controls copy the target value and do not accept font flags');
+        }
+      } else if (hasMetricFontOptions) {
+        throw new Error('Metric Font flags require a Metric Font control');
+      }
+      if (type === 'button' && target !== 'standalone') {
+        throw new Error('Button requires --target standalone');
+      }
+      if (type === 'button' && parsed.options['value-file'] !== undefined) {
+        throw new Error('Button creation does not accept --value-file');
+      }
+      if (type === 'timecontrol' && target === 'standalone' && parsed.options['value-file'] !== undefined) {
+        throw new Error('Time Control creation does not accept --value-file');
+      }
+      if (type === 'infotext') {
+        if (target !== 'standalone') throw new Error('Info Text requires --target standalone');
+        requireOption(parsed.options, 'info-mode');
+      } else if (parsed.options['info-mode'] !== undefined) {
+        throw new Error('--info-mode is only supported for Info Text controls');
+      }
+      if (type === 'selection') {
+        const hasOptionsFile = parsed.options['options-file'] !== undefined;
+        const hasOptionsUrl = parsed.options['options-url'] !== undefined;
+        if (target === 'standalone' && hasOptionsFile === hasOptionsUrl) {
+          throw new Error('standalone Selection requires exactly one of --options-file or --options-url');
+        }
+        if (target !== 'standalone' && hasOptionsFile && hasOptionsUrl) {
+          throw new Error('linked Selection accepts at most one of --options-file or --options-url');
+        }
+        if (target === 'layout' && (hasOptionsFile || hasOptionsUrl)) {
+          throw new Error('Selection option-source flags are not supported for layout controls');
+        }
+        if (parsed.options['use-reload'] !== undefined && !hasOptionsUrl) {
+          throw new Error('--use-reload requires --options-url');
+        }
+      } else if (
+        parsed.options['options-file'] !== undefined ||
+        parsed.options['options-url'] !== undefined ||
+        parsed.options['use-reload'] !== undefined
+      ) {
+        throw new Error('Selection option-source flags require a Selection control');
+      }
+      result = await executeCommand('controlNode.createAndLink', {
+        name: requireOption(parsed.options, 'name'),
+        type: type,
+        target: target,
+        tileId: target === 'data' ? requireOption(parsed.options, 'tile-id') : undefined,
+        elementType: target === 'layout' ? requireOption(parsed.options, 'element-type') : undefined,
+        elementId: target === 'layout' ? requireOption(parsed.options, 'element-id') : undefined,
+        propertyId: target === 'standalone' ? undefined : requireOption(parsed.options, 'property'),
+        value: target === 'standalone'
+          ? type === 'button'
+            ? { __singularButton: true, ts: 0 }
+            : type === 'timecontrol'
+            ? undefined
+            : type === 'metricfont'
+            ? undefined
+            : readJsonOptionFile(
+              parsed.options,
+              'value-file',
+              'standalone control value file',
+              true
+            )
+          : undefined,
+        font: type === 'metricfont' && target === 'standalone'
+          ? {
+            family: parsed.options.family,
+            weight: parsed.options.weight,
+            style: parsed.options.style,
+            subset: parsed.options.subset,
+            source: parsed.options['font-source']
+          }
+          : undefined,
+        mode: type === 'infotext' ? parsed.options['info-mode'] : undefined,
+        selections: type === 'selection' && parsed.options['options-file'] !== undefined
+          ? readJsonOptionFile(
+            parsed.options,
+            'options-file',
+            'selection options file',
+            true
+          )
+          : undefined,
+        sourceUrl: type === 'selection'
+          ? parsed.options['options-url']
+          : undefined,
+        useReload: parsed.options['use-reload'] === undefined
+          ? undefined
+          : requireBooleanOption(parsed.options, 'use-reload'),
+        replace: parsed.options.replace === true,
+        reuseExisting: parsed.options['reuse-existing'] === true,
+        sourceCompositionId: parsed.options['source-composition']
+      });
+      break;
+    }
+    case 'create-controls': {
+      const controlsFile = readJsonFile(
+        requireOption(parsed.options, 'file'),
+        'control-node specification'
+      );
+      const controls = Array.isArray(controlsFile)
+        ? controlsFile
+        : controlsFile.controls;
+      result = await executeCommand('controlNode.createMany', {
+        controls: Array.isArray(controls)
+          ? controls.map(function (control) {
+            return {
+              name: control.name,
+              type: control.type,
+              target: control.target || (control.elementId ? 'layout' : 'data'),
+              tileId: control.tileId,
+              elementType: control.elementType,
+              elementId: control.elementId,
+              propertyId: control.propertyId || control.property,
+              value: control.value,
+              mode: control.mode,
+              selections: control.selections,
+              sourceUrl: control.sourceUrl,
+              useReload: control.useReload,
+              replace: control.replace === true,
+              reuseExisting: control.reuseExisting === true,
+              sourceCompositionId: control.sourceCompositionId || control.sourceComposition
+            };
+          })
+          : controls
+      });
+      break;
+    }
+    case 'delete-control':
+      result = await executeCommand('controlNode.delete', {
+        id: requireOption(parsed.options, 'id')
+      });
+      break;
+    case 'get':
+      if (parsed.options.selected) {
+        const inspected = await executeCommand('composition.inspect', { selection: true });
+        const selection = inspected && inspected.selection;
+        if (!selection || !selection.id) {
+          throw new Error('Nothing is selected in Composer; select a tile or group first');
+        }
+        result = await executeCommand('element.get', {
+          elementType: selection.type === 'group' ? 'group' : 'tile',
+          id: selection.id
+        });
+      } else {
+        result = await executeCommand('element.get', getElementParams(parsed.options));
+      }
+      break;
+    case 'get-many':
+      assertAllowedOptions(parsed.options, ['type', 'ids', 'compact'], 'get-many');
+      result = await executeCommand('element.getMany', {
+        elementType: parsed.options.type || 'tile',
+        ids: parseIds(requireOption(parsed.options, 'ids'))
+      });
+      break;
+    case 'get-layouts': {
+      assertAllowedOptions(parsed.options, ['type', 'ids', 'file', 'compact'], 'get-layouts');
+      let elements;
+      if (parsed.options.file !== undefined) {
+        if (parsed.options.type !== undefined || parsed.options.ids !== undefined) {
+          throw new Error('get-layouts accepts either --file or --type/--ids, not both');
+        }
+        const specification = readJsonFile(parsed.options.file, 'layout target specification');
+        elements = Array.isArray(specification) ? specification : specification.elements;
+      } else {
+        const elementType = parsed.options.type || 'tile';
+        elements = parseIds(requireOption(parsed.options, 'ids')).map(function (id) {
+          return { type: elementType, id: id };
+        });
+      }
+      result = await executeCommand('element.layouts.getMany', { elements: elements });
+      break;
+    }
+    case 'set-layouts': {
+      assertAllowedOptions(parsed.options, ['file', 'compact'], 'set-layouts');
+      const specification = readJsonFile(
+        requireOption(parsed.options, 'file'),
+        'layout assignment specification'
+      );
+      result = await executeCommand('element.layouts.setMany', {
+        elements: Array.isArray(specification) ? specification : specification.elements
+      });
+      break;
+    }
+    case 'get-properties':
+    case 'set-properties': {
+      assertAllowedOptions(parsed.options, ['file', 'compact'], parsed.command);
+      const specification = readJsonFile(
+        requireOption(parsed.options, 'file'),
+        'property specification'
+      );
+      result = await executeCommand(
+        parsed.command === 'get-properties'
+          ? 'element.properties.getMany'
+          : 'element.properties.setMany',
+        { elements: Array.isArray(specification) ? specification : specification.elements }
+      );
+      break;
+    }
+    case 'select':
+      result = await executeCommand('element.select', getElementParams(parsed.options));
+      break;
+    case 'move': {
+      const params = {
+        id: requireOption(parsed.options, 'id'),
+        groupId: requireOption(parsed.options, 'group-id')
+      };
+      if (parsed.options.index !== undefined) {
+        const index = Number(parsed.options.index);
+        if (!Number.isInteger(index)) {
+          throw new Error('--index must be an integer');
+        }
+        params.index = index;
+      }
+      result = await executeCommand('element.move', params);
+      break;
+    }
+    case 'update': {
+      assertAllowedOptions(parsed.options, [
+        'type', 'id', 'namespace', 'path', 'value-file', 'compact'
+      ], 'update');
+      const params = getElementParams(parsed.options);
+      params.path = requireOption(parsed.options, 'path');
+      if (parsed.options.namespace) {
+        params.namespace = parsed.options.namespace;
+      }
+      params.value = readJsonOptionFile(
+        parsed.options,
+        'value-file',
+        'element update value file',
+        true
+      );
+      result = await executeCommand('element.update', params);
+      break;
+    }
+    case 'fonts': {
+      const params = {};
+      if (parsed.options.source) params.source = parsed.options.source;
+      if (parsed.options.family) params.family = parsed.options.family;
+      result = await executeCommand('fonts.list', params);
+      break;
+    }
+    case 'set-font': {
+      const params = { id: requireOption(parsed.options, 'id') };
+      ['family', 'source', 'weight', 'alignment'].forEach(function (option) {
+        if (parsed.options[option] !== undefined) params[option] = parsed.options[option];
+      });
+      ['italic', 'underline'].forEach(function (option) {
+        if (parsed.options[option] !== undefined) params[option] = parsed.options[option];
+      });
+      result = await executeCommand('text.font.set', params);
+      break;
+    }
+    case 'timeline-animations':
+      result = await executeCommand('timelineAnimations.list', {});
+      break;
+    case 'set-timeline-animation': {
+      assertAllowedOptions(parsed.options, [
+        'type', 'id', 'timeline', 'effect', 'property', 'params-file',
+        'easing-file', 'start', 'duration', 'compact'
+      ], 'set-timeline-animation');
+      const params = {
+        elementType: parsed.options.type || 'tile',
+        id: requireOption(parsed.options, 'id'),
+        timeline: requireOption(parsed.options, 'timeline'),
+        effect: requireOption(parsed.options, 'effect')
+      };
+      if (parsed.options.property !== undefined) {
+        params.property = parseAnimationProperty(parsed.options.property);
+      }
+      if (parsed.options['params-file'] !== undefined) {
+        params.params = readJsonOptionFile(
+          parsed.options,
+          'params-file',
+          'Timeline-animation parameters file'
+        );
+      }
+      if (parsed.options['easing-file'] !== undefined) {
+        params.easing = readJsonOptionFile(
+          parsed.options,
+          'easing-file',
+          'Timeline-animation easing file'
+        );
+      }
+      ['start', 'duration'].forEach(function (option) {
+        if (parsed.options[option] === undefined) return;
+        const value = Number(parsed.options[option]);
+        if (!Number.isFinite(value)) {
+          throw new Error(`--${option} must be a number of seconds`);
+        }
+        params[option] = value;
+      });
+      result = await executeCommand('timelineAnimation.set', params);
+      break;
+    }
+    case 'set-timeline-animations':
+      assertAllowedOptions(parsed.options, ['file', 'compact'], 'set-timeline-animations');
+      result = await executeCommand(
+        'timelineAnimation.setMany',
+        readJsonFile(requireOption(parsed.options, 'file'), 'Timeline-animation choreography')
+      );
+      break;
+    case 'update-animations':
+      result = await executeCommand('updateAnimations.list', {});
+      break;
+    case 'set-update-animation': {
+      assertAllowedOptions(parsed.options, [
+        'id', 'phase', 'effect', 'property', 'params-file', 'easing-file',
+        'duration', 'active', 'always-execute', 'offset', 'compact'
+      ], 'set-update-animation');
+      const params = {
+        id: requireOption(parsed.options, 'id'),
+        phase: requireOption(parsed.options, 'phase'),
+        effect: requireOption(parsed.options, 'effect')
+      };
+      if (parsed.options.property !== undefined) {
+        params.property = parseAnimationProperty(parsed.options.property);
+      }
+      if (parsed.options['params-file'] !== undefined) {
+        params.params = readJsonOptionFile(
+          parsed.options,
+          'params-file',
+          'Update-animation parameters file'
+        );
+      }
+      if (parsed.options['easing-file'] !== undefined) {
+        params.easing = readJsonOptionFile(
+          parsed.options,
+          'easing-file',
+          'Update-animation easing file'
+        );
+      }
+      if (parsed.options.active !== undefined) {
+        params.active = requireBooleanOption(parsed.options, 'active');
+      }
+      if (parsed.options['always-execute'] !== undefined) {
+        params.alwaysExecute = parsed.options['always-execute'];
+      }
+      ['duration', 'offset'].forEach(function (option) {
+        if (parsed.options[option] === undefined) return;
+        const value = Number(parsed.options[option]);
+        if (!Number.isFinite(value)) throw new Error(`--${option} must be a number of seconds`);
+        params[option] = value;
+      });
+      result = await executeCommand('updateAnimation.set', params);
+      break;
+    }
+    case 'set-update-animations':
+      assertAllowedOptions(parsed.options, ['file', 'compact'], 'set-update-animations');
+      result = await executeCommand(
+        'updateAnimation.setMany',
+        readJsonFile(requireOption(parsed.options, 'file'), 'Update-animation assignments')
+      );
+      break;
+    case 'behaviors':
+      result = parsed.options.id
+        ? await executeCommand('behavior.inspect', { id: parsed.options.id })
+        : await executeCommand('behaviors.list', {});
+      break;
+    case 'set-behavior': {
+      assertAllowedOptions(parsed.options, [
+        'id', 'property', 'effect', 'active', 'remove', 'easing-file',
+        'value-min', 'value-max', 'duration', 'duration-range', 'delay',
+        'delay-range', 'compact'
+      ], 'set-behavior');
+      const params = {
+        id: requireOption(parsed.options, 'id'),
+        property: requireOption(parsed.options, 'property')
+      };
+      if (parsed.options.effect !== undefined) params.effect = parsed.options.effect;
+      if (parsed.options.active !== undefined) params.active = requireBooleanOption(parsed.options, 'active');
+      if (parsed.options.remove !== undefined) params.remove = parsed.options.remove;
+      if (parsed.options['easing-file'] !== undefined) {
+        params.easing = readJsonOptionFile(
+          parsed.options,
+          'easing-file',
+          'continuous-behavior easing file'
+        );
+      }
+      [
+        ['value-min', 'valueMin'],
+        ['value-max', 'valueMax'],
+        ['duration', 'duration'],
+        ['duration-range', 'durationRange'],
+        ['delay', 'delay'],
+        ['delay-range', 'delayRange']
+      ].forEach(function (entry) {
+        if (parsed.options[entry[0]] === undefined) return;
+        const value = Number(parsed.options[entry[0]]);
+        if (!Number.isFinite(value)) throw new Error(`--${entry[0]} must be a finite number`);
+        params[entry[1]] = value;
+      });
+      result = await executeCommand('behavior.set', params);
+      break;
+    }
+    case 'set-behaviors':
+      assertAllowedOptions(parsed.options, ['file', 'compact'], 'set-behaviors');
+      result = await executeCommand(
+        'behavior.setMany',
+        readJsonFile(requireOption(parsed.options, 'file'), 'continuous-behavior assignments')
+      );
+      break;
+    case 'create-group': {
+      assertAllowedOptions(parsed.options, ['name', 'layout-file', 'compact'], 'create-group');
+      const params = { name: requireOption(parsed.options, 'name') };
+      if (parsed.options['layout-file'] !== undefined) {
+        params.layout = readJsonOptionFile(
+          parsed.options,
+          'layout-file',
+          'group layout file'
+        );
+      }
+      result = await executeCommand('group.create', params);
+      break;
+    }
+    case 'configure-group':
+      assertAllowedOptions(parsed.options, ['id', 'layout-file', 'compact'], 'configure-group');
+      result = await executeCommand('group.configure', {
+        id: requireOption(parsed.options, 'id'),
+        layout: readJsonOptionFile(
+          parsed.options,
+          'layout-file',
+          'group layout file',
+          true
+        )
+      });
+      break;
+    case 'move-group': {
+      const index = Number(requireOption(parsed.options, 'index'));
+      if (!Number.isInteger(index)) {
+        throw new Error('--index must be an integer');
+      }
+      result = await executeCommand('group.move', {
+        id: requireOption(parsed.options, 'id'),
+        index: index
+      });
+      break;
+    }
+    case 'delete-group':
+      result = await executeCommand('group.delete', {
+        id: requireOption(parsed.options, 'id')
+      });
+      break;
+    case 'capture':
+      result = await captureStandalone(normalizeCaptureOptions(parsed.options));
+      break;
+    case 'capture-worker': {
+      assertAllowedOptions(parsed.options, ['action', 'compact'], 'capture-worker');
+      const action = parsed.options.action;
+      if (action === 'status') result = await getCaptureModule().getCaptureWorkerStatus();
+      else if (action === 'stop') result = await getCaptureModule().stopCaptureWorker();
+      else if (action === 'reset') result = await getCaptureModule().resetCaptureWorker();
+      else throw new Error('capture-worker action must be status, stop, or reset');
+      break;
+    }
+    case 'primitives':
+      result = await executeCommand('primitives.list');
+      if (parsed.options.primitive) {
+        const match = (result.primitives || []).find(function (entry) {
+          return entry.primitive === parsed.options.primitive;
+        });
+        if (!match) {
+          throw new Error(`primitive "${parsed.options.primitive}" is not available`);
+        }
+        result = { primitives: [match] };
+      }
+      break;
+    case 'ensure-group':
+      result = await executeCommand('managedGroup.ensure');
+      break;
+    case 'create': {
+      const params = {
+        primitive: requireOption(parsed.options, 'primitive')
+      };
+      if (parsed.options.name) {
+        params.name = parsed.options.name;
+      }
+      result = await executeCommand('primitive.create', params);
+      break;
+    }
+    case 'delete':
+      result = await executeCommand('primitive.delete', {
+        id: requireOption(parsed.options, 'id')
+      });
+      break;
+    case 'apply': {
+      const specification = readJsonFile(
+        requireOption(parsed.options, 'file'),
+        'graphics specification'
+      );
+      result = await executeCommand('graphics.apply', specification);
+      break;
+    }
+    case 'validate': {
+      const specification = readJsonFile(
+        requireOption(parsed.options, 'file'),
+        'graphics specification'
+      );
+      result = await executeCommand('graphics.validate', specification);
+      break;
+    }
+    default:
+      throw unknownCommandError(parsed.command);
+  }
+
+  const output = parsed.options.compact
+    ? compactResult(parsed.command, result)
+    : result;
+  console.log(JSON.stringify(output, null, parsed.options.compact ? 0 : 2));
+}
+
+run().then(function () {
+  writeWorkLifecycleReminder(invokedCommand, true);
+}).catch(function (err) {
+  if (err.result) console.log(JSON.stringify(err.result, null, 2));
+  const prefix = err.code ? `${err.code}: ` : '';
+  console.error(prefix + err.message);
+  writeWorkLifecycleReminder(invokedCommand, false);
+  process.exitCode = 1;
+});
