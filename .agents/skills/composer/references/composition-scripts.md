@@ -85,6 +85,7 @@ Follow the construction, public-control, lifecycle, and completion requirements 
 
 - Control Nodes are the externally settable contract.
 - Direct links are appropriate when an input maps directly to one widget property.
+- Never have a composition script call `widget.setPayload()` for a property that is also directly linked to a Control Node. A destination has one authority: either the direct link or the script, never both. If a linked update appears ineffective, verify the defining control, persisted link, app extract, loaded widget definition, and Player behavior before changing ownership.
 - When a script interprets or combines inputs, create those inputs as standalone controls, leave the derived widget property unlinked, and have the script read `comp.getPayload2()`, find the named widget, and update it with the exact widget API in the bundled scripting references. A hidden backing widget is unnecessary.
 - Keep input fields and the widgets they drive in the same sub-composition unless cross-composition behavior is intentional.
 - Treat widget and composition names as runtime lookup contracts once a script uses `findWidget()` or `find()`; rename them only together with the script.

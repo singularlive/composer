@@ -166,6 +166,8 @@ These are diagnostic additions to report version 1: they do not change pass/fail
 
 Use a scenario when runtime proof requires public Player inputs or specific checkpoints. The verifier validates the complete file before opening Player. A scenario is limited to version 1, 50 steps, 64 KiB total, 32 KiB for each payload/message/expected-state value, ten minutes of aggregate wait budget, and 60 seconds for one lifecycle, probe, or state wait.
 
+Before diagnosing an incremental Control App update after changing an AI Graphics definition, establish each boundary separately: the new definition exists in Composer model readback; the managed app has updated to a new composition extract; the tested app/output has reloaded that extract; and only then a later Control Node payload change alters the running pixels without another reload. A page still executing the previous definition cannot test the new widget code. Do not add composition-script forwarding or enable `immediateUpdate` to compensate for a stale loaded extract.
+
 ```json
 {
   "version": 1,

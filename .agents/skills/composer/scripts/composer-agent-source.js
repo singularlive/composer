@@ -8,12 +8,13 @@ const tinycolor = require('tinycolor2');
 const uuid = require('uuid');
 const WebSocket = require('ws');
 const credentialSelection = require('./credential-selection');
+const { parseImageSelectionCsv } = require('./selection-image-csv');
 const { createWidgetReferences } = require('./widget-script-references');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 122;
-const PACKAGE_VERSION = '1.4.0';
+const SKILL_VERSION = 127;
+const PACKAGE_VERSION = '1.7.0';
 const DEFAULT_TIMEOUT_MS = 15000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
@@ -366,6 +367,14 @@ function readJsonOptionFile(options, name, description, required) {
     : options[name];
   if (filePath === undefined) return undefined;
   return readJsonFile(filePath, description);
+}
+
+function readTextFile(filePath, description) {
+  try {
+    return fs.readFileSync(path.resolve(filePath), 'utf8');
+  } catch (err) {
+    throw new Error(`Unable to read ${description}: ${err.message}`);
+  }
 }
 
 function decodeComposerReference(value, index) {
@@ -2461,6 +2470,7 @@ async function run() {
         'element-id', 'property', 'value-file', 'info-mode', 'replace',
         'reuse-existing',
         'source-composition', 'options-file', 'options-url', 'use-reload',
+        'image-options-csv-file', 'image-options-csv', 'format',
         'family', 'weight', 'style', 'subset', 'font-source', 'compact'
       ], 'create-control');
       const type = requireOption(parsed.options, 'node-type');
@@ -2513,24 +2523,40 @@ async function run() {
       if (type === 'selection') {
         const hasOptionsFile = parsed.options['options-file'] !== undefined;
         const hasOptionsUrl = parsed.options['options-url'] !== undefined;
-        if (target === 'standalone' && hasOptionsFile === hasOptionsUrl) {
-          throw new Error('standalone Selection requires exactly one of --options-file or --options-url');
+        const hasImageCsvFile = parsed.options['image-options-csv-file'] !== undefined;
+        const hasImageCsv = parsed.options['image-options-csv'] !== undefined;
+        const optionSourceCount = [hasOptionsFile, hasOptionsUrl, hasImageCsvFile, hasImageCsv]
+          .filter(Boolean).length;
+        if (target === 'standalone' && optionSourceCount !== 1) {
+          throw new Error(
+            'standalone Selection requires exactly one option source: --options-file, --options-url, ' +
+            '--image-options-csv-file, or --image-options-csv'
+          );
         }
-        if (target !== 'standalone' && hasOptionsFile && hasOptionsUrl) {
-          throw new Error('linked Selection accepts at most one of --options-file or --options-url');
+        if (target !== 'standalone' && optionSourceCount > 1) {
+          throw new Error('linked Selection accepts at most one option source');
         }
-        if (target === 'layout' && (hasOptionsFile || hasOptionsUrl)) {
+        if (target === 'layout' && optionSourceCount) {
           throw new Error('Selection option-source flags are not supported for layout controls');
         }
         if (parsed.options['use-reload'] !== undefined && !hasOptionsUrl) {
           throw new Error('--use-reload requires --options-url');
         }
+        if (parsed.options.format !== undefined && !['text', 'color', 'image'].includes(parsed.options.format)) {
+          throw new Error('--format must be "text", "color", or "image"');
+        }
+        if ((hasImageCsvFile || hasImageCsv) && parsed.options.format !== undefined && parsed.options.format !== 'image') {
+          throw new Error('image CSV option sources require --format image when --format is specified');
+        }
       } else if (
         parsed.options['options-file'] !== undefined ||
         parsed.options['options-url'] !== undefined ||
-        parsed.options['use-reload'] !== undefined
+        parsed.options['image-options-csv-file'] !== undefined ||
+        parsed.options['image-options-csv'] !== undefined ||
+        parsed.options['use-reload'] !== undefined ||
+        parsed.options.format !== undefined
       ) {
-        throw new Error('Selection option-source flags require a Selection control');
+        throw new Error('Selection option-source and format flags require a Selection control');
       }
       result = await executeCommand('controlNode.createAndLink', {
         name: requireOption(parsed.options, 'name'),
@@ -2564,13 +2590,23 @@ async function run() {
           }
           : undefined,
         mode: type === 'infotext' ? parsed.options['info-mode'] : undefined,
-        selections: type === 'selection' && parsed.options['options-file'] !== undefined
-          ? readJsonOptionFile(
-            parsed.options,
-            'options-file',
-            'selection options file',
-            true
-          )
+        selections: type === 'selection'
+          ? parsed.options['options-file'] !== undefined
+            ? readJsonOptionFile(parsed.options, 'options-file', 'selection options file', true)
+            : parsed.options['image-options-csv-file'] !== undefined
+            ? parseImageSelectionCsv(readTextFile(
+              parsed.options['image-options-csv-file'],
+              'Selection image CSV file'
+            ))
+            : parsed.options['image-options-csv'] !== undefined
+            ? parseImageSelectionCsv(parsed.options['image-options-csv'])
+            : undefined
+          : undefined,
+        format: type === 'selection'
+          ? (parsed.options['image-options-csv-file'] !== undefined ||
+            parsed.options['image-options-csv'] !== undefined
+            ? 'image'
+            : parsed.options.format)
           : undefined,
         sourceUrl: type === 'selection'
           ? parsed.options['options-url']
@@ -2606,6 +2642,7 @@ async function run() {
               value: control.value,
               mode: control.mode,
               selections: control.selections,
+              format: control.format,
               sourceUrl: control.sourceUrl,
               useReload: control.useReload,
               replace: control.replace === true,

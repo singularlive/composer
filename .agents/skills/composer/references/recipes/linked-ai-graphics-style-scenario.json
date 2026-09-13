@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "steps": [
+    { "action": "jumpTo", "state": "In" },
+    { "action": "setPayload", "payload": { "Card Color": { "r": 210, "g": 35, "b": 45, "a": 1 } } },
+    { "action": "wait", "milliseconds": 500 },
+    { "action": "capture", "name": "linked-color-before" },
+    { "action": "setPayload", "payload": { "Card Color": { "r": 20, "g": 155, "b": 90, "a": 1 } } },
+    { "action": "waitForLifecycle", "event": "payload_changed", "minimum": 2, "timeoutMs": 3000 },
+    { "action": "wait", "milliseconds": 250 },
+    { "action": "capture", "name": "linked-color-after" },
+    {
+      "action": "assertPixelsChanged",
+      "from": "linked-color-before",
+      "to": "linked-color-after",
+      "region": { "unit": "percent", "x": 0, "y": 0, "width": 100, "height": 100 },
+      "tolerance": 8,
+      "minimumChangedPixels": 100
+    },
+    { "action": "assertLifecycle", "event": "error", "equals": 0 }
+  ]
+}

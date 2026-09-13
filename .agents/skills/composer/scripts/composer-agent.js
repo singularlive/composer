@@ -5225,6 +5225,120 @@ module.exports = {
 /* 45 */
 /***/ ((module) => {
 
+"use strict";
+
+
+const MAX_CSV_BYTES = 1024 * 1024;
+
+function csvError(message) {
+  const error = new Error(message);
+  error.code = 'INVALID_SELECTION_IMAGE_CSV';
+  return error;
+}
+
+function parseRows(source) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let quoted = false;
+
+  for (let index = 0; index < source.length; index++) {
+    const character = source[index];
+    if (quoted) {
+      if (character === '"') {
+        if (source[index + 1] === '"') {
+          field += '"';
+          index++;
+        } else {
+          quoted = false;
+        }
+      } else {
+        field += character;
+      }
+    } else if (character === '"' && field === '') {
+      quoted = true;
+    } else if (character === ',') {
+      row.push(field);
+      field = '';
+    } else if (character === '\n' || character === '\r') {
+      if (character === '\r' && source[index + 1] === '\n') index++;
+      row.push(field);
+      if (row.some(function (value) { return value !== ''; })) rows.push(row);
+      row = [];
+      field = '';
+    } else {
+      field += character;
+    }
+  }
+  if (quoted) throw csvError('Image CSV contains an unterminated quoted field');
+  row.push(field);
+  if (row.some(function (value) { return value !== ''; })) rows.push(row);
+  return rows;
+}
+
+function validateImageUrl(value, rowNumber) {
+  if (!value || value.length > 2048 || !/^(?:https?:)?\/\//i.test(value)) {
+    throw csvError('Image CSV row ' + rowNumber + ' url must be an HTTP(S) or protocol-relative URL');
+  }
+  let parsed;
+  try {
+    parsed = new URL(value, 'https://localhost');
+  } catch (error) {
+    throw csvError('Image CSV row ' + rowNumber + ' url is invalid');
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) {
+    throw csvError('Image CSV row ' + rowNumber + ' url must not contain credentials');
+  }
+}
+
+function parseImageSelectionCsv(source) {
+  if (typeof source !== 'string') throw csvError('Image CSV must be text');
+  if (Buffer.byteLength(source, 'utf8') > MAX_CSV_BYTES) {
+    throw csvError('Image CSV exceeds the 1 MB input limit');
+  }
+  const rows = parseRows(source.replace(/^\uFEFF/, ''));
+  if (!rows.length) throw csvError('Image CSV is empty');
+  const headers = rows[0].map(function (value) { return value.trim().toLowerCase(); });
+  const typeIndex = headers.indexOf('type');
+  const nameIndex = headers.indexOf('name');
+  const urlIndex = headers.indexOf('url');
+  const hasDashboardHeaders = typeIndex !== -1 && nameIndex !== -1 && urlIndex !== -1;
+  const hasSimpleHeaders = typeIndex === -1 && nameIndex !== -1 && urlIndex !== -1;
+  const dataRows = hasDashboardHeaders || hasSimpleHeaders ? rows.slice(1) : rows;
+  const dataNameIndex = nameIndex === -1 ? 0 : nameIndex;
+  const dataUrlIndex = urlIndex === -1 ? 1 : urlIndex;
+  if (!hasDashboardHeaders && !hasSimpleHeaders && rows[0].length !== 2) {
+    throw csvError('Image list requires Dashboard type,name,url headers or name,url pairs');
+  }
+
+  const seen = new Set();
+  const selections = dataRows.map(function (row, index) {
+    return { row: row, rowNumber: index + (dataRows === rows ? 1 : 2) };
+  }).filter(function (entry) {
+    return !hasDashboardHeaders ||
+      (entry.row[typeIndex] || '').trim().toLowerCase() === 'image';
+  }).map(function (entry) {
+    const row = entry.row;
+    const rowNumber = entry.rowNumber;
+    const title = (row[dataNameIndex] || '').trim();
+    const url = (row[dataUrlIndex] || '').trim();
+    if (!title) throw csvError('Image CSV row ' + rowNumber + ' name must not be empty');
+    validateImageUrl(url, rowNumber);
+    if (seen.has(url)) throw csvError('Image CSV row ' + rowNumber + ' duplicates url "' + url + '"');
+    seen.add(url);
+    return { id: url, title: title };
+  });
+  if (!selections.length) throw csvError('Image CSV must contain at least one image row');
+  if (selections.length > 100) throw csvError('Image CSV must contain at most 100 image rows');
+  return selections;
+}
+
+module.exports = { parseImageSelectionCsv: parseImageSelectionCsv };
+
+/***/ }),
+/* 46 */
+/***/ ((module) => {
+
 const WIDGET_SCRIPT_REFERENCES = Object.freeze({
   12: 'references/composition-scripting/widget-gradient.md',
   642: 'references/composition-scripting/widget-image.md',
@@ -5322,14 +5436,14 @@ module.exports = {
 
 
 /***/ }),
-/* 46 */
+/* 47 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("./capture-composition-preview");
 
 /***/ }),
-/* 47 */
+/* 48 */
 /***/ ((module) => {
 
 "use strict";
@@ -5416,12 +5530,13 @@ const tinycolor = __webpack_require__(5);
 const uuid = __webpack_require__(6);
 const WebSocket = __webpack_require__(21);
 const credentialSelection = __webpack_require__(44);
-const { createWidgetReferences } = __webpack_require__(45);
+const { parseImageSelectionCsv } = __webpack_require__(45);
+const { createWidgetReferences } = __webpack_require__(46);
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 122;
-const PACKAGE_VERSION = '1.4.0';
+const SKILL_VERSION = 127;
+const PACKAGE_VERSION = '1.7.0';
 const DEFAULT_TIMEOUT_MS = 15000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
@@ -5508,12 +5623,12 @@ let captureModule = null;
 let aiGraphicsModule = null;
 
 function getCaptureModule() {
-  if (!captureModule) captureModule = __webpack_require__(46);
+  if (!captureModule) captureModule = __webpack_require__(47);
   return captureModule;
 }
 
 function getAIGraphicsModule() {
-  if (!aiGraphicsModule) aiGraphicsModule = __webpack_require__(47);
+  if (!aiGraphicsModule) aiGraphicsModule = __webpack_require__(48);
   return aiGraphicsModule;
 }
 
@@ -5774,6 +5889,14 @@ function readJsonOptionFile(options, name, description, required) {
     : options[name];
   if (filePath === undefined) return undefined;
   return readJsonFile(filePath, description);
+}
+
+function readTextFile(filePath, description) {
+  try {
+    return fs.readFileSync(path.resolve(filePath), 'utf8');
+  } catch (err) {
+    throw new Error(`Unable to read ${description}: ${err.message}`);
+  }
 }
 
 function decodeComposerReference(value, index) {
@@ -7869,6 +7992,7 @@ async function run() {
         'element-id', 'property', 'value-file', 'info-mode', 'replace',
         'reuse-existing',
         'source-composition', 'options-file', 'options-url', 'use-reload',
+        'image-options-csv-file', 'image-options-csv', 'format',
         'family', 'weight', 'style', 'subset', 'font-source', 'compact'
       ], 'create-control');
       const type = requireOption(parsed.options, 'node-type');
@@ -7921,24 +8045,40 @@ async function run() {
       if (type === 'selection') {
         const hasOptionsFile = parsed.options['options-file'] !== undefined;
         const hasOptionsUrl = parsed.options['options-url'] !== undefined;
-        if (target === 'standalone' && hasOptionsFile === hasOptionsUrl) {
-          throw new Error('standalone Selection requires exactly one of --options-file or --options-url');
+        const hasImageCsvFile = parsed.options['image-options-csv-file'] !== undefined;
+        const hasImageCsv = parsed.options['image-options-csv'] !== undefined;
+        const optionSourceCount = [hasOptionsFile, hasOptionsUrl, hasImageCsvFile, hasImageCsv]
+          .filter(Boolean).length;
+        if (target === 'standalone' && optionSourceCount !== 1) {
+          throw new Error(
+            'standalone Selection requires exactly one option source: --options-file, --options-url, ' +
+            '--image-options-csv-file, or --image-options-csv'
+          );
         }
-        if (target !== 'standalone' && hasOptionsFile && hasOptionsUrl) {
-          throw new Error('linked Selection accepts at most one of --options-file or --options-url');
+        if (target !== 'standalone' && optionSourceCount > 1) {
+          throw new Error('linked Selection accepts at most one option source');
         }
-        if (target === 'layout' && (hasOptionsFile || hasOptionsUrl)) {
+        if (target === 'layout' && optionSourceCount) {
           throw new Error('Selection option-source flags are not supported for layout controls');
         }
         if (parsed.options['use-reload'] !== undefined && !hasOptionsUrl) {
           throw new Error('--use-reload requires --options-url');
         }
+        if (parsed.options.format !== undefined && !['text', 'color', 'image'].includes(parsed.options.format)) {
+          throw new Error('--format must be "text", "color", or "image"');
+        }
+        if ((hasImageCsvFile || hasImageCsv) && parsed.options.format !== undefined && parsed.options.format !== 'image') {
+          throw new Error('image CSV option sources require --format image when --format is specified');
+        }
       } else if (
         parsed.options['options-file'] !== undefined ||
         parsed.options['options-url'] !== undefined ||
-        parsed.options['use-reload'] !== undefined
+        parsed.options['image-options-csv-file'] !== undefined ||
+        parsed.options['image-options-csv'] !== undefined ||
+        parsed.options['use-reload'] !== undefined ||
+        parsed.options.format !== undefined
       ) {
-        throw new Error('Selection option-source flags require a Selection control');
+        throw new Error('Selection option-source and format flags require a Selection control');
       }
       result = await executeCommand('controlNode.createAndLink', {
         name: requireOption(parsed.options, 'name'),
@@ -7972,13 +8112,23 @@ async function run() {
           }
           : undefined,
         mode: type === 'infotext' ? parsed.options['info-mode'] : undefined,
-        selections: type === 'selection' && parsed.options['options-file'] !== undefined
-          ? readJsonOptionFile(
-            parsed.options,
-            'options-file',
-            'selection options file',
-            true
-          )
+        selections: type === 'selection'
+          ? parsed.options['options-file'] !== undefined
+            ? readJsonOptionFile(parsed.options, 'options-file', 'selection options file', true)
+            : parsed.options['image-options-csv-file'] !== undefined
+            ? parseImageSelectionCsv(readTextFile(
+              parsed.options['image-options-csv-file'],
+              'Selection image CSV file'
+            ))
+            : parsed.options['image-options-csv'] !== undefined
+            ? parseImageSelectionCsv(parsed.options['image-options-csv'])
+            : undefined
+          : undefined,
+        format: type === 'selection'
+          ? (parsed.options['image-options-csv-file'] !== undefined ||
+            parsed.options['image-options-csv'] !== undefined
+            ? 'image'
+            : parsed.options.format)
           : undefined,
         sourceUrl: type === 'selection'
           ? parsed.options['options-url']
@@ -8014,6 +8164,7 @@ async function run() {
               value: control.value,
               mode: control.mode,
               selections: control.selections,
+              format: control.format,
               sourceUrl: control.sourceUrl,
               useReload: control.useReload,
               replace: control.replace === true,

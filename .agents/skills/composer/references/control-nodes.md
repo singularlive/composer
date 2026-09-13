@@ -28,6 +28,10 @@ node scripts/composer-agent.js get --type tile --id <tile-id>
 
 The same inspection determines how to fulfill ordinary visual-change requests. If the requested widget field appears in `links`, or the requested Transform/Effect field appears in `nodeRefs`, its defining Control Node is the authoritative input. Change that control with `set-control-value`; do **not** write the linked widget data or layout field directly. A direct property write bypasses the composition's public input contract and can be overwritten by the link. For example, when a Circle's `fillGradient` is linked to Color control `c1`, “change the circle to green” means setting `c1` to `{ "r": 0, "g": 255, "b": 0, "a": 1 }`, then verifying both `control-nodes` and the Circle readback.
 
+A directly linked property has one authority: its defining Control Node. Do not also write that destination from a composition script, including as a fallback when a Control App appears stale. Competing link and script writes are order-dependent and can hide the actual transport or loaded-definition problem. When a script must interpret, combine, or forward an input, use a standalone control and leave the script-owned destination unlinked.
+
+`immediateUpdate` is a Control Node presentation behavior for specific Singular Studio workflows, not a general propagation switch for external or custom Control Apps. Leave it disabled unless the target operating environment explicitly requires it. Enabling it does not repair a stale app extract, an unloaded AI Graphics definition, a broken link, or incompatible runtime value handling.
+
 For a local link, update the control in the active composition. If inspection identifies an inherited control, navigate to the composition that defines it, inspect that scope, and update the defining control there; never bypass an inherited link because its source is outside the current scope.
 
 Conflict errors identify both sides of the disagreement. A rejected `apply`, `validate`, `create-control`, or `create-controls` reports the requested control name and type, the property, and the existing link's identity, for example `requested control "Headline" (type text) for property "text" conflicts with existing control "Inning" (type text, keyId ...)`. Existing links are classified so you can tell what you are up against:
@@ -47,7 +51,10 @@ node scripts/composer-agent.js create-control --name "Brand Color" --node-type c
 node scripts/composer-agent.js create-control --name "visible" --node-type checkbox --target layout --element-type tile --element-id <tile-id> --property visible
 node scripts/composer-agent.js create-control --name "External Headline" --node-type text --target standalone --value-file <temporary-directory>/initial-headline.json
 node scripts/composer-agent.js create-control --name "Team" --node-type selection --target standalone --value-file <temporary-directory>/initial-team.json --options-file <temporary-directory>/team-options.json
+node scripts/composer-agent.js create-control --name "Brand Color" --node-type selection --tile-id <tile-id> --property fillGradient --options-file <temporary-directory>/color-options.json --format color
 node scripts/composer-agent.js create-control --name "Remote Team" --node-type selection --target standalone --value-file <temporary-directory>/initial-team.json --options-url <https-or-protocol-relative-url> --use-reload true
+node scripts/composer-agent.js create-control --name "Sponsor" --node-type selection --target standalone --value-file <temporary-directory>/initial-sponsor.json --image-options-csv-file <temporary-directory>/dashboard-images.csv
+node scripts/composer-agent.js create-control --name "Sponsor" --node-type selection --target standalone --value-file <temporary-directory>/initial-sponsor.json --image-options-csv <csv-text>
 node scripts/composer-agent.js create-control --name "Game Clock" --node-type timecontrol --target standalone
 node scripts/composer-agent.js create-control --name "Venue" --node-type location --target standalone --value-file <temporary-directory>/venue.json
 node scripts/composer-agent.js create-control --name "Brand Font" --node-type metricfont --target standalone --family "Open Sans" --weight 700 --subset auto
@@ -78,14 +85,28 @@ Use a standalone control when the value is an external/script input rather than 
 | `json` | `json` | Empty or parseable JSON string |
 | `datetime` | `datetime` | Integer Unix timestamp in milliseconds |
 | `location` | `location` | `{text,long,lat}` with a string label and finite numeric coordinates |
-| `selection` | `selection`, `text`, `textarea` | String option ID; text-valued fields require an explicit option source |
+| `selection` | `selection`; `text`/`textarea` with `format: "text"`; `color`/`gradient` with `format: "color"`; `image` with `format: "image"` | String option ID; non-Selection fields require an explicit option source |
 | `timecontrol` | `timecontrol` | Native `{UTC,isRunning,value}` elapsed-time state |
 | `infotext` | Not linkable; standalone only | Sanitized HTML string |
 | `metricfont` | `metricfont` | Complete Composer-resolved `{fontData:{family,weight,style,subset,mg,...}}` value |
 
 Image, Audio, Video, Data, and JSON File values follow Composer's form limit of 2,048 characters. The agent rejects longer values instead of silently truncating them.
 
-Selection controls support inline or URL-backed options. Standalone creation requires exactly one of `--options-file` or `--options-url`. A link to a `text` or `textarea` widget field also requires one explicit option source; a link to an exact `selection` field instead inherits that field's native options and rejects an override. An inline file contains a JSON array of 1 to 100 objects with unique, non-empty string `id` and `title` properties; the initial string value must match one option ID. A URL source accepts an absolute or protocol-relative HTTP(S) URL no longer than 2,048 characters and without embedded credentials; optional `--use-reload true` exposes Composer's native reload action. Composer fetches remote options asynchronously through its existing URL store, so the agent validates the source URL and string payload shape but cannot atomically prove that a value exists in a mutable remote response.
+Selection controls support inline or URL-backed options. Standalone creation and links to non-Selection fields require exactly one of `--options-file`, `--options-url`, `--image-options-csv-file`, or `--image-options-csv`; a link to an exact `selection` field instead inherits that field's native options and format and rejects overrides. An inline file contains a JSON array of 1 to 100 objects with unique, non-empty string `id` and `title` properties; the initial string value must match one option ID. A URL source accepts an absolute or protocol-relative HTTP(S) URL no longer than 2,048 characters and without embedded credentials; optional `--use-reload true` exposes Composer's native reload action. Composer fetches remote options asynchronously through its existing URL store, so the agent validates the source URL and string payload shape but cannot atomically prove that a value exists in a mutable remote response.
+
+For named swatches, use `format: "color"` and valid HTML color strings as option IDs. A Color or Gradient target is accepted only for that format; creation finds the option whose parsed RGBA value matches the current property, preserving its appearance while making the matched option ID authoritative. Creation fails if no option matches. For named images, use `format: "image"`; an Image target's current URL must exactly match one option ID. Text-format selections remain limited to Selection, Text, and Text Area targets. The targeted `create-control` command accepts `--format <text|color|image>`; `create-controls` entries use `format`.
+
+For a Singular Dashboard export, pass its CSV text directly with `--image-options-csv` or save it and use `--image-options-csv-file`. Dashboard CSV must contain `type`, `name`, and `url` headers and 1 to 100 image rows. Mixed exports are supported: rows such as `appinstance` and `composition` are ignored, while rows whose type is `image` are converted to `{id: row.url, title: row.name}`.
+
+Pasted text may instead be a two-column `name,url` list, with the header optional. Use one pair per line and CSV quoting when a name contains a comma or quote:
+
+```csv
+name,url
+"Home, light",//image.singular.live/account/images/home-light.png
+Away,https://example.com/away.png
+```
+
+The converter preserves absolute and protocol-relative HTTP(S) URLs, rejects embedded credentials and duplicate image URLs, and creates a native inline Selection with `format: "image"`. Supply the selected image URL as the JSON string in `--value-file`; it must exactly match one converted image URL. Quoted commas, escaped quotes, UTF-8 BOMs, and LF or CRLF line endings are supported. The conversion is local and does not upload assets or call a Dashboard API.
 
 This compatibility table is the supported agent contract, not a copy of every orange **may work** pairing in Composer's link browser. The narrower set is intentional: add another compatible pairing only after its conversion, initialization, readback, update, and cleanup behavior are verified.
 

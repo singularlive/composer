@@ -130,7 +130,8 @@ The javascript string must return an object with these lifecycle functions:
 Runtime context rules:
 - Use context.root to access the authored Shadow DOM content.
 - Use context.data for the current complete dynamic field payload.
-- Generated `color` fields arrive as `{r,g,b,a}` objects on every linked update. Use `context.colors.toCss(value)` before assigning one to a CSS property; it also accepts solid-gradient objects and CSS color strings.
+- Generated `color` fields may arrive as plain `{r,g,b,a}` objects, `{type:"solid",solidColor:{r,g,b,a}}` wrappers, CSS-compatible strings such as hexadecimal values, or another value convertible by `context.colors.toCss(value)`. Use that host conversion before assigning a color to CSS or parsing it for custom interpolation; never silently retain the previous color merely because the new value uses another supported representation.
+- For numeric interpolation, first accept finite channels from a plain RGBA value or solid wrapper. Otherwise pass the value through `context.colors.toCss(value)`, validate the resulting CSS color, render it into a private 1-by-1 Canvas, and read `getImageData()` to obtain numeric RGBA. Clamp RGB to 0–255 and alpha to 0–1, and use an explicit design fallback only when conversion fails.
 - Use context.fonts.load(fontData) for metricfont values before applying a changed font.
 - Use context.fonts.computeMetrics(fontData, targetHeight, text) only when exact metric sizing is necessary.
 - Use Singular image values supplied through image fields; do not independently select or upload images.
