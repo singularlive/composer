@@ -5420,8 +5420,8 @@ const { createWidgetReferences } = __webpack_require__(45);
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 121;
-const PACKAGE_VERSION = '1.3.0';
+const SKILL_VERSION = 122;
+const PACKAGE_VERSION = '1.4.0';
 const DEFAULT_TIMEOUT_MS = 15000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
