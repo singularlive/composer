@@ -5535,9 +5535,10 @@ const { createWidgetReferences } = __webpack_require__(46);
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 127;
-const PACKAGE_VERSION = '1.7.0';
+const SKILL_VERSION = 129;
+const PACKAGE_VERSION = '1.7.2';
 const DEFAULT_TIMEOUT_MS = 15000;
+const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
 const ENV_CREDENTIALS_OVERRIDE_PATH = process.env.COMPOSER_AGENT_CREDENTIALS || null;
@@ -6523,6 +6524,7 @@ function waitForComposerReady(options, requireWorkLease) {
     };
     let settled = false;
     let probeTimer = null;
+    let editorConnectionTimer = null;
     const timeout = setTimeout(function () {
       const result = Object.assign({}, readiness, { status: 'timeout' });
       const pairedVersion = Number(credentials.composerAgentVersion);
@@ -6536,7 +6538,7 @@ function waitForComposerReady(options, requireWorkLease) {
         result.commands = 'unavailable';
         const reloadError = new Error(
           'The Composer AI panel has not reconnected since the Composer protocol changed. ' +
-          'Reload the Composer AI panel; pairing persists.'
+          'Reload the Composer composition; pairing persists.'
         );
         reloadError.code = 'EDITOR_RELOAD_REQUIRED';
         reloadError.result = result;
@@ -6557,6 +6559,7 @@ function waitForComposerReady(options, requireWorkLease) {
       settled = true;
       clearTimeout(timeout);
       if (probeTimer) clearInterval(probeTimer);
+      if (editorConnectionTimer) clearTimeout(editorConnectionTimer);
       if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
         socket.close(1000);
       }
@@ -6575,6 +6578,30 @@ function waitForComposerReady(options, requireWorkLease) {
           status: requireWorkLease === false ? 'connected' : 'ready'
         }));
       }
+    }
+
+    function finishEditorDisconnected() {
+      const result = Object.assign({}, readiness, {
+        status: 'editor-disconnected',
+        editor: 'disconnected',
+        commands: 'unavailable'
+      });
+      const error = new Error(
+        'The paired Composer composition is not open. Reopen that composition; ' +
+        'its Composer AI connection starts automatically.'
+      );
+      error.code = 'COMPOSER_EDITOR_DISCONNECTED';
+      error.result = result;
+      finish(error);
+    }
+
+    function startEditorConnectionGrace() {
+      if (editorConnectionTimer || readiness.editor !== 'unknown') return;
+      editorConnectionTimer = setTimeout(function () {
+        if (readiness.authorization === 'active' && readiness.editor === 'unknown') {
+          finishEditorDisconnected();
+        }
+      }, Math.min(timeoutMs, EDITOR_CONNECTION_GRACE_MS));
     }
 
     function sendProbe() {
@@ -6612,6 +6639,7 @@ function waitForComposerReady(options, requireWorkLease) {
         readiness.authorization = 'active';
         sendProbe();
         probeTimer = setInterval(sendProbe, 500);
+        startEditorConnectionGrace();
         finishIfReady();
       } else if (message.type === 'readiness_status') {
         readiness.authorization = message.authorization || readiness.authorization;
@@ -6623,7 +6651,7 @@ function waitForComposerReady(options, requireWorkLease) {
           readiness.editor = 'version-mismatch';
           readiness.commands = 'unavailable';
           const reloadError = new Error(
-            'The Composer AI panel is running an older protocol. Reload the Composer AI panel; pairing persists.'
+            'The Composer editor is running an older protocol. Reload the Composer composition; pairing persists.'
           );
           reloadError.code = 'EDITOR_RELOAD_REQUIRED';
           reloadError.result = Object.assign({}, readiness, { status: 'reload-required' });
@@ -6631,8 +6659,11 @@ function waitForComposerReady(options, requireWorkLease) {
           return;
         }
         readiness.editor = message.status === 'connected' ? 'connected' : 'disconnected';
-        if (message.status !== 'connected') readiness.commands = 'unavailable';
-        else if (readiness.commands !== 'ready') readiness.commands = 'initializing';
+        if (message.status !== 'connected') {
+          readiness.commands = 'unavailable';
+          finishEditorDisconnected();
+          return;
+        } else if (readiness.commands !== 'ready') readiness.commands = 'initializing';
         finishIfReady();
       } else if (
         message.type === 'readiness_acknowledged' &&
