@@ -13,8 +13,8 @@ const { createWidgetReferences } = require('./widget-script-references');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 129;
-const PACKAGE_VERSION = '1.7.2';
+const SKILL_VERSION = 130;
+const PACKAGE_VERSION = '1.7.3';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -890,9 +890,15 @@ function createSocketUrl(credentials) {
 function assertCompatibleComposerAgentVersion(authentication, allowMismatch) {
   const serverVersion = authentication && authentication.composerAgentVersion;
   if (serverVersion === SKILL_VERSION || allowMismatch) return;
-  const error = new Error(
-    `Installed Composer skill version ${SKILL_VERSION} does not match Composer server version ${Number.isInteger(serverVersion) ? serverVersion : 'unknown'}. Update Composer and install the matching skill before starting work.`
-  );
+  let message;
+  if (!Number.isInteger(serverVersion)) {
+    message = `Installed Composer skill protocol ${SKILL_VERSION} could not determine the Composer protocol. Update Composer and install the matching skill before starting work.`;
+  } else if (SKILL_VERSION > serverVersion) {
+    message = `Installed Composer skill protocol ${SKILL_VERSION} is newer than Composer protocol ${serverVersion}. Update Composer to protocol ${SKILL_VERSION}, then reopen the paired composition; alternatively install a skill matching protocol ${serverVersion}.`;
+  } else {
+    message = `Composer protocol ${serverVersion} is newer than installed skill protocol ${SKILL_VERSION}. Install a skill matching protocol ${serverVersion}, then retry the connection.`;
+  }
+  const error = new Error(message);
   error.code = 'COMPOSER_AGENT_VERSION_MISMATCH';
   throw error;
 }
@@ -1128,9 +1134,13 @@ function waitForComposerReady(options, requireWorkLease) {
         if (message.status === 'version-mismatch') {
           readiness.editor = 'version-mismatch';
           readiness.commands = 'unavailable';
-          const reloadError = new Error(
-            'The Composer editor is running an older protocol. Reload the Composer composition; pairing persists.'
-          );
+          const editorVersion = Number(message.editorVersion);
+          const reloadMessage = Number.isInteger(editorVersion) && editorVersion > SKILL_VERSION
+            ? `The loaded Composer editor protocol ${editorVersion} is newer than installed skill protocol ${SKILL_VERSION}. Update the selected skill, then retry; pairing persists.`
+            : Number.isInteger(editorVersion)
+            ? `The loaded Composer editor protocol ${editorVersion} is older than installed skill protocol ${SKILL_VERSION}. Update Composer, then reload or reopen the paired composition; pairing persists.`
+            : 'The loaded Composer editor protocol is stale. Update Composer if needed, then reload or reopen the paired composition; pairing persists.';
+          const reloadError = new Error(reloadMessage);
           reloadError.code = 'EDITOR_RELOAD_REQUIRED';
           reloadError.result = Object.assign({}, readiness, { status: 'reload-required' });
           finish(reloadError);

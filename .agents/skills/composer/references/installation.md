@@ -33,6 +33,12 @@ Run `node scripts/dependency-preflight.js` from the installed payload before pai
 
 Never trust generic installer exit text alone. Verify every requested destination independently by inspecting its final payload root, version, and dependencies. A destination that is absent, nested incorrectly, stale, or unresolved is a failed installation even if another destination succeeded.
 
+## Protocol mismatch and reconnect recovery
+
+`COMPOSER_AGENT_VERSION_MISMATCH` reports both protocol numbers and which side is newer. When the installed skill is newer, update Composer to the reported skill protocol and reopen the paired composition; alternatively install the older skill matching the current Composer protocol. When Composer is newer, update the selected skill installation to the reported Composer protocol. Do not continue with editor commands while the versions differ.
+
+After the versions match, `EDITOR_RELOAD_REQUIRED` means the paired composition still has a stale loaded editor: reload or reopen that composition and retry because pairing persists. `COMPOSER_EDITOR_DISCONNECTED` means no paired composition answered within the two-second cross-process grace: release any work lease and ask the user to reopen the paired composition. The Composer AI connection starts automatically; do not instruct the user to open or foreground its panel. A new pairing code is needed only when authorization is missing, expired, or revoked.
+
 ## Windows troubleshooting
 
 - If npm reports cache access or ownership errors, use a writable command-local cache, for example `$env:npm_config_cache = Join-Path $env:TEMP 'composer-agent-npm-cache'`, for the staged `npm ci`. Do not weaken permissions on a shared cache.
