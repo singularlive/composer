@@ -5328,6 +5328,13 @@ module.exports = {
 "use strict";
 module.exports = require("./capture-composition-preview");
 
+/***/ }),
+/* 47 */
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("./ai-graphics-local");
+
 /***/ })
 /******/ 	]);
 /************************************************************************/
@@ -5413,8 +5420,8 @@ const { createWidgetReferences } = __webpack_require__(45);
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 120;
-const PACKAGE_VERSION = '1.2.0';
+const SKILL_VERSION = 121;
+const PACKAGE_VERSION = '1.3.0';
 const DEFAULT_TIMEOUT_MS = 15000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
 const PAIRING_INTENT_RETRY_MS = 1100;
@@ -5486,7 +5493,7 @@ const KNOWN_COMMANDS = new Set([
   'set-font', 'timeline-animations', 'set-timeline-animation', 'set-timeline-animations', 'update-animations',
   'set-update-animation', 'set-update-animations', 'behaviors', 'set-behavior', 'set-behaviors', 'create-group',
   'configure-group', 'move-group', 'delete-group', 'capture', 'capture-worker', 'primitives', 'ensure-group',
-  'create', 'delete', 'validate', 'apply'
+  'create', 'delete', 'validate', 'apply', 'ai-graphics'
 ]);
 const COMMAND_SUGGESTIONS = {
   open: 'open-composition',
@@ -5498,10 +5505,16 @@ const COMMAND_SUGGESTIONS = {
 };
 let activeTemplateSessionToken = null;
 let captureModule = null;
+let aiGraphicsModule = null;
 
 function getCaptureModule() {
   if (!captureModule) captureModule = __webpack_require__(46);
   return captureModule;
+}
+
+function getAIGraphicsModule() {
+  if (!aiGraphicsModule) aiGraphicsModule = __webpack_require__(47);
+  return aiGraphicsModule;
 }
 
 function createCaptureError(code, message) {
@@ -5715,7 +5728,7 @@ function parseArguments(argv) {
   const command = argv[0];
   const options = {};
   let firstOptionIndex = 1;
-  if (command === 'capture-worker' && argv[1] && !argv[1].startsWith('--')) {
+  if ((command === 'capture-worker' || command === 'ai-graphics') && argv[1] && !argv[1].startsWith('--')) {
     options.action = argv[1];
     firstOptionIndex = 2;
   }
@@ -5864,7 +5877,7 @@ function addWidgetTemplateIdentityScope(result, options) {
 }
 
 function writeWorkLifecycleReminder(command, succeeded) {
-  if (!command || ['doctor', 'pair', 'pair-intent', 'check-connection', 'capture-worker'].includes(command)) return;
+  if (!command || ['doctor', 'pair', 'pair-intent', 'check-connection', 'capture-worker', 'ai-graphics'].includes(command)) return;
 
   if (command === 'finish-work' && succeeded) {
     console.error('COMPOSER_WORK_RELEASED: Composer input is unlocked.');
@@ -7401,6 +7414,12 @@ async function run() {
     const report = await runDoctor(parsed.options);
     console.log(JSON.stringify(report, null, parsed.options.compact ? 0 : 2));
     if (report.status !== 'passed') process.exitCode = 1;
+    return;
+  }
+  if (parsed.command === 'ai-graphics') {
+    const report = await getAIGraphicsModule().run(parsed.options.action, parsed.options);
+    console.log(JSON.stringify(report, null, parsed.options.compact ? 0 : 2));
+    if (report.valid === false) process.exitCode = 1;
     return;
   }
   if (parsed.command === 'find-elements') {

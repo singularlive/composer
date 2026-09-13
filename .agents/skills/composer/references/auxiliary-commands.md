@@ -16,6 +16,15 @@ Use these command summaries only after reading the routed domain reference for t
 
 The CLI commands are `apply` and `validate`; `graphics.apply` and `graphics.validate` are internal relay method names, not CLI aliases. Version 2 responses include expansion counts; all generated primitives retain the existing per-key reconciliation statuses. See [graphics.md](graphics.md).
 
+## Local AI Graphics
+
+| Command | Purpose |
+| --- | --- |
+| `ai-graphics validate --file <definition.json> [--values <sample.json>]` | Validate an AI Graphics widget definition locally against the production schema, install-size limit, JavaScript syntax, and optional sample field values. The lifecycle is not executed. No pairing or Composer session is required. |
+| `ai-graphics preview --file <definition.json> [--values <sample.json>] --width <px> --height <px> [--timeline <In\|Out>] [--progress <0..1>] --output <path.png>` | Validate and execute the definition through the production AI Graphics host in headless Chrome, including lifecycle-shape checks. This is widget-level evidence only; it does not include composition scripts, parent transforms, links, neighboring tiles, or Player timeline orchestration. |
+
+Both commands accept `--compact`. Preview defaults to `In` at progress `1`, uses the required vendored Playwright Core with system Chrome, blocks lifecycle network requests while allowing image, stylesheet, and font resources, and reports bounded console/resource diagnostics. Use [AI Graphics](widgets/ai-graphics.md) for the complete workflow and accuracy boundary.
+
 ## Capture
 
 | Command | Purpose |

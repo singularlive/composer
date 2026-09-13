@@ -10,9 +10,26 @@ node scripts/composer-agent.js primitives --primitive ai-graphics
 
 Before generating a definition, read the shipped [AI Graphics authoring contract](ai-graphics-authoring.md) in full. The field value is one parseable JSON string containing `version`, `html`, `css`, `javascript`, generated `fields`, and generated `groups`. Keep HTML, CSS, and JavaScript self-contained. AI Graphics' non-linkable `definition` field has a dedicated 256 KiB serialized-value limit for Composer-agent writes; every other widget field retains the normal 32 KiB limit. Minify the complete definition before writing it, and measure the outer `JSON.stringify(definitionText)` length because quotes and backslashes in the definition add escaping overhead.
 
+Before pairing or installing a tile, validate and preview the local definition:
+
+```bash
+node scripts/composer-agent.js ai-graphics validate \
+	--file <definition.json> \
+	[--values <sample-values.json>]
+
+node scripts/composer-agent.js ai-graphics preview \
+	--file <definition.json> \
+	[--values <sample-values.json>] \
+	--width <pixels> --height <pixels> \
+	[--timeline <In|Out>] [--progress <0..1>] \
+	--output <preview.png>
+```
+
+These commands are local and require neither pairing nor a work lease. Validation reuses the production definition parser and adds install-size, JavaScript-syntax, and sample-value diagnostics without executing lifecycle code. Preview uses the production DOM/lifecycle host, runtime context, and font service in Chrome; it executes and verifies the lifecycle contract. It accurately tests the isolated widget box, generated values, persistent DOM updates, responsive CSS, assets, and lifecycle position. It does not reproduce composition/group placement, parent transforms or clipping, z-order, composition scripts, Control Node delivery, display variants, neighboring widgets, or linked composition timelines. Always perform final Player verification after installation.
+
 ## Authoring workflow
 
-1. Generate the complete definition from the source-controlled AI authoring contract.
+1. Generate the complete definition from the source-controlled AI authoring contract, then run local validation and preview at representative sizes and timeline positions.
 2. Create or reconcile the `ai-graphics` tile with only its static `definition` property, then position and size the tile in Composer. Include required animation and effect runway in those bounds.
 3. Read the created tile again after the definition installs to verify its definition, generated typed fields, and layout. Wait for the widget to publish its dynamic model before creating controls; field declarations in the definition are not a substitute for live schema readback.
 4. Create and link Control Nodes to generated fields through the typed Control Node commands. Generated fields are linkable unless their definitions set `disableDataLink: true`; the static `definition` field remains non-linkable. Use the generated field's declared type and verify the persisted link after creation.

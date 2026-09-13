@@ -9,7 +9,9 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(skillRoot, 'package.jso
 const packageLock = JSON.parse(fs.readFileSync(path.join(skillRoot, 'package-lock.json'), 'utf8'));
 const cliSource = fs.readFileSync(path.join(__dirname, 'composer-agent.js'), 'utf8');
 const versionMatch = cliSource.match(/const SKILL_VERSION = (\d+);/);
-const dependencyOrigins = { 'playwright-core': ['capture-composition-preview.js', 'verifyComposition.mjs'] };
+const dependencyOrigins = {
+  'playwright-core': ['capture-composition-preview.js', 'verifyComposition.mjs', 'ai-graphics-local.js']
+};
 
 function findSystemChrome() {
   const candidates = process.platform === 'win32' ? [

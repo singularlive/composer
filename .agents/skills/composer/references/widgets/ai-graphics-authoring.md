@@ -4,6 +4,8 @@ Status: Shipped generation contract for AI Graphics widget `4792`, version `1`.
 
 This file is self-contained inside the installed Composer skill. Its contract body mirrors the application-side authoring prompt and is checked by the runtime-guidance test.
 
+Before installation, run `ai-graphics validate --file <definition.json>` and render representative dimensions with `ai-graphics preview --file <definition.json> --width <px> --height <px> --output <preview.png>`. These local commands require no pairing. Preview verifies the isolated widget runtime, not parent composition context; final Player verification remains required.
+
 ## Widget model invariant
 
 The widget's static model contains only the `definition` field. It must include `disableDataLink: true` so the definition can be entered or changed only in Composer and cannot be exposed through a Control Node.
