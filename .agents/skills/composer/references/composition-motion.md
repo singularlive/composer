@@ -46,6 +46,8 @@ node scripts/composer-agent.js rename-logic-layer --name "Program" --new-name "P
 
 Delay `none` starts outgoing and incoming transitions together. `auto` delays the incoming member by the current member's outgoing duration. For `custom`, positive time delays the incoming member and negative time delays the outgoing member; values are limited to `-10` through `10` seconds. Removal preserves the current In/Out state. Rename updates every member atomically and merges with an existing target name and color. Linked-timeline and widget-owned compositions cannot be assigned because their Composition Navigator logic-layer controls are not independent.
 
+Co-located mutually exclusive overlays with entrance/exit motion usually overlap under `delay: none`, because the incoming member starts before the outgoing member clears their shared screen band. Default those swaps to `auto`, or use a deliberate positive custom delay when the choreography requires a different handoff. Model readback proves the delay assignment only; verify the actual swap in Singular Player and inspect intermediate checkpoints to confirm the two members are not simultaneously visible.
+
 When verifying a family of mutually exclusive variants, take each member In and inspect or capture it independently while confirming the other members are Out. After the last check, restore the user-requested active member and verify the complete layer state. Logic layers coordinate visibility only; use tile/group order for stacking inside a composition.
 
 ## Timelines

@@ -13,6 +13,8 @@ node scripts/composer-agent.js <command> --connection <conversation-connection-n
 
 Reuse that `--connection` value for every command. Never reuse another conversation's profile or combine it with `COMPOSER_AGENT_CREDENTIALS`. The bundled CLIs are the only supported interface: never expose credentials, replace raw composition JSON, construct script REST calls, or add arbitrary execution to the paired relay.
 
+Pairing credentials have a maximum 30-day lifetime. While the paired composition remains open, its authenticated editor heartbeat keeps authorization resumable even when the AI is idle. After the composition closes or loses its connection, a 30-minute reconnect grace begins; authenticated AI commands also refresh that grace. Reloads and short interruptions therefore preserve pairing. Reopening after a longer absence retires the orphaned authorization, and the next AI-tool click creates a fresh pairing code without requiring a separate disconnect.
+
 ## CLI dependencies
 
 The core CLI is self-contained and Playwright Core is included as a required vendored dependency. Before first use, run `node scripts/dependency-preflight.js`; it always verifies Playwright, while `--capture` additionally checks Chrome. Run `node scripts/composer-agent.js doctor` for installation scope, duplicate copies, package/protocol versions, core and Playwright status; add `--capture` or `--connection <name>` for Chrome or server checks. On failure, follow [installation.md](references/installation.md) and stop before pairing. If any command reports `COMPOSER_AGENT_VERSION_MISMATCH`, stop authoring and follow its direction-aware protocol numbers: update Composer when the skill is newer, or update the selected skill when Composer is newer. If `check-connection` reports `EDITOR_RELOAD_REQUIRED`, reload or reopen the paired Composer composition and retry; the existing pairing persists. If it reports `COMPOSER_EDITOR_DISCONNECTED`, do not retry with a longer timeout or ask the user to open or foreground the AI panel. Release any work lease, then ask the user to reopen the paired composition; its Composer AI connection starts automatically.
@@ -81,6 +83,8 @@ Prefer bounded projections over full inspection. Put structured inputs in one wr
 ## Preserve structure and use atomic operations
 
 Preserve existing ownership and choose structure through [authoring-quality.md](references/authoring-quality.md), which owns root, nested-module, display-presentation, and shared-bounds policy. Use the highest-level operation that covers the requested scope and batch related changes. Follow the routed command and composition references above.
+
+For a newly authored single coherent overlay, default to one sized managed group: put canvas position and size on the group, position children locally within it, and assign the shared entrance/exit to the group. Use the [overlay-in-a-sized-group recipe](references/recipes/overlay-in-a-sized-group.md); depart from it only when children genuinely require independent bounds or lifecycles.
 
 Never decompose a failed atomic operation into serial mutations. Follow "Mutation failure recovery" in [command-basics.md](references/command-basics.md): after an uncertain outcome, obtain authoritative readback before any retry. Keep declarative keys stable and content inside its managed ownership group.
 

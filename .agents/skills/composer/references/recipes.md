@@ -6,6 +6,7 @@ Add or use a recipe only when the pattern is reusable, non-obvious, and verified
 
 | Desired result | Recipe | Use it for |
 | --- | --- | --- |
+| One coherent overlay with movable bounds and shared motion | [Overlay in a sized group](recipes/overlay-in-a-sized-group.md) | Lower thirds, reporter tags, bugs, and other units whose children share one canvas position and lifecycle |
 | Adjacent text segments with independent text, font, and color | [Inline styled text](recipes/inline-styled-text.md) | Mixed-font phrases, dynamic adjacent labels, or text runs whose positions depend on rendered extents |
 | Independently animated content that may be conditionally visible | [Optional animated module](recipes/optional-animated-module.md) | Callouts, sponsor labels, alerts, secondary statistics, and other locally owned optional graphics |
 | Reusable animated breaking-news lower third | [Breaking-news lower third](recipes/breaking-news-lower-third.md) | Urgent labels and replaceable headlines with independent lifecycle and Update motion |

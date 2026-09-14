@@ -164,11 +164,12 @@ A version-2 specification may configure the bounds of its managed ownership grou
 
 The group definition is optional and idempotent. It accepts the same constrained fields as `configure-group`; image masks remain unavailable because Composer's mask renderer is disabled. `groupClipChildren` is the supported masking primitive and renders as bounded overflow clipping. The apply response includes the authoritative managed-group ID and layout so it can be targeted by group animation or inspected afterward.
 
-Prefer group-owned geometry for a coherent visual unit. Give the group its canvas-level `left`, `top`, `width`, and `height`, then express children relative to that frame: backgrounds commonly use `left: 0`, `top: 0`, `width: 100`, and `height: 100`, while text and accents use local percentage insets. Avoid duplicating the unit's absolute canvas bounds across its widgets. This keeps moving and resizing the complete unit understandable in Composer while preserving independent child geometry where the design requires it.
+For a newly authored single coherent overlay, group-owned geometry is the default. Give the group its canvas-level `left`, `top`, `width`, and `height`, then express children relative to that frame: backgrounds commonly use `left: 0`, `top: 0`, `width: 100`, and `height: 100`, while text and accents use local percentage insets. Avoid duplicating the unit's absolute canvas bounds across its widgets. This keeps moving, resizing, and animating the complete unit understandable in Composer while preserving independent child geometry where the design requires it. Follow the [overlay-in-a-sized-group recipe](recipes/overlay-in-a-sized-group.md).
 
 Reconciliation:
 
 - Reapplying a key with the same primitive updates the same tile and preserves matching Control Node links.
+- Reapplying a key writes only explicitly supplied `layout` and `properties` fields. Omitted text, font, color, and other widget fields retain their current values; never add an omitted field merely to restore an assumed sample value.
 - Changing the primitive for an unlinked key replaces only that managed tile.
 - Omitting an unlinked prior declarative key deletes that managed tile.
 - Changing or omitting a **linked** keyed primitive is rejected as a conflict instead of silently removing links.
