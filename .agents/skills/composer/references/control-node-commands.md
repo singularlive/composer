@@ -43,7 +43,6 @@ Control Node containers are flat editor groups for organizing public controls; t
 {
 	"title": "Player controls",
 	"width": "double",
-	"toolTip": "Controls for the selected player",
 	"controlIds": ["Enabled", "Name", "Score"],
 	"activeId": "Enabled",
 	"index": 0
@@ -52,7 +51,7 @@ Control Node containers are flat editor groups for organizing public controls; t
 
 `controlIds` accepts public control IDs or internal `keyId` values and defines the complete ordered membership. Every control can belong to at most one ordinary container, so listed controls are removed from other ordinary containers. Former children omitted from the target list become ungrouped. An omitted `controlIds` preserves membership. `activeId` must be empty or identify a Checkbox in the resulting membership; moving the active Checkbox out clears it unless the same request explicitly supplies an invalid replacement.
 
-Supported metadata is `title`, `width` (`""` for Small or `"double"` for Large), `toolTip`, `activeId`, `usePreset`, `presetSourceUrl`, `usePresetFilter`, `usePresetReload`, and `displayVariantRelevance`. `presetSourceUrl`, when supplied, must be an absolute or protocol-relative credential-free HTTP(S) URL no longer than 2,048 characters; explicitly enabling `usePreset` requires a valid effective URL. `index` is the zero-based position in the flat container list. Create defaults to Large width, empty tooltip and active Checkbox, no children, and the end of the list. Existing same-title containers are returned unchanged only when every supplied property already matches; a different definition is a conflict. Configure preserves every omitted property.
+Supported metadata is `title`, `width` (`""` for Small or `"double"` for Large), `toolTip`, `activeId`, `usePreset`, `presetSourceUrl`, `usePresetFilter`, `usePresetReload`, and `displayVariantRelevance`. Omit `toolTip` by default and add it only when the container has non-obvious operator behavior that its title and field labels cannot explain. `presetSourceUrl`, when supplied, must be an absolute or protocol-relative credential-free HTTP(S) URL no longer than 2,048 characters; explicitly enabling `usePreset` requires a valid effective URL. `index` is the zero-based position in the flat container list. Create defaults to Large width, empty tooltip and active Checkbox, no children, and the end of the list. Existing same-title containers are returned unchanged only when every supplied property already matches; a different definition is a conflict. Configure preserves every omitted property.
 
 For one large Textarea or JSON editor that uses the complete panel body, create a Large ordinary container with exactly one child and apply this pattern:
 

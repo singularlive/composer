@@ -174,6 +174,7 @@ Before diagnosing an incremental Control App update after changing an AI Graphic
   "steps": [
     { "action": "capture", "name": "before" },
     { "action": "setPayload", "payload": { "Score": "2" } },
+    { "action": "pressControl", "compositionId": "scoreboard", "controlId": "Confirm" },
     {
       "action": "waitForLifecycle",
       "event": "payload_changed",
@@ -203,6 +204,8 @@ Supported actions are:
 
 - `wait`: bounded `milliseconds`.
 - `setPayload` and `sendMessage`: call the public Player composition API with an object. Omit `compositionId` for the selected verification target (root by default), or provide an explicit SDK composition ID to override it. An override changes only that action, not capture or DOM scope.
+- `pressControl`: activate one Button Control Node through the public Player payload API. Supply an explicit SDK `compositionId` and exact `controlId`; the verifier sends the native `{command:"execute"}` value internally. Use this typed action instead of constructing Button payload markers or timestamps.
+- `timerAction`: operate one Time Control through the public Player payload API. Supply an explicit SDK `compositionId`, exact `controlId`, and `command` of `start`, `play`, `pause`, or `reset`; the verifier constructs the command payload internally. Use raw Time Control objects only for deliberate deterministic fixture states, never as the operator-control path.
 - `playTo` and `jumpTo`: call the public Player composition API with `state`; they accept the same optional `compositionId`.
 - `waitForLifecycle`: wait for an allowed lifecycle counter to reach `minimum`, with an optional `timeoutMs`.
 - `assertLifecycle`: require `equals`, `minimum`, or `maximum` for one allowed lifecycle counter.

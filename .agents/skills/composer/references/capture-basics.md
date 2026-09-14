@@ -31,7 +31,7 @@ node scripts/composer-agent.js capture \
 - Choose the target that owns the operator-facing timeline. For a root-level module with linked nested presentations, open that module and use `--target active`; `--target root` seeks the scene root only. An intentionally unlinked root-level module does not contribute its nested duration to the root, so a zero-second root timeline is valid and means the verification target is wrong, not that the nested animation is absent.
 - `--measurements` writes an optional version-1 Player measurement snapshot immediately before the screenshot. Use it for a named geometry question, not as a default sidecar for every capture.
 - `--timeout` is the overall renderer-readiness deadline in seconds and defaults to `30`.
-- `--settle` adds a non-negative delay after core readiness. It defaults to `0` in `smart` mode and `2` seconds in `timed` mode.
+- `--settle` adds a non-negative delay in seconds after core readiness. It defaults to `0` in `smart` mode and `2` seconds in `timed` mode, and must be less than `--timeout`. Pass decimal seconds such as `--settle 1.5` for 1,500 milliseconds; `--settle 1500` means 1,500 seconds and is rejected against an ordinary timeout.
 - `--server` is optional and must normalize to the server stored in the paired credentials. It supports environment-explicit invocations but cannot retarget an existing access token; a mismatch fails with `CAPTURE_SERVER_MISMATCH` and requires pairing with the intended server.
 - `standalone` runs `inspect` internally, keeps the Composition API token in the CLI process, and captures at the reported composition resolution.
 
@@ -71,7 +71,7 @@ The headless browser must be able to reach the preview endpoint and the external
 
 ## Capture errors
 
-Stable error codes include `PLAYWRIGHT_UNAVAILABLE`, `BROWSER_LAUNCH_FAILED`, `PREVIEW_NAVIGATION_FAILED`, `PREVIEW_READY_TIMEOUT`, `PREVIEW_CONTINUOUS_ACTIVITY`, `PREVIEW_FRAME_NOT_FOUND`, `PREVIEW_TARGET_NOT_FOUND`, `PREVIEW_TARGET_NOT_VISIBLE`, `PREVIEW_ASSET_TIMEOUT`, `PREVIEW_TIMELINE_SEEK_FAILED`, `CAPTURE_FAILED`, `CAPTURE_TOO_LARGE`, `MEASUREMENT_TOO_LARGE`, `MEASUREMENT_WRITE_FAILED`, `INVALID_CAPTURE_TARGET`, `INVALID_CAPTURE_WAIT_MODE`, `INVALID_CAPTURE_TIMELINE`, and `COMPOSITION_TOKEN_REQUIRED`.
+Stable error codes include `PLAYWRIGHT_UNAVAILABLE`, `BROWSER_LAUNCH_FAILED`, `PREVIEW_NAVIGATION_FAILED`, `PREVIEW_READY_TIMEOUT`, `PREVIEW_CONTINUOUS_ACTIVITY`, `PREVIEW_FRAME_NOT_FOUND`, `PREVIEW_TARGET_NOT_FOUND`, `PREVIEW_TARGET_NOT_VISIBLE`, `PREVIEW_ASSET_TIMEOUT`, `PREVIEW_TIMELINE_SEEK_FAILED`, `CAPTURE_FAILED`, `CAPTURE_TOO_LARGE`, `MEASUREMENT_TOO_LARGE`, `MEASUREMENT_WRITE_FAILED`, `INVALID_CAPTURE_TARGET`, `INVALID_CAPTURE_WAIT_MODE`, `INVALID_CAPTURE_TIMELINE`, `INVALID_CAPTURE_TIMING`, and `COMPOSITION_TOKEN_REQUIRED`.
 
 Playwright, Chrome, token, navigation, renderer, target, and asset failures are reported directly with the applicable code.
 

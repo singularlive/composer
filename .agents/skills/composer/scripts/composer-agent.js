@@ -5363,7 +5363,8 @@ const WIDGET_SCRIPT_REFERENCES = Object.freeze({
   4671: 'references/composition-scripting/widget-metrictextml.md',
   4672: 'references/composition-scripting/widget-metricticker.md',
   4706: 'references/composition-scripting/widget-metrictextanim.md',
-  4758: 'references/composition-scripting/widget-metrictextstyle.md'
+  4758: 'references/composition-scripting/widget-metrictextstyle.md',
+  4792: 'references/composition-scripting/widget-aigraphics.md'
 });
 
 function normalizeWidgetId(value) {
@@ -5535,8 +5536,8 @@ const { createWidgetReferences } = __webpack_require__(46);
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 135;
-const PACKAGE_VERSION = '1.7.8';
+const SKILL_VERSION = 138;
+const PACKAGE_VERSION = '1.7.11';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -7251,19 +7252,27 @@ function normalizeCaptureOptions(options) {
       );
     }
   }
+  const timeoutSeconds = parseCaptureSeconds(options, 'timeout', 30, false);
+  const settleSeconds = parseCaptureSeconds(
+    options,
+    'settle',
+    waitMode === 'timed' ? 2 : 0,
+    true
+  );
+  if (settleSeconds >= timeoutSeconds) {
+    throw createCaptureError(
+      'INVALID_CAPTURE_TIMING',
+      '--settle is measured in seconds and must be less than --timeout; for 1500 milliseconds, pass --settle 1.5'
+    );
+  }
   return {
     target: target,
     compositionId: compositionId,
     outputPath: requireOption(options, 'output'),
     measurementsPath: options.measurements || null,
     waitMode: waitMode,
-    timeoutMs: parseCaptureSeconds(options, 'timeout', 30, false) * 1000,
-    settleMs: parseCaptureSeconds(
-      options,
-      'settle',
-      waitMode === 'timed' ? 2 : 0,
-      true
-    ) * 1000,
+    timeoutMs: timeoutSeconds * 1000,
+    settleMs: settleSeconds * 1000,
     timeline: timeline,
     atSeconds: atSeconds
   };
@@ -7608,9 +7617,15 @@ async function run() {
       await pairIntent(parsed.options);
       return;
     case 'status':
+      assertAllowedOptions(parsed.options, ['message', 'state'], 'status');
+      const activityState = parsed.options.state || 'working';
+      if (!['working', 'waiting-for-user'].includes(activityState)) {
+        throw new Error('--state must be working or waiting-for-user');
+      }
       result = await sendSessionMessage({
         type: 'activity',
-        message: requireOption(parsed.options, 'message')
+        message: requireOption(parsed.options, 'message'),
+        activityState: activityState
       }, 'activity_sent');
       break;
     case 'start-work':

@@ -65,8 +65,12 @@ Use zero captures for nonvisual or model-only work and normally one for a straig
 - Keep graphic-specific controls in the same sub-composition as the elements they drive.
 - Put a font, color palette, or other theme Control Node in root when it is intentionally shared by some or all root-level graphic sub-compositions, then link each descendant target to that one root-owned source through the native ancestor-control path.
 - Interpret requests such as “change the colors,” “make the colors changeable,” or “use what is there” in a template-editing context as a request to expose theme Color Control Nodes initialized from the current rendered values, not to freeze those values. When scope is ambiguous, confirm which colors or modules should share controls. For a shared palette, define root-owned semantic controls such as Accent, Panel, and Text, link them across descendant modules, and verify that linking does not change the rendered result.
-- Put every agent-authored public Control Node in a semantic ordinary Control Node container. Group controls by operator workflow, default each container to Large (`width: "double"`), and use Small (`width: ""`) only when a concrete density or layout reason makes the narrower presentation better.
-- Use a direct link when one public input maps directly to one widget property. Use a script only when an input must be interpreted, combined, formatted, or routed.
+- Put every agent-authored public Control Node in a semantic ordinary Control Node container. Group controls by operator workflow, default each container to Large (`width: "double"`), and use Small (`width: ""`) only when a concrete density or layout reason makes the narrower presentation better. Leave the container `toolTip` empty unless the operator needs non-obvious behavioral context.
+- Keep public control IDs unique and stable for payload and script addressing. Inside a semantic container, use concise `title` metadata such as `Name`, `Score`, or `Color` rather than repeating context already supplied by the container title.
+- Prefer native direct links when one public input supplies the exact same value to one or many widget properties; use `--reuse-existing` for additional targets. Derived variants such as a darker shade remain script-owned presentation and must not also be linked.
+- Use bounded Counter controls for discrete stepwise operator values such as scores, wins, periods, or fouls. Set domain-appropriate integer `min` and `max` values and deliberate action buttons rather than leaving the range implicit.
+- Use a script only when an input must be interpreted, combined, formatted, or routed.
+- When a sport has a standard operator-controlled game clock, recommend a native Time Control and Timer-based implementation during design discussion. Do not default to a free-form Text control or synthesize elapsed state from `Date.now()`.
 - Match the public input to the renderer's visible capability: use a Text control for a single-line renderer, even when a Textarea link is technically compatible; reserve Textarea for renderers that visibly support line breaks or wrapping.
 - Do not expose Transform or Effect properties as Control Nodes merely because they are technically linkable. Expose them only when the user asks for those exact public controls.
 - Once a script relies on a composition or widget name, treat that name as part of the runtime contract and change the structure and script together.
@@ -78,7 +82,7 @@ Use zero captures for nonvisual or model-only work and normally one for a straig
 - Decide which elements are persistent and which are transient before assigning motion.
 - Use one containing animation only when every child shares the same lifecycle. For mixed lifecycles, animate the appropriate children or separate them structurally.
 - Ensure every requested module has a coherent settled In state and the intended settled Out state. Treat Update animation and continuous Behavior as distinct runtime contracts rather than extensions of the In/Out timeline.
-- For scripts, initialize from the current payload, guard lookups and inputs, avoid redundant writes, and clean up owned timers, listeners, streams, and network activity in `close()`.
+- For scripts, initialize from the current payload, guard lookups and inputs, avoid redundant writes by comparing with live widget payload when practical, and clean up owned timers, listeners, streams, and network activity in `close()`. Never let an in-memory “last written” cache suppress a required repair when another runtime surface may have reapplied widget model data.
 
 ## Part 2: Final graphic quality
 

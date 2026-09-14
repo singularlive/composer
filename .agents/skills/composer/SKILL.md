@@ -68,7 +68,7 @@ If work is canceled and a command returns `OPERATION_CANCELLED`, stop and do not
 node scripts/composer-agent.js finish-work --connection <conversation-connection-name>
 ```
 
-Require `COMPOSER_WORK_RELEASED`. Before a blocking question, send `status`, release the lease, then wait; revision approval is the sole exception. Keep long script or Player work alive with meaningful status updates. Use `complete` only when the user explicitly requests disconnection or revocation.
+Require `COMPOSER_WORK_RELEASED`. Before a blocking question, send `status --state waiting-for-user` with the exact question or request, release the lease, then wait; revision approval is the sole exception. Keep long script or Player work alive with ordinary `status` updates. Use `complete` only when the user explicitly requests disconnection or revocation.
 
 ## Inspect, mutate, verify
 

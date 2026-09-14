@@ -8,6 +8,8 @@ AI Graphics is internal widget `4792`. Its static schema contains only the non-l
 node scripts/composer-agent.js primitives --primitive ai-graphics
 ```
 
+When a composition script updates generated AI Graphics fields, read the routed [AI Graphics scripting reference](../composition-scripting/widget-aigraphics.md).
+
 Before generating a definition, read the shipped [AI Graphics authoring contract](ai-graphics-authoring.md) in full. The field value is one parseable JSON string containing `version`, `html`, `css`, `javascript`, generated `fields`, and generated `groups`. Keep HTML, CSS, and JavaScript self-contained. AI Graphics' non-linkable `definition` field has a dedicated 256 KiB serialized-value limit for Composer-agent writes; every other widget field retains the normal 32 KiB limit. Minify the complete definition before writing it, and measure the outer `JSON.stringify(definitionText)` length because quotes and backslashes in the definition add escaping overhead.
 
 Before pairing or installing a tile, validate and preview the local definition:
@@ -38,6 +40,7 @@ These commands are local and require neither pairing nor a work lease. Validatio
 
 ## Geometry and resolution independence
 
+- Keep operator-facing controls in familiar design units such as degrees, percentages, counts, or domain values. Convert those values inside the AI Graphics lifecycle to container-relative CSS units such as `%`, `cqi`, `cqb`, `cqw`, or `cqh`; do not expose internal responsive CSS units as part of the public control contract.
 - Coordinate spaces are nested. A tile's stored percentage position and size, including `getPositionX/Y()` and `getSizeX/Y()` in a composition script, resolve against its immediate parent group when grouped and against the composition when ungrouped. The AI Graphics runtime root then fills the resulting tile box. Browser `getBoundingClientRect()` values are viewport-relative pixels, not tile-local coordinates; at a 1:1 Player render they align with composition pixels, while scaled hosts require normalization against the tile/root rectangle.
 - Use one top-level authored overlay that fills the complete widget box. Composer alone owns the widget's placement and dimensions in the composition.
 - Do not recreate scene placement inside the definition with scene-relative offsets, safe-area margins, fixed coordinates, or capped outer dimensions.

@@ -22,7 +22,8 @@ const WIDGET_SCRIPT_REFERENCES = Object.freeze({
   4671: 'references/composition-scripting/widget-metrictextml.md',
   4672: 'references/composition-scripting/widget-metricticker.md',
   4706: 'references/composition-scripting/widget-metrictextanim.md',
-  4758: 'references/composition-scripting/widget-metrictextstyle.md'
+  4758: 'references/composition-scripting/widget-metrictextstyle.md',
+  4792: 'references/composition-scripting/widget-aigraphics.md'
 });
 
 function normalizeWidgetId(value) {

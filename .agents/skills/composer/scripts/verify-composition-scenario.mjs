@@ -20,6 +20,8 @@ const LIFECYCLE_EVENTS = new Set([
 const ACTIONS = new Set([
   'wait',
   'setPayload',
+  'pressControl',
+  'timerAction',
   'sendMessage',
   'playTo',
   'jumpTo',
@@ -122,6 +124,31 @@ function validateStep(step, index, captureNames) {
     assertAllowedKeys(step, ['action', 'compositionId', 'payload'], label);
     assertOptionalCompositionId(step, label);
     assertBoundedJsonValue(step.payload, `${label}.payload`);
+    return;
+  }
+
+  if (step.action === 'pressControl') {
+    assertAllowedKeys(step, ['action', 'compositionId', 'controlId'], label);
+    if (typeof step.compositionId !== 'string' || !step.compositionId.length || step.compositionId.length > 128) {
+      throw new Error(`${label}.compositionId must be a non-empty string of at most 128 characters`);
+    }
+    if (typeof step.controlId !== 'string' || !step.controlId.trim() || step.controlId.length > 100) {
+      throw new Error(`${label}.controlId must be a non-empty string of at most 100 characters`);
+    }
+    return;
+  }
+
+  if (step.action === 'timerAction') {
+    assertAllowedKeys(step, ['action', 'compositionId', 'controlId', 'command'], label);
+    if (typeof step.compositionId !== 'string' || !step.compositionId.length || step.compositionId.length > 128) {
+      throw new Error(`${label}.compositionId must be a non-empty string of at most 128 characters`);
+    }
+    if (typeof step.controlId !== 'string' || !step.controlId.trim() || step.controlId.length > 100) {
+      throw new Error(`${label}.controlId must be a non-empty string of at most 100 characters`);
+    }
+    if (!['start', 'play', 'pause', 'reset'].includes(step.command)) {
+      throw new Error(`${label}.command must be start, play, pause, or reset`);
+    }
     return;
   }
 
@@ -315,6 +342,16 @@ async function runPlayerAction(page, step, defaultCompositionId) {
     }
     if (input.action === 'getState') return target.getState();
     if (input.action === 'setPayload') await target.setPayload(input.payload);
+    else if (input.action === 'pressControl') {
+      var buttonPayload = {};
+      buttonPayload[input.controlId] = { command: 'execute' };
+      await target.setPayload(buttonPayload);
+    }
+    else if (input.action === 'timerAction') {
+      var timerPayload = {};
+      timerPayload[input.controlId] = { command: input.command };
+      await target.setPayload(timerPayload);
+    }
     else if (input.action === 'sendMessage') await target.sendMessage(input.message);
     else if (input.action === 'playTo') await target.playTo(input.state);
     else if (input.action === 'jumpTo') await target.jumpTo(input.state);
@@ -357,7 +394,7 @@ export async function executeVerificationScenario(options) {
     try {
       if (step.action === 'wait') {
         await page.waitForTimeout(step.milliseconds);
-      } else if (['setPayload', 'sendMessage', 'playTo', 'jumpTo'].includes(step.action)) {
+      } else if (['setPayload', 'pressControl', 'timerAction', 'sendMessage', 'playTo', 'jumpTo'].includes(step.action)) {
         await runPlayerAction(page, step, options.defaultCompositionId);
       } else if (step.action === 'waitForLifecycle') {
         await page.waitForFunction(function (input) {

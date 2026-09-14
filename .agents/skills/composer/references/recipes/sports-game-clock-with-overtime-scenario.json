@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "steps": [
+    { "action": "jumpTo", "state": "In" },
+    { "action": "timerAction", "compositionId": "<composition-id>", "controlId": "Game Clock", "command": "reset" },
+    { "action": "waitForLifecycle", "event": "payload_changed", "minimum": 1, "timeoutMs": 3000 },
+    { "action": "wait", "milliseconds": 250 },
+    { "action": "capture", "name": "reset-5-00" },
+    { "action": "setPayload", "compositionId": "<composition-id>", "payload": { "Game Clock": { "UTC": 0, "isRunning": false, "value": 295000 } } },
+    { "action": "waitForLifecycle", "event": "payload_changed", "minimum": 2, "timeoutMs": 3000 },
+    { "action": "wait", "milliseconds": 250 },
+    { "action": "capture", "name": "paused-0-05" },
+    { "action": "assertPixelsChanged", "from": "reset-5-00", "to": "paused-0-05", "region": { "unit": "percent", "x": 0, "y": 0, "width": 100, "height": 100 }, "minimumChangedPixels": 1 },
+    { "action": "setPayload", "compositionId": "<composition-id>", "payload": { "Game Clock": { "UTC": 0, "isRunning": false, "value": 312000 } } },
+    { "action": "waitForLifecycle", "event": "payload_changed", "minimum": 3, "timeoutMs": 3000 },
+    { "action": "wait", "milliseconds": 250 },
+    { "action": "capture", "name": "overtime-plus-0-12" },
+    { "action": "assertPixelsChanged", "from": "paused-0-05", "to": "overtime-plus-0-12", "region": { "unit": "percent", "x": 0, "y": 0, "width": 100, "height": 100 }, "minimumChangedPixels": 1 },
+    { "action": "timerAction", "compositionId": "<composition-id>", "controlId": "Game Clock", "command": "start" },
+    { "action": "waitForLifecycle", "event": "payload_changed", "minimum": 4, "timeoutMs": 3000 },
+    { "action": "wait", "milliseconds": 2100 },
+    { "action": "capture", "name": "running-1" },
+    { "action": "wait", "milliseconds": 1100 },
+    { "action": "capture", "name": "running-2" },
+    { "action": "assertPixelsChanged", "from": "running-1", "to": "running-2", "region": { "unit": "percent", "x": 0, "y": 0, "width": 100, "height": 100 }, "minimumChangedPixels": 1 },
+    { "action": "timerAction", "compositionId": "<composition-id>", "controlId": "Game Clock", "command": "pause" },
+    { "action": "assertLifecycle", "event": "error", "equals": 0 }
+  ]
+}

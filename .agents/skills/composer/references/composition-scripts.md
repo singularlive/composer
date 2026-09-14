@@ -86,9 +86,49 @@ Follow the construction, public-control, lifecycle, and completion requirements 
 - Control Nodes are the externally settable contract.
 - Direct links are appropriate when an input maps directly to one widget property.
 - Never have a composition script call `widget.setPayload()` for a property that is also directly linked to a Control Node. A destination has one authority: either the direct link or the script, never both. If a linked update appears ineffective, verify the defining control, persisted link, app extract, loaded widget definition, and Player behavior before changing ownership.
+- The normal Composer graphic canvas does not install composition scripts. The dedicated Composition Script editor preview and Singular Player do. A canvas value therefore cannot prove or disprove a runtime script write.
+- Native Control Node links and `widget.setPayload()` use independent update paths. When both target the same property, a later link/model update can replace the script value. Remove the competing link or stop writing that property from script; do not add a delayed second write as a general workaround.
 - When a script interprets or combines inputs, create those inputs as standalone controls, leave the derived widget property unlinked, and have the script read `comp.getPayload2()`, find the named widget, and update it with the exact widget API in the bundled scripting references. A hidden backing widget is unnecessary.
+- For derived presentation, do not use only an in-memory signature of the last attempted write. Compare the desired value with `widget.getPayload()` when the routed widget contract supports reliable readback, or idempotently rewrite the complete derived state on each relevant payload change. A local cache cannot detect another runtime surface reapplying persisted model data.
+- When a script intentionally owns a Rectangle `fillGradient`, send a complete solid-gradient value such as `{type:"solid",solidColor:{r:20,g:30,b:40,a:1}}`. Prefer a direct Color Control Node link when the public value should propagate unchanged; never combine that link with a script write to the same field.
 - Keep input fields and the widgets they drive in the same sub-composition unless cross-composition behavior is intentional.
 - Treat widget and composition names as runtime lookup contracts once a script uses `findWidget()` or `find()`; rename them only together with the script.
+
+### Reactive standalone controls
+
+Initialize script-owned presentation from `comp.getPayload2()` in `init()`, then subscribe to `payload_changed` and apply the newly authoritative payload. Do not rely on initialization alone: Player and Control App payload updates occur after `init()`. Keep one update function, compare against the last applied values when writes are expensive, and remove the listener in `close()`.
+
+```javascript
+(function() {
+  var composition = null;
+  var target = null;
+  var onPayloadChanged = null;
+
+  function applyPayload(payload) {
+    var value = payload && payload['Public Value'];
+    target.setPayload({ text: value == null ? '' : String(value) });
+  }
+
+  return {
+    init: function(comp) {
+      composition = comp;
+      target = comp.findWidget('Output')[0];
+      if (!target) throw new Error('Output widget was not found');
+      onPayloadChanged = function() { applyPayload(composition.getPayload2()); };
+      composition.addListener('payload_changed', onPayloadChanged);
+      applyPayload(composition.getPayload2());
+    },
+    close: function() {
+      if (composition && onPayloadChanged) composition.removeListener('payload_changed', onPayloadChanged);
+      composition = null;
+      target = null;
+      onPayloadChanged = null;
+    }
+  };
+})();
+```
+
+Use the exact listener signatures from [Singular scripting](composition-scripting/singular-scripting-doc.md) and the exact target payload from its routed widget reference. This pattern is for standalone controls whose values require interpretation or fan-out; keep direct one-to-one fields linked instead.
 
 ### Real-time text recipe
 
@@ -150,7 +190,7 @@ For a real-time NYC weather lower third, a sound split is:
 
 ## Verification boundary
 
-Composition scripts are installed by the Player runtime, not by the normal Composer graphic canvas. The runtime installs the global script before composition scripts and initializes child sub-compositions before the root. Use Player evidence for initialization order, listeners, widget changes, and animation calls.
+Composition scripts are installed by the dedicated Composition Script editor preview and Player runtime, not by the normal Composer graphic canvas. The runtime installs the global script before composition scripts and initializes child sub-compositions before the root. Use Player evidence for initialization order, listeners, widget changes, and animation calls. Managed Control Apps render packaged composition extracts, so update the extract before comparing them with current Composer state.
 
 For scoped ordinary-composition verification, pipe a fresh handoff to `verifyComposition.mjs --handoff-file -`; the verifier inherits the handoff's active composition. Pass `--composition-id root|active|<id>` only as an intentional override; disagreement with the handoff target produces a warning. The built-in target isolates sibling visuals in the private Player page and scopes DOM sampling, screenshots and default scenario actions; do not copy the verifier to change its selector. Drive target and ancestor In/Out states explicitly. Lifecycle counts remain page-wide, and direct widget-template targeting is unsupported; verify widget-owned output through its rendered owner. See [Player targeting and scenarios](composition-scripting/debugging-and-verification.md).
 
