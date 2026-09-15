@@ -20,7 +20,7 @@ node scripts/composer-agent.js primitives --primitive metric-text
 
 AI Graphics is the programmable escape hatch for one coherent responsive graphic that needs HTML, inline SVG, Canvas, dynamic fields, or custom lifecycle JavaScript. Native primitives remain preferable when elements need independent Composer editing.
 
-Never assume a control value shape. Read each field's schema and `runtime` object from `primitives`; for non-color fields, the runtime value reports the exact type and a complete accepted value. For an existing tile, `get` returns current `data` plus the same schema populated from current values.
+Never assume a widget field exists or retain a field contract across versions. Immediately before creation, read every intended field from `primitives --primitive <name>`. Before changing an existing tile, use `get --type tile --id <id> --compact` and obey the schema for that exact loaded widget version. Fields may be added, removed, renamed, or redefined; treat live type, default, runtime shape, selections, minimum, maximum, step, format, unit, linkability, and dynamic visibility as authoritative. Re-read after changing a field that can alter a dynamic schema. For non-color fields, the `runtime` value reports the exact current type and value.
 
 Datetime fields are schema-aware: an unset empty string may become an integer Unix millisecond timestamp within the JavaScript Date range, and an empty string may unset it again. Other strings and fractional or out-of-range numbers are rejected. This applies to direct data updates and declarative properties; Date Time Control Nodes require a configured numeric timestamp. See [Date / Time Countdown](widgets/date-time-countdown.md) for its widget-owned template and ticking behavior.
 

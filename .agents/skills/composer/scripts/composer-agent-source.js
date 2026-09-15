@@ -13,8 +13,8 @@ const { createWidgetReferences } = require('./widget-script-references');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 138;
-const PACKAGE_VERSION = '1.7.11';
+const SKILL_VERSION = 140;
+const PACKAGE_VERSION = '1.7.13';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -422,16 +422,9 @@ function compactResult(command, result) {
         keyframes: result.element.keyframes
       },
       values: result.data,
-      fields: (result.widget.fields || []).map(function (field) {
-        // Dynamic effect choices/ranges cannot be recovered from primitives.
-        if (result.widget.id === 4706 || result.widget.id === 4758) return field;
-        return {
-          id: field.id,
-          title: field.title,
-          type: field.type,
-          runtime: field.runtime
-        };
-      }),
+      // Field metadata is versioned runtime authority, not optional detail. Keep the complete
+      // sanitized schema even in compact output so no widget relies on stale catalog knowledge.
+      fields: result.widget.fields || [],
       subCompositions: result.widget.subCompositions || []
     };
   }
@@ -892,11 +885,11 @@ function assertCompatibleComposerAgentVersion(authentication, allowMismatch) {
   if (serverVersion === SKILL_VERSION || allowMismatch) return;
   let message;
   if (!Number.isInteger(serverVersion)) {
-    message = `Installed Composer skill protocol ${SKILL_VERSION} could not determine the Composer protocol. Update Composer and install the matching skill before starting work.`;
+    message = `Installed Composer skill protocol ${SKILL_VERSION} could not determine the Composer protocol. Keep the latest available skill installed, update Composer, then retry after the protocols match.`;
   } else if (SKILL_VERSION > serverVersion) {
-    message = `Installed Composer skill protocol ${SKILL_VERSION} is newer than Composer protocol ${serverVersion}. Update Composer to protocol ${SKILL_VERSION}, then reopen the paired composition; alternatively install a skill matching protocol ${serverVersion}.`;
+    message = `Installed Composer skill protocol ${SKILL_VERSION} is newer than Composer protocol ${serverVersion}. Keep the latest available skill installed. Update Composer to protocol ${SKILL_VERSION}, then reopen the paired composition.`;
   } else {
-    message = `Composer protocol ${serverVersion} is newer than installed skill protocol ${SKILL_VERSION}. Install a skill matching protocol ${serverVersion}, then retry the connection.`;
+    message = `Composer protocol ${serverVersion} is newer than installed skill protocol ${SKILL_VERSION}. Install the latest available Composer skill, then retry the connection.`;
   }
   const error = new Error(message);
   error.code = 'COMPOSER_AGENT_VERSION_MISMATCH';

@@ -22,12 +22,14 @@ node .agents/skills/composer/scripts/dependency-preflight.js
 
 ## Safe upgrade
 
+Always install the latest available Composer skill release. Do not pin, retain, reinstall, or restore an older release because the currently deployed Composer protocol is behind. Protocol compatibility controls whether editor commands can run after installation; it does not control which skill version to install.
+
 1. Choose one unique 1–64 character connection name for this AI conversation and retain it before changing the installation. Never reuse another conversation's profile.
 2. Stage the complete replacement in a sibling directory on the same volume. Do not delete or modify the working skill yet.
-3. Verify the staged payload shape, read its `SKILL.md` and the references routed for the task again, and run `node scripts/composer-agent.js doctor`. Require the semantic package version, bundled core status, and integer protocol version to be present. With a retained connection, require compatible server status.
+3. Verify the staged payload shape, read its `SKILL.md` and the references routed for the task again, and run `node scripts/composer-agent.js doctor` without a connection. Require the latest available semantic package version, bundled core status, and integer protocol version to be present. Do not reject the staged release based on the protocol currently deployed by Composer.
 4. Do not run `npm ci` in an installed skill. Require the staged payload to contain the exact vendored Playwright package and pass normal preflight before protection; run preflight with `--capture` when Chrome is also required.
 5. Rename the working directory to a backup and rename the verified sibling staging directory into place. A same-volume rename prevents agents from observing a partially copied skill. If replacement fails, restore the backup before retrying. Remove the backup only after the installed destination passes the same payload, version, and dependency checks.
-6. Reread the installed, not staged, `SKILL.md` and task references. Run `doctor` again from that destination, resolve any duplicate installation that could shadow it, then pair with the retained connection name and continue only when output reports both `paired: true` and `acknowledged: true`.
+6. Reread the installed, not staged, `SKILL.md` and task references. Run `doctor` again from that destination and resolve any duplicate installation that could shadow it. A server protocol mismatch may prevent pairing or editor commands until Composer is updated, but it does not invalidate or roll back the latest installation. Pair with the retained connection name when the server is compatible, and continue only when output reports both `paired: true` and `acknowledged: true`.
 
 Run `node scripts/dependency-preflight.js` from the installed payload before pairing; it always verifies Playwright Core, and `--capture` additionally verifies Chrome. Preserve its diagnostic block when reporting failure. It contains only package/protocol versions, bundled-core status, the generic `payloadRoot`, Node expected/actual major versions, lockfile status, required package expected/actual versions, originating script names, stable error codes, and optional Chrome availability. `doctor` intentionally reports selected and duplicate installation paths; do not supplement either command with environment values, npm cache locations, credentials, or raw module stacks.
 
@@ -35,7 +37,7 @@ Never trust generic installer exit text alone. Verify every requested destinatio
 
 ## Protocol mismatch and reconnect recovery
 
-`COMPOSER_AGENT_VERSION_MISMATCH` reports both protocol numbers and which side is newer. When the installed skill is newer, update Composer to the reported skill protocol and reopen the paired composition; alternatively install the older skill matching the current Composer protocol. When Composer is newer, update the selected skill installation to the reported Composer protocol. Do not continue with editor commands while the versions differ.
+`COMPOSER_AGENT_VERSION_MISMATCH` reports both protocol numbers and which side is newer. Keep or install the latest available skill regardless of which side is newer. When the installed skill is newer, wait for Composer to reach the reported skill protocol, then reopen the paired composition. When Composer is newer, update the selected skill to the latest available release. Never downgrade the skill to match an older Composer deployment, and do not continue with editor commands while the versions differ.
 
 After the versions match, `EDITOR_RELOAD_REQUIRED` means the paired composition still has a stale loaded editor: reload or reopen that composition and retry because pairing persists. `COMPOSER_EDITOR_DISCONNECTED` means no paired composition answered within the two-second cross-process grace: release any work lease and ask the user to reopen the paired composition. The Composer AI connection starts automatically; do not instruct the user to open or foreground its panel. A new pairing code is needed only when authorization is missing, expired, or revoked.
 

@@ -17,7 +17,7 @@ Pairing credentials last at most 30 days. Editor heartbeats keep authorization r
 
 ## CLI dependencies
 
-Run `node scripts/dependency-preflight.js` before first use; add `--capture` to check Chrome. Use `doctor` for installation and version diagnostics. On failure, follow [installation.md](references/installation.md). Stop on `COMPOSER_AGENT_VERSION_MISMATCH` and follow its update direction. For `EDITOR_RELOAD_REQUIRED`, reload the composition and retry. For `COMPOSER_EDITOR_DISCONNECTED`, release work and ask the user to reopen the composition; do not extend the timeout or ask them to foreground the AI panel.
+Run `node scripts/dependency-preflight.js` before first use; add `--capture` to check Chrome. Use `doctor` for installation and version diagnostics. On failure, follow [installation.md](references/installation.md). Always install the latest available Composer skill; server compatibility gates editor commands, not installation, and is never a reason to retain, install, or restore an older skill. Stop editor commands on `COMPOSER_AGENT_VERSION_MISMATCH` and follow its update direction. For `EDITOR_RELOAD_REQUIRED`, reload the composition and retry. For `COMPOSER_EDITOR_DISCONNECTED`, release work and ask the user to reopen the composition; do not extend the timeout or ask them to foreground the AI panel.
 
 ## Route the task first
 
@@ -77,7 +77,7 @@ Resolve pasted `@composer/... ref_…` handles immediately after `wait-ready`. U
 Composer is the source of truth for editor work:
 
 1. Run `inspect`, confirm `activeComposition.stack`, and read each target through the narrowest applicable inspector before mutation.
-2. Read the relevant live primitive, font, animation, Behavior, Control Node, or widget schema. Never infer IDs, paths, values, or catalog options from memory.
+2. Read the relevant live primitive, font, animation, Behavior, Control Node, or widget schema. For every widget, use `primitives --primitive <name>` before creating it and `get` on the exact loaded tile version before editing it. Never infer field IDs, availability, types, defaults, runtime shapes, choices, ranges, steps, units, linkability, or dynamic visibility from memory or from another widget version; releases may add, remove, rename, or redefine fields.
 3. Make one coherent, bounded change through the highest-level supported operation.
 4. Reinspect the changed scope and verify authoritative readback, links, ownership, and unrelated state.
 
