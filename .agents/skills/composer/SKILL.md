@@ -5,114 +5,68 @@ description: Inspect, capture, create, and refine graphics in an open Singular C
 
 # Singular Composer
 
-Control the user's open Singular Composer session through the bundled client. Generate one unique local connection name per conversation and retain it only for that conversation:
+Use the client with one unique connection name per conversation:
 
 ```bash
 node scripts/composer-agent.js <command> --connection <conversation-connection-name> [options]
 ```
 
-Reuse that `--connection` value for every command. Never reuse another conversation's profile or combine it with `COMPOSER_AGENT_CREDENTIALS`. The bundled CLIs are the only supported interface: never expose credentials, replace raw composition JSON, construct script REST calls, or add arbitrary execution to the paired relay.
+Reuse it for every command. Never reuse another profile or combine it with `COMPOSER_AGENT_CREDENTIALS`. Use only bundled CLIs. Never expose credentials, replace raw composition JSON, construct script REST calls, or add arbitrary relay execution.
 
-Pairing credentials last at most 30 days. Editor heartbeats keep authorization resumable while Composer is open; after disconnect, a 30-minute reconnect grace begins and authenticated commands refresh it. After expiry, the next AI-tool click creates a fresh pairing code without manual disconnection.
-
-## CLI dependencies
-
-Run `node scripts/dependency-preflight.js` before first use; add `--capture` to check Chrome. Use `doctor` for installation and version diagnostics. On failure, follow [installation.md](references/installation.md). Always install the latest available Composer skill; server compatibility gates editor commands, not installation, and is never a reason to retain, install, or restore an older skill. Stop editor commands on `COMPOSER_AGENT_VERSION_MISMATCH` and follow its update direction. For `EDITOR_RELOAD_REQUIRED`, reload the composition and retry. For `COMPOSER_EDITOR_DISCONNECTED`, release work and ask the user to reopen the composition; do not extend the timeout or ask them to foreground the AI panel.
+Run `node scripts/dependency-preflight.js` once per package version, Node major, and lockfile digest; reuse success until one changes. Add `--capture` for Chrome. Use `doctor` for installation diagnostics. Always install the latest available Composer skill; never downgrade for protocol compatibility.
 
 ## Route the task first
 
-Read only the references required for the current task and phase. Before mutation, establish the ownership, public-input, and lifecycle constraints that affect the design; defer implementation details for later phases until those phases begin.
+Read only references needed for the current task and phase.
 
 | Task | Required reference |
 | --- | --- |
+| Install, upgrade, or verify the skill installation | [installation.md](references/installation.md) before changing any installed file |
 | Pairing, global flags, structured files, isolated edits, failure recovery | [command-basics.md](references/command-basics.md) |
-| Graphic creation, layout/design refinement, or reference matching | [authoring-quality.md](references/authoring-quality.md) |
-| Isolated text, color, or property edit with unchanged structure and behavior | "Isolated property edits" in [command-basics.md](references/command-basics.md), plus the matching widget guide when applicable |
-| Elements, groups, layouts, properties, or fonts | [element-commands.md](references/element-commands.md) |
-| Primitives or declarative graphics | [graphics.md](references/graphics.md) and [auxiliary-commands.md](references/auxiliary-commands.md) |
-| Choosing or configuring a widget | [widgets.md](references/widgets.md), then its routed widget guide |
-| Ordinary sub-composition structure | [composition-structure.md](references/composition-structure.md) and [composition-commands.md](references/composition-commands.md) |
-| Revisions | [revisions.md](references/revisions.md) |
-| Display variants | [display-variants.md](references/display-variants.md) |
+| Graphic creation, design, or reference matching | [authoring-quality.md](references/authoring-quality.md) |
+| Isolated property edit | "Isolated property edits" in [command-basics.md](references/command-basics.md), then the matching widget guide |
+| Elements, layout, fonts, primitives, or declarative graphics | [element-commands.md](references/element-commands.md), [graphics.md](references/graphics.md), or [auxiliary-commands.md](references/auxiliary-commands.md) |
+| Widget selection or configuration | [widgets.md](references/widgets.md), then its routed widget guide |
+| Compositions, revisions, or display variants | [composition-structure.md](references/composition-structure.md), [composition-commands.md](references/composition-commands.md), [revisions.md](references/revisions.md), or [display-variants.md](references/display-variants.md) |
 | Timeline, Update, Behavior, logic layers, or playback | [composition-motion.md](references/composition-motion.md) and [motion-commands.md](references/motion-commands.md) |
-| Inspecting Control Nodes or resolving their authority | [control-nodes.md](references/control-nodes.md) |
-| Creating or linking Control Nodes | [control-nodes.md](references/control-nodes.md) and [control-node-creation.md](references/control-node-creation.md) |
-| Editing or deleting Control Nodes | [control-nodes.md](references/control-nodes.md) and [control-node-editing.md](references/control-node-editing.md) |
-| Control Node containers or Table controls | [control-nodes.md](references/control-nodes.md) and [control-node-commands.md](references/control-node-commands.md) |
-| Widget-owned templates | [widget-subcompositions.md](references/widget-subcompositions.md) |
-| Widget-owned output links | [widget-nodes.md](references/widget-nodes.md) |
+| Control Nodes, containers, values, links, or deletion | [control-nodes.md](references/control-nodes.md), then its routed creation, editing, or command reference |
+| Widget-owned templates or output links | [widget-subcompositions.md](references/widget-subcompositions.md) or [widget-nodes.md](references/widget-nodes.md) |
 | Capture or measurements | [capture.md](references/capture.md) |
 | Composition scripts or Player behavior | [composition-scripts.md](references/composition-scripts.md) and its routed scripting references |
-| Reusable multi-capability construction patterns | [recipes.md](references/recipes.md), then its routed recipe |
-| Recreating supplied motion | [video-reference.md](references/video-reference.md) |
-| User asks `generate improvement handoff` after teaching or correcting the skill | [improvement-handoff.md](references/improvement-handoff.md) |
+| Reusable construction pattern or supplied motion | [recipes.md](references/recipes.md) or [video-reference.md](references/video-reference.md) |
+| `generate improvement handoff` | [improvement-handoff.md](references/improvement-handoff.md) |
 
-Treat the exact phrase `generate improvement handoff` as a retrospective reporting request, not a Composer authoring task. Read the routed reference and return its sanitized, self-contained development prompt without acquiring a work lease, reinspecting Composer, or modifying the composition or repository.
+`generate improvement handoff` is retrospective. Return its sanitized development prompt without pairing, work, inspection, or mutation.
 
-## Authorize and hold one work lease
+## Authorize and work
 
-Composer AI availability is deployment- and account-gated. If the control is absent or pairing reports ineligibility, report the blocker and stop. For a new authorization, ask the user to open **Composer AI**, request its six-character code, and run `pair`; never request or expose the access token. When the user supplies a code, run `pair --code <code>` as the next pairing action; do not create or poll a pairing intent. `PAIRING_CODE_INVALID` is terminal for that code: report it immediately and request a fresh code without retrying. Require `paired: true` and `acknowledged: true`. Use `check-connection --connection <conversation-connection-name>` for a read-only connection check.
+Composer AI availability is deployment- and account-gated. If absent or ineligible, report the blocker and stop. For new authorization, request the visible six-character code; never request the token or poll an intent. Run `pair --code <code>` immediately when supplied. `PAIRING_CODE_INVALID` is terminal; request a fresh code without retrying. Require `paired: true` and `acknowledged: true`. Use `check-connection --connection <conversation-connection-name>` for a read-only check.
 
-For tasks requiring editor commands, before `inspect` or any other editor command, run:
+For tasks requiring editor commands, run before `inspect` or mutation:
 
 ```bash
-node scripts/composer-agent.js start-work --connection <conversation-connection-name>
-node scripts/composer-agent.js wait-ready --connection <conversation-connection-name>
+node scripts/composer-agent.js begin-work --connection <conversation-connection-name>
 ```
 
-Continue only when `wait-ready` reports active authorization, connected editor, ready commands, and active work lease.
-
-If work is canceled and a command returns `OPERATION_CANCELLED`, stop and do not reconnect until the user gives a new instruction. Except for the bounded revision recommendation described below, before yielding, waiting for user input, or ending the task, always run:
+Continue only for active authorization, connected editor, ready commands, and active lease. `begin-work` releases on readiness failure. On `OPERATION_CANCELLED`, stop until a new instruction. Before yielding, waiting, or ending, run:
 
 ```bash
 node scripts/composer-agent.js finish-work --connection <conversation-connection-name>
 ```
 
-Require `COMPOSER_WORK_RELEASED`. Before a blocking question, send `status --state waiting-for-user` with the exact question or request, release the lease, then wait; revision approval is the sole exception. Keep long script or Player work alive with ordinary `status` updates. Use `complete` only when the user explicitly requests disconnection or revocation.
+Require `COMPOSER_WORK_RELEASED`. Before a blocking question, send `status --state waiting-for-user`, release, then wait. [Revisions](references/revisions.md) own the approval exception. Use `complete` only for explicit revocation.
 
 ## Inspect, mutate, verify
 
-Resolve pasted `@composer/... ref_…` handles immediately after `wait-ready`. Use only `resolved` targets; report `missing` or `collision` rather than substituting a similar name. Follow [command-basics.md](references/command-basics.md) for the manifest and scope rules.
+Composer is the source of truth:
 
-Composer is the source of truth for editor work:
-
-1. Run `inspect`, confirm `activeComposition.stack`, and read each target through the narrowest applicable inspector before mutation.
-2. Read the relevant live primitive, font, animation, Behavior, Control Node, or widget schema. For every widget, use `primitives --primitive <name>` before creating it and `get` on the exact loaded tile version before editing it. Never infer field IDs, availability, types, defaults, runtime shapes, choices, ranges, steps, units, linkability, or dynamic visibility from memory or from another widget version; releases may add, remove, rename, or redefine fields.
+1. Run `inspect`, confirm `activeComposition.stack`, and read targets through the narrowest applicable inspector.
+2. Read required live schemas and ownership through the routed reference; never infer mutable contracts from memory.
 3. Make one coherent, bounded change through the highest-level supported operation.
 4. Reinspect the changed scope and verify authoritative readback, links, ownership, and unrelated state.
 
-Prefer bounded projections over full inspection. Put structured inputs in one writable task-temporary directory and remove them after success or failure.
+Use bounded projections and temporary structured inputs. Never decompose failed atomic operations. Follow [command-basics.md](references/command-basics.md): after an uncertain outcome, obtain authoritative readback before retry. Report errors directly.
 
-## Preserve structure and use atomic operations
+Change only requested content. Preserve unrelated structure, controls, links, scripts, and states. One destination has exactly one write authority; update linked fields through their defining source. The paired editor owns structure, the authenticated helper owns persisted script text, and Player owns runtime behavior. Follow routed revision, template, capture, and scripting safeguards.
 
-Preserve existing ownership and choose structure through [authoring-quality.md](references/authoring-quality.md), which owns root, nested-module, display-presentation, and shared-bounds policy. Use the highest-level operation that covers the requested scope and batch related changes. Follow the routed command and composition references above.
-
-Never decompose a failed atomic operation into serial mutations. Follow "Mutation failure recovery" in [command-basics.md](references/command-basics.md): after an uncertain outcome, obtain authoritative readback before any retry. Keep declarative keys stable and content inside its managed ownership group.
-
-Report every relay or command error directly. Preserve the original failure and Composer state instead of hiding either behind speculative recovery. Route text, clocks, AI Graphics, and other widget decisions through [widgets.md](references/widgets.md) and the selected widget guide.
-
-## Protect user content and public inputs
-
-- Change only requested content. Preserve unrelated elements, groups, compositions, controls, scripts, states, and links.
-- Before deletion, inspect and state the complete recursive scope. Ask first if it exceeds the request.
-- Before the first high-impact mutation in a task, recommend a revision through the AI chat question UI. High-impact work includes multi-composition or broad element changes, recursive deletion, migration, display-variant configuration, composition-script changes, control/link restructuring, orchestration, and replacement of an existing visual system. Do not prompt for inspection, capture, playback, isolated text/color/property edits, variant activation, or another high-impact phase already covered by a revision created during the same task.
-- Offer `Create revision: AI checkpoint before <operation>` as recommended, plus `Continue without revision` and `Cancel operation`, with freeform input enabled. Send `status` first and keep the lease active while waiting. After the answer, restore readiness and inspect again; create a revision only with explicit approval. On cancellation, release the lease without mutating. Follow [revisions.md](references/revisions.md) for restore and deletion safeguards.
-- Inspect Control Nodes and Widget Nodes before changing linked widget data or layout. Update the defining source instead of bypassing a link; never replace a conflicting link implicitly.
-- Give every destination property exactly one write authority. If a Control Node directly links a widget field, no composition script may also write that field; if a script derives or forwards a value, leave its destination unlinked. Diagnose link, payload, loaded-definition, and runtime behavior before proposing another write path.
-- Create standalone controls only as intentional external or script inputs. Use dedicated typed commands for specialized models.
-
-## Respect widget-template identity
-
-Widget-owned templates are not ordinary sub-compositions. Enter them through the owner, use the current session token, and discard internal handles after leaving or reopening. Follow [widget-subcompositions.md](references/widget-subcompositions.md).
-
-## Keep runtime authorities separate
-
-The paired editor owns composition structure, the authenticated helper owns persisted script text, and Player owns runtime behavior. Prefer native widgets and direct links. Finish structure and public inputs before a fresh `script-handoff`; verify scripts, continuous motion, timers, tickers, media, and event-driven behavior in Player. Follow [composition-scripts.md](references/composition-scripts.md).
-
-## Capture only for visual evidence
-
-Use model readback for structure and capture only when pixels answer an unresolved visual question. Never use screenshots as progress heartbeats, and view every retained image. Follow [capture.md](references/capture.md).
-
-## Final gate
-
-Before handoff, confirm scope, authoritative readback, links, ownership, applicable visual/runtime evidence, final state, temporary-file cleanup, and work-lease release. Report anything unverified as pending.
+Before handoff, confirm scope, readback, ownership, applicable visual/runtime evidence, cleanup, final state, and lease release. Report unverified behavior as pending.

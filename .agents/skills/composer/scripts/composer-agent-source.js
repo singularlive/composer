@@ -10,11 +10,12 @@ const WebSocket = require('ws');
 const credentialSelection = require('./credential-selection');
 const { parseImageSelectionCsv } = require('./selection-image-csv');
 const { createWidgetReferences } = require('./widget-script-references');
+const { findSkillInstallations, getDuplicateInstallations, getInstallationScope } = require('./installation-discovery');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 140;
-const PACKAGE_VERSION = '1.7.13';
+const SKILL_VERSION = 142;
+const PACKAGE_VERSION = '1.7.15';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -71,7 +72,7 @@ const BOOLEAN_OPTIONS = new Set([
 const GLOBAL_COMMAND_OPTIONS = ['server', 'compact', 'template-session', 'connection'];
 const KNOWN_COMMANDS = new Set([
   'doctor',
-  'pair', 'pair-intent', 'check-connection', 'start-work', 'wait-ready', 'finish-work', 'status', 'complete',
+  'pair', 'pair-intent', 'check-connection', 'begin-work', 'start-work', 'wait-ready', 'finish-work', 'status', 'complete',
   'inspect', 'find-elements', 'composition-tree', 'resolve-references', 'script-handoff', 'control-composition',
   'timeline-link', 'set-timeline-link', 'logic-layers', 'set-logic-layer', 'rename-logic-layer',
   'create-composition', 'orchestrate', 'create-revision', 'list-revisions', 'read-revision', 'compare-revision',
@@ -121,52 +122,6 @@ function readInstalledPackage() {
   } catch (error) {
     return null;
   }
-}
-
-function getInstallationScope(skillRoot) {
-  const normalizedRoot = path.resolve(skillRoot).toLowerCase();
-  const globalRoots = [
-    path.join(os.homedir(), '.agents', 'skills', 'composer'),
-    path.join(os.homedir(), '.codex', 'skills', 'composer')
-  ].map(function (candidate) { return path.resolve(candidate).toLowerCase(); });
-  if (globalRoots.includes(normalizedRoot)) return 'global';
-  return normalizedRoot.includes(path.normalize(`${path.sep}.agents${path.sep}skills${path.sep}composer`).toLowerCase())
-    ? 'project'
-    : 'custom';
-}
-
-function findSkillInstallations(selectedRoot) {
-  const candidates = [];
-  let current = path.resolve(process.cwd());
-  while (true) {
-    candidates.push(path.join(current, '.agents', 'skills', 'composer'));
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-  candidates.push(path.join(os.homedir(), '.agents', 'skills', 'composer'));
-  candidates.push(path.join(os.homedir(), '.codex', 'skills', 'composer'));
-
-  const seen = new Set();
-  return candidates.filter(function (candidate) {
-    const normalized = path.resolve(candidate).toLowerCase();
-    if (seen.has(normalized) || !fs.existsSync(path.join(candidate, 'SKILL.md'))) return false;
-    seen.add(normalized);
-    return true;
-  }).map(function (candidate) {
-    const root = path.resolve(candidate);
-    const packagePath = path.join(root, 'package.json');
-    let version = null;
-    try {
-      version = JSON.parse(fs.readFileSync(packagePath, 'utf8')).version || null;
-    } catch (error) {}
-    return {
-      path: root,
-      scope: getInstallationScope(root),
-      packageVersion: version,
-      selected: root.toLowerCase() === path.resolve(selectedRoot).toLowerCase()
-    };
-  });
 }
 
 function findSystemChrome() {
@@ -260,10 +215,16 @@ async function runDoctor(options) {
   const skillRoot = path.resolve(__dirname, '..');
   const installedPackage = readInstalledPackage();
   const installations = findSkillInstallations(skillRoot);
-  const selectedInstallation = {
+  const selectedInstallation = installations.find(function (installation) {
+    return installation.selected;
+  }) || {
     path: skillRoot,
+    realPath: skillRoot,
     scope: getInstallationScope(skillRoot),
-    packageVersion: installedPackage && installedPackage.version || PACKAGE_VERSION
+    host: 'custom',
+    packageVersion: installedPackage && installedPackage.version || PACKAGE_VERSION,
+    selected: true,
+    samePhysicalInstallation: true
   };
   let server = { status: 'not-checked' };
   if (options.connection !== undefined || ENV_CREDENTIALS_OVERRIDE_PATH) {
@@ -289,8 +250,8 @@ async function runDoctor(options) {
     protocolVersion: SKILL_VERSION,
     selectedInstallation: selectedInstallation,
     installations: installations,
-    duplicateInstallations: installations.filter(function (installation) { return !installation.selected; }),
-    effectiveRuntime: 'this command uses selectedInstallation; project skills override global skills when both are discovered',
+    duplicateInstallations: getDuplicateInstallations(installations),
+    effectiveRuntime: 'this command uses selectedInstallation; project skills override global skills when both are discovered; realPath identifies aliases of the same physical payload',
     node: {
       status: nodeCompatible ? 'compatible' : 'version-mismatch',
       expectedMajor: 22,
@@ -1179,6 +1140,21 @@ function waitForComposerReady(options, requireWorkLease) {
       }
     });
   });
+}
+
+async function beginWork(options) {
+  assertAllowedOptions(options, ['timeout', 'compact'], 'begin-work');
+  await sendSessionMessage({ type: 'work_start' }, 'work_started');
+  try {
+    return await waitForComposerReady(options);
+  } catch (error) {
+    try {
+      await sendSessionMessage({ type: 'work_finish' }, 'work_finished');
+    } catch (cleanupError) {
+      error.message += '; automatic work release also failed: ' + cleanupError.message;
+    }
+    throw error;
+  }
 }
 
 function executeCommand(method, params, commandTimeoutMs) {
@@ -2100,6 +2076,9 @@ async function run() {
       break;
     case 'start-work':
       result = await sendSessionMessage({ type: 'work_start' }, 'work_started');
+      break;
+    case 'begin-work':
+      result = await beginWork(parsed.options);
       break;
     case 'wait-ready':
       assertAllowedOptions(parsed.options, ['timeout', 'compact'], 'wait-ready');

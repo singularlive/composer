@@ -40,7 +40,7 @@ Each helper request has a 30-second deadline covering headers and body, and a 32
 
 ## End-to-end workflow
 
-1. Follow the authorization and work-lease workflow in [SKILL.md](../SKILL.md): pair or resume, run `start-work`, then `wait-ready` before `inspect`, and build the visual structure with `composer-agent`.
+1. Follow the authorization and work-lease workflow in [SKILL.md](../SKILL.md): pair or resume, run `begin-work` before `inspect`, and build the visual structure with `composer-agent`.
 2. Put independently controlled modules in named sub-compositions. Give script-addressed widgets unambiguous names.
 3. Create the intended public input surface as Control Nodes in the composition whose script consumes them. Use direct links for one-to-one property inputs and standalone controls for values the script interprets, combines, or forwards. Do not expose a structured gradient through a native Gradient Control Node; keep it as an internal widget-rendering value and use a complete widget-runtime gradient object in the script when needed. A Color control is appropriate only when the external input is intentionally one solid color. Run `control-nodes` and verify every field and payload value, every required `dataLink` or `nodeRef`, and the intentional absence of links for standalone script inputs.
 4. Capture a visual baseline only when the existing layout must be preserved or compared. Otherwise verify structure through inspection and defer visual capture until the coherent layout is ready. Standalone Player capture proves the sampled visual state, not an event-driven path that was never triggered.

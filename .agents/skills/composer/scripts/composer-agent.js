@@ -5438,13 +5438,128 @@ module.exports = {
 
 /***/ }),
 /* 47 */
+/***/ ((module, __unused_webpack_exports, __webpack_require__) => {
+
+"use strict";
+
+
+const fs = __webpack_require__(1);
+const os = __webpack_require__(2);
+const path = __webpack_require__(3);
+
+const HOST_DIRECTORIES = ['.agents', '.claude', '.codex'];
+
+function pathIdentity(value) {
+  const resolved = path.resolve(value);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function containsHostPath(skillRoot, hostDirectory) {
+  const normalized = path.resolve(skillRoot).replace(/[\\/]+/g, path.sep);
+  const marker = path.sep + hostDirectory + path.sep + 'skills' + path.sep + 'composer';
+  return process.platform === 'win32'
+    ? normalized.toLowerCase().includes(marker.toLowerCase())
+    : normalized.includes(marker);
+}
+
+function realPath(value) {
+  try {
+    return fs.realpathSync.native ? fs.realpathSync.native(value) : fs.realpathSync(value);
+  } catch (error) {
+    return path.resolve(value);
+  }
+}
+
+function getInstallationScope(skillRoot, homeDirectory) {
+  const rootIdentity = pathIdentity(skillRoot);
+  const home = homeDirectory || os.homedir();
+  const globalRoots = HOST_DIRECTORIES.map(function (hostDirectory) {
+    return pathIdentity(path.join(home, hostDirectory, 'skills', 'composer'));
+  });
+  if (globalRoots.includes(rootIdentity)) return 'global';
+  return HOST_DIRECTORIES.some(function (hostDirectory) {
+    return containsHostPath(skillRoot, hostDirectory);
+  }) ? 'project' : 'custom';
+}
+
+function getInstallationHost(skillRoot) {
+  const hostDirectory = HOST_DIRECTORIES.find(function (candidate) {
+    return containsHostPath(skillRoot, candidate);
+  });
+  return hostDirectory ? hostDirectory.slice(1) : 'custom';
+}
+
+function findSkillInstallations(selectedRoot, options) {
+  const settings = options || {};
+  const cwd = path.resolve(settings.cwd || process.cwd());
+  const home = path.resolve(settings.home || os.homedir());
+  const candidates = [path.resolve(selectedRoot)];
+  let current = cwd;
+  while (true) {
+    HOST_DIRECTORIES.forEach(function (hostDirectory) {
+      candidates.push(path.join(current, hostDirectory, 'skills', 'composer'));
+    });
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  HOST_DIRECTORIES.forEach(function (hostDirectory) {
+    candidates.push(path.join(home, hostDirectory, 'skills', 'composer'));
+  });
+
+  const selectedPathIdentity = pathIdentity(selectedRoot);
+  const selectedRealPathIdentity = pathIdentity(realPath(selectedRoot));
+  const seenPaths = new Set();
+  return candidates.filter(function (candidate) {
+    const identity = pathIdentity(candidate);
+    if (seenPaths.has(identity) || !fs.existsSync(path.join(candidate, 'SKILL.md'))) return false;
+    seenPaths.add(identity);
+    return true;
+  }).map(function (candidate) {
+    const root = path.resolve(candidate);
+    const canonicalPath = realPath(root);
+    let version = null;
+    try {
+      version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version || null;
+    } catch (error) {}
+    return {
+      path: root,
+      realPath: canonicalPath,
+      scope: getInstallationScope(root, home),
+      host: getInstallationHost(root),
+      packageVersion: version,
+      selected: pathIdentity(root) === selectedPathIdentity,
+      samePhysicalInstallation: pathIdentity(canonicalPath) === selectedRealPathIdentity
+    };
+  });
+}
+
+function getDuplicateInstallations(installations) {
+  const seenRealPaths = new Set();
+  return installations.filter(function (installation) {
+    if (installation.samePhysicalInstallation) return false;
+    const identity = pathIdentity(installation.realPath);
+    if (seenRealPaths.has(identity)) return false;
+    seenRealPaths.add(identity);
+    return true;
+  });
+}
+
+module.exports = {
+  findSkillInstallations,
+  getDuplicateInstallations,
+  getInstallationScope
+};
+
+/***/ }),
+/* 48 */
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("./capture-composition-preview");
 
 /***/ }),
-/* 48 */
+/* 49 */
 /***/ ((module) => {
 
 "use strict";
@@ -5533,11 +5648,12 @@ const WebSocket = __webpack_require__(21);
 const credentialSelection = __webpack_require__(44);
 const { parseImageSelectionCsv } = __webpack_require__(45);
 const { createWidgetReferences } = __webpack_require__(46);
+const { findSkillInstallations, getDuplicateInstallations, getInstallationScope } = __webpack_require__(47);
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 140;
-const PACKAGE_VERSION = '1.7.13';
+const SKILL_VERSION = 142;
+const PACKAGE_VERSION = '1.7.15';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -5594,7 +5710,7 @@ const BOOLEAN_OPTIONS = new Set([
 const GLOBAL_COMMAND_OPTIONS = ['server', 'compact', 'template-session', 'connection'];
 const KNOWN_COMMANDS = new Set([
   'doctor',
-  'pair', 'pair-intent', 'check-connection', 'start-work', 'wait-ready', 'finish-work', 'status', 'complete',
+  'pair', 'pair-intent', 'check-connection', 'begin-work', 'start-work', 'wait-ready', 'finish-work', 'status', 'complete',
   'inspect', 'find-elements', 'composition-tree', 'resolve-references', 'script-handoff', 'control-composition',
   'timeline-link', 'set-timeline-link', 'logic-layers', 'set-logic-layer', 'rename-logic-layer',
   'create-composition', 'orchestrate', 'create-revision', 'list-revisions', 'read-revision', 'compare-revision',
@@ -5625,12 +5741,12 @@ let captureModule = null;
 let aiGraphicsModule = null;
 
 function getCaptureModule() {
-  if (!captureModule) captureModule = __webpack_require__(47);
+  if (!captureModule) captureModule = __webpack_require__(48);
   return captureModule;
 }
 
 function getAIGraphicsModule() {
-  if (!aiGraphicsModule) aiGraphicsModule = __webpack_require__(48);
+  if (!aiGraphicsModule) aiGraphicsModule = __webpack_require__(49);
   return aiGraphicsModule;
 }
 
@@ -5644,52 +5760,6 @@ function readInstalledPackage() {
   } catch (error) {
     return null;
   }
-}
-
-function getInstallationScope(skillRoot) {
-  const normalizedRoot = path.resolve(skillRoot).toLowerCase();
-  const globalRoots = [
-    path.join(os.homedir(), '.agents', 'skills', 'composer'),
-    path.join(os.homedir(), '.codex', 'skills', 'composer')
-  ].map(function (candidate) { return path.resolve(candidate).toLowerCase(); });
-  if (globalRoots.includes(normalizedRoot)) return 'global';
-  return normalizedRoot.includes(path.normalize(`${path.sep}.agents${path.sep}skills${path.sep}composer`).toLowerCase())
-    ? 'project'
-    : 'custom';
-}
-
-function findSkillInstallations(selectedRoot) {
-  const candidates = [];
-  let current = path.resolve(process.cwd());
-  while (true) {
-    candidates.push(path.join(current, '.agents', 'skills', 'composer'));
-    const parent = path.dirname(current);
-    if (parent === current) break;
-    current = parent;
-  }
-  candidates.push(path.join(os.homedir(), '.agents', 'skills', 'composer'));
-  candidates.push(path.join(os.homedir(), '.codex', 'skills', 'composer'));
-
-  const seen = new Set();
-  return candidates.filter(function (candidate) {
-    const normalized = path.resolve(candidate).toLowerCase();
-    if (seen.has(normalized) || !fs.existsSync(path.join(candidate, 'SKILL.md'))) return false;
-    seen.add(normalized);
-    return true;
-  }).map(function (candidate) {
-    const root = path.resolve(candidate);
-    const packagePath = path.join(root, 'package.json');
-    let version = null;
-    try {
-      version = JSON.parse(fs.readFileSync(packagePath, 'utf8')).version || null;
-    } catch (error) {}
-    return {
-      path: root,
-      scope: getInstallationScope(root),
-      packageVersion: version,
-      selected: root.toLowerCase() === path.resolve(selectedRoot).toLowerCase()
-    };
-  });
 }
 
 function findSystemChrome() {
@@ -5783,10 +5853,16 @@ async function runDoctor(options) {
   const skillRoot = path.resolve(__dirname, '..');
   const installedPackage = readInstalledPackage();
   const installations = findSkillInstallations(skillRoot);
-  const selectedInstallation = {
+  const selectedInstallation = installations.find(function (installation) {
+    return installation.selected;
+  }) || {
     path: skillRoot,
+    realPath: skillRoot,
     scope: getInstallationScope(skillRoot),
-    packageVersion: installedPackage && installedPackage.version || PACKAGE_VERSION
+    host: 'custom',
+    packageVersion: installedPackage && installedPackage.version || PACKAGE_VERSION,
+    selected: true,
+    samePhysicalInstallation: true
   };
   let server = { status: 'not-checked' };
   if (options.connection !== undefined || ENV_CREDENTIALS_OVERRIDE_PATH) {
@@ -5812,8 +5888,8 @@ async function runDoctor(options) {
     protocolVersion: SKILL_VERSION,
     selectedInstallation: selectedInstallation,
     installations: installations,
-    duplicateInstallations: installations.filter(function (installation) { return !installation.selected; }),
-    effectiveRuntime: 'this command uses selectedInstallation; project skills override global skills when both are discovered',
+    duplicateInstallations: getDuplicateInstallations(installations),
+    effectiveRuntime: 'this command uses selectedInstallation; project skills override global skills when both are discovered; realPath identifies aliases of the same physical payload',
     node: {
       status: nodeCompatible ? 'compatible' : 'version-mismatch',
       expectedMajor: 22,
@@ -6702,6 +6778,21 @@ function waitForComposerReady(options, requireWorkLease) {
       }
     });
   });
+}
+
+async function beginWork(options) {
+  assertAllowedOptions(options, ['timeout', 'compact'], 'begin-work');
+  await sendSessionMessage({ type: 'work_start' }, 'work_started');
+  try {
+    return await waitForComposerReady(options);
+  } catch (error) {
+    try {
+      await sendSessionMessage({ type: 'work_finish' }, 'work_finished');
+    } catch (cleanupError) {
+      error.message += '; automatic work release also failed: ' + cleanupError.message;
+    }
+    throw error;
+  }
 }
 
 function executeCommand(method, params, commandTimeoutMs) {
@@ -7623,6 +7714,9 @@ async function run() {
       break;
     case 'start-work':
       result = await sendSessionMessage({ type: 'work_start' }, 'work_started');
+      break;
+    case 'begin-work':
+      result = await beginWork(parsed.options);
       break;
     case 'wait-ready':
       assertAllowedOptions(parsed.options, ['timeout', 'compact'], 'wait-ready');
