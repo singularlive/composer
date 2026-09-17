@@ -15,4 +15,8 @@ Use exact generated field IDs and value shapes from paired live schema inspectio
 
 Do not script a generated field that is also directly linked to a Control Node. For interpreted or combined inputs, use standalone controls, read the composition payload on `payload_changed`, and send only the derived generated fields. After replacing a definition, confirm the updated definition is installed in the tested app or output before diagnosing script delivery.
 
+Generated `json` fields receive JSON text (use `JSON.stringify` for an object); `gradient` fields receive complete native gradient objects; `counter` fields receive the resolved numeric value, not an increment command. The authored lifecycle owns parsing, validation, and rendering.
+
+For a generated `button` field, call `graphic.click('trigger')` with its exact field ID. Each call reaches the optional `button(id, context)` lifecycle callback, including repeated presses. Do not simulate a button through `setPayload()` or infer presses from saved payload timestamps. Only installed, declared button fields receive actions; do not also script a directly linked button.
+
 Verify the generated schema and payload in Composer, then trigger the script path in Player and confirm the rendered result. A successful `setPayload()` call or stored value alone does not prove that the current AI Graphics definition handled the update.

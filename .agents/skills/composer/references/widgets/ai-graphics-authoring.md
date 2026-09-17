@@ -81,10 +81,16 @@ Definition rules:
 - Every group must contain id, title, and childIds.
 - Every childIds entry must reference a defined field.
 - An optional group activeId must reference a defined checkbox field.
-- Use only these field types: text, textarea, number, normalizednumber, checkbox, selection, color, image, and metricfont.
+- Use only these field types: text, textarea, number, normalizednumber, checkbox, selection, color, image, metricfont, gradient, json, counter, and button. Clock fields are not supported.
 - Add disableDataLink: true to a generated field only when it must remain editable exclusively in Composer.
 - Keep HTML, CSS, and JavaScript self-contained. Do not encode them as Base64.
 - Keep the complete minified definition below the Composer agent's dedicated 256 KiB serialized-value limit. Measure the outer JSON.stringify(definitionText) length; embedded quotes and backslashes add escaping overhead. Other generated field values retain the normal 32 KiB limit.
+
+Additional field contracts:
+- gradient: use the native structured gradient object, not a CSS string. A complete default is {"type":"solid","solidColor":{"r":204,"g":204,"b":204,"a":1},"stops":[{"offset":0,"color":"#000000","opacity":1},{"offset":1,"color":"#ffffff","opacity":1}],"offset":0,"angle":0,"scale":100,"spreadMethod":"pad","keepAspect":false,"centerX":50,"centerY":50,"radius":50,"focalAngle":0,"focalDistance":0}. Values pass through unchanged. Render solid, linear, and radial types using authored SVG/Canvas or a deliberate CSS mapping; preserve stop opacity and native geometry. context.colors.toCss handles solid colors only, not linear or radial gradients. Do not expose a native Gradient Control Node; keep structured gradients widget-owned or script-owned, with a Color control only for an intentionally solid-color input.
+- json: use JSON text, for example defaultValue: "{}". The host does not parse it into an object. Parse present changes with JSON.parse inside try/catch, validate the expected shape, and define a deliberate malformed-input fallback. Do not render JSON content as HTML.
+- counter: use a numeric defaultValue and the native Counter metadata (min/max, resetValue, m1 through m7 for increment buttons, s1 through s7 for set buttons). For example: {"id":"score","type":"counter","title":"Score","defaultValue":0,"resetValue":0,"m1":"-","m2":"+","s1":0}. The native UI resolves increments and sets before update(); the lifecycle receives the current number or numeric string. Do not interpret that value as a delta or treat setPayload() as a counter-command API.
+- button: use defaultValue: false and optionally text for the button label. Implement optional button(id, context) for presses of declared button fields. Each native action is delivered independently, including repeated presses; a default, saved payload value, or ordinary update() is not a press. Do not infer clicks from context.data or changes. Composition scripts call widget.click(fieldId), not setPayload(), to press an unlinked button. Actions arriving before installation or after destroy() are ignored; they are not queued.
 
 Responsive layout rules:
 - Treat coordinate spaces as nested: Composer tile percentages resolve against the immediate parent group when grouped, otherwise against the composition; script getPositionX/Y and getSizeX/Y return those stored percentages. The runtime root fills the resulting tile box. Browser getBoundingClientRect() values are viewport-relative pixels, not tile-local coordinates; normalize them against the tile/root rectangle when the Player is scaled.
@@ -126,6 +132,8 @@ The javascript string must return an object with these lifecycle functions:
 - update(changes, context): apply only changed dynamic field values to the existing DOM
 - seek(animation, context): render Singular-controlled In or Out animation at the supplied normalized progress
 - destroy(context): release every listener, observer, animation frame, timer, and other resource created by this definition
+- Optional resize(size, context): respond to widget layout changes; size contains width and height in pixels
+- Optional button(id, context): handle native actions for declared button fields independently of update()
 
 Runtime context rules:
 - Use context.root to access the authored Shadow DOM content.
