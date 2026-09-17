@@ -6,6 +6,22 @@ Composer opens at a root composition. A composition tile can contain another com
 
 Most element and control commands operate on the **currently active composition**. Explicit scene-wide commands, such as composition playback, ordinary timeline linking, and scoped motion batches, resolve targets by their documented IDs without requiring each target to be active. Run `inspect` and confirm `activeComposition.stack`, then follow the target and scope contract of the chosen command; do not navigate merely because a target is elsewhere in the scene.
 
+## Revision approval before mutation
+
+Before the first high-impact mutation in a task, recommend a revision through the AI chat question UI and wait for the user's choice. This is an agent-chat decision, not a Composer dialog or an automatic server prompt.
+
+High-impact work includes multi-composition or broad element changes, recursive deletion, migration, display-variant configuration, composition-script changes, control/link restructuring, orchestration, and replacement of an existing visual system.
+
+Do not prompt for inspection, capture, playback, isolated text/color/property edits, variant activation, or another high-impact phase already covered by a revision created during the same task. An explicit request to create a revision is already approval; do not ask again.
+
+After inspection and before mutation:
+
+1. Propose a concise description and explain that the revision saves the last persisted scene, not unsaved edits in the current Composer tab.
+2. Send `status --state waiting-for-user` with the question. Offer `Create revision: AI checkpoint before <operation>` as recommended, plus `Continue without revision` and `Cancel operation`, with freeform input enabled. If no structured question UI is available, ask the same question in chat and wait for an explicit answer.
+3. Keep the work lease active while waiting for this revision decision; this is the sole exception to releasing before a blocking question. Do not mutate while awaiting the answer.
+4. After the answer, check readiness and inspect again. If the lease expired, reacquire it with `begin-work` before inspection or mutation. On `OPERATION_CANCELLED`, stop until a new user instruction; do not reacquire automatically.
+5. Create a revision only with explicit approval, using the approved description, and verify the returned revision ID before the planned mutation. On creation failure, stop and report it; do not silently continue without protection. If the user chooses to continue without a revision, proceed with the approved task without creating one. On cancellation, release the lease without mutating.
+
 ## Managing revisions
 
 ```bash

@@ -63,8 +63,9 @@ Composer is the source of truth:
 
 1. Run `inspect`, confirm `activeComposition.stack`, and read targets through the narrowest applicable inspector.
 2. Read required live schemas and ownership through the routed reference; never infer mutable contracts from memory.
-3. Make one coherent, bounded change through the highest-level supported operation.
-4. Reinspect the changed scope and verify authoritative readback, links, ownership, and unrelated state.
+3. Before the first high-impact mutation in a task, recommend a revision through the AI chat question UI and wait for the user's choice. Read [revision approval](references/revisions.md#revision-approval-before-mutation) for the criteria, exclusions, and consent procedure before proceeding.
+4. Make one coherent, bounded change through the highest-level supported operation.
+5. Reinspect the changed scope and verify authoritative readback, links, ownership, and unrelated state.
 
 Use bounded projections and temporary structured inputs. Never decompose failed atomic operations. Follow [command-basics.md](references/command-basics.md): after an uncertain outcome, obtain authoritative readback before retry. Report errors directly.
 

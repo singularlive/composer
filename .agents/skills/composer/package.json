@@ -3,7 +3,7 @@
   "version": "1.7.15",
   "private": true,
   "composerAgent": {
-    "protocolVersion": 145,
+    "protocolVersion": 146,
     "coreRuntime": "scripts/composer-agent.js",
     "coreDependenciesBundled": [
       "tinycolor2",
