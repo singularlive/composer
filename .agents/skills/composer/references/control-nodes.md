@@ -4,7 +4,9 @@ This reference owns Control Node scope, authority, and inspection. Continue to [
 
 ## Ownership and public contracts
 
-A Control Node is a composition-level input. It may directly expose a selected widget-data or tile/group Transform/Effect property, or it may remain standalone so an external payload can trigger composition-script processing. Supported agent-created types are `text`, `textarea`, `number`, `normalizednumber`, `counter`, `color`, `image`, `checkbox`, `audio`, `video`, `data`, `jsonfile`, `json`, `datetime`, `location`, `selection`, `button`, `timecontrol`, `infotext`, and `metricfont`.
+A Control Node is a composition-level input. It may directly expose a selected widget-data or tile/group Transform/Effect property, or it may remain standalone so an external payload can trigger composition-script processing. Supported agent-created types are `text`, `textarea`, `number`, `normalizednumber`, `counter`, `color`, `image`, `checkbox`, `audio`, `video`, `data`, `jsonfile`, `json`, `datetime`, `location`, `selection`, `button`, `timecontrol`, `clock`, `infotext`, and `metricfont`.
+
+For native duration clocks, read [Clock Control Nodes](control-node-clock.md) before creation, configuration, commands, linking, or consuming `clockChanged` in a script. Clock is distinct from Time Control and current-time widgets.
 
 Native Gradient Control Nodes are outside agent support because their implementation-specific payload is not a suitable public contract. Author structured gradients directly on compatible widget fields. Use a Color Control Node linked to a Gradient field only when the public input is intentionally one solid color.
 

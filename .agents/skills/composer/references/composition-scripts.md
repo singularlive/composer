@@ -64,6 +64,8 @@ Keep the saved authorization available for follow-up structural work unless the 
 
 ## Required references
 
+For native Clock inputs or `clockChanged`, read [Clock Control Nodes](control-node-clock.md). It owns the event envelope, source/key filtering, event gate, command units, formatted getter behavior, and listener example. These are Control Node messages, not Timer widget events.
+
 For widget-owned template outputs, read [widget-nodes.md](widget-nodes.md). The handoff and fast summary expose a separate `widgetNodes` snapshot; its values are editor samples, not public Control Node payloads or live Player state.
 
 Read [composition-scripting/singular-scripting-doc.md](composition-scripting/singular-scripting-doc.md) before relying on runtime methods, listeners, or scripting patterns. Follow [composition-scripting/widget-references.md](composition-scripting/widget-references.md) to interpret handoff routes, and read the routed `composition-scripting/widget-*.md` file before authoring a widget payload. Use [composition-scripting/debugging-and-verification.md](composition-scripting/debugging-and-verification.md) for Player verification. Never guess widget APIs or payload keys.

@@ -30,6 +30,7 @@ Read only references needed for the current task and phase.
 | Compositions, revisions, or display variants | [composition-structure.md](references/composition-structure.md), [composition-commands.md](references/composition-commands.md), [revisions.md](references/revisions.md), or [display-variants.md](references/display-variants.md) |
 | Timeline, Update, Behavior, logic layers, or playback | [composition-motion.md](references/composition-motion.md) and [motion-commands.md](references/motion-commands.md) |
 | Control Nodes, containers, values, links, or deletion | [control-nodes.md](references/control-nodes.md), then its routed creation, editing, or command reference |
+| Native Clock duration control or `clockChanged` script messages | [control-node-clock.md](references/control-node-clock.md) |
 | Widget-owned templates or output links | [widget-subcompositions.md](references/widget-subcompositions.md) or [widget-nodes.md](references/widget-nodes.md) |
 | Capture or measurements | [capture.md](references/capture.md) |
 | Composition scripts or Player behavior | [composition-scripts.md](references/composition-scripts.md) and its routed scripting references |

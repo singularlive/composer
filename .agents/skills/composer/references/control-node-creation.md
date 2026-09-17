@@ -22,7 +22,7 @@ node scripts/composer-agent.js create-control --name "Headline Font" --node-type
 node scripts/composer-agent.js create-controls --file <controls.json>
 ```
 
-Creation follows Composer's normal path. Linked controls initialize from the target property's current value, so linking does not change the rendered graphic. A standalone value control requires an explicit `--value-file`; Button and Time Control instead use their fixed native initial states. Standalone creation writes only the model field and payload, with no widget `dataLink` or layout `nodeRef`.
+Creation follows Composer's normal path. Linked value controls initialize from the target property's current value, so linking does not change the rendered graphic. Clock is the exception: it initializes stopped at its native begin, not from target text. A standalone value control requires an explicit `--value-file`; Button, Time Control, and Clock instead use their fixed native initial states. Standalone creation writes only the model field and payload, with no widget `dataLink` or layout `nodeRef`.
 
 When a user asks to change a template's colors, make its colors changeable, or “use what is there,” preserve the current palette as the initial values of semantic Color Control Nodes rather than leaving colors baked into widgets. If scope is unclear, confirm whether the request covers one element, one module, or a shared theme. For a palette shared by sibling root modules, create the first link from a root-owned control with `--source-composition root`, reuse that exact control for every additional descendant target with `--reuse-existing`, and place the controls in a root theme container. Verify the controls, links, and target readback before changing a control and restoring it once to prove propagation without changing the final design.
 
@@ -49,6 +49,7 @@ Use a standalone control when the value is an external/script input rather than 
 | `location` | `location` | `{text,long,lat}` with a string label and finite numeric coordinates |
 | `selection` | `selection`; `text`/`textarea` with `format: "text"`; `color`/`gradient` with `format: "color"`; `image` with `format: "image"` | String option ID; non-Selection fields require an explicit option source |
 | `timecontrol` | `timecontrol` | Native `{UTC,isRunning,value}` elapsed-time state |
+| `clock` | `text`, `textarea` | Native stopped-at-zero duration anchor; no supplied value; read [Clock](control-node-clock.md) |
 | `infotext` | Not linkable; standalone only | Sanitized HTML string |
 | `metricfont` | `metricfont` | Complete Composer-resolved `{fontData:{family,weight,style,subset,mg,...}}` value |
 
@@ -81,6 +82,8 @@ The converter preserves absolute and protocol-relative HTTP(S) URLs, rejects emb
 This compatibility table is the supported agent contract, not a copy of every orange **may work** pairing in Composer's link browser. The narrower set is intentional: add another compatible pairing only after its conversion, initialization, readback, update, and cleanup behavior are verified.
 
 ## Specialized controls
+
+Native Clock supports count up/down, stopping, overtime, fractional commands, and optional rich events without a Timer widget. Read [Clock Control Nodes](control-node-clock.md) for creation, configuration, command units, links, and the complete `clockChanged` contract.
 
 Button controls are standalone event inputs. Create one without a value file, then use `press-control --id <control-id>` for each activation. Composer persists the native `{__singularButton:true,ts}` marker with a fresh timestamp; generic `set-control-value` writes are rejected so callers cannot replay or fabricate button events. Button metadata supports `buttonWidth` values `auto`, `small`, `medium`, `large`, and `fill`, plus the common title, ordering, visibility, advanced-style, and display-variant fields. Buttons always use immediate updates and do not create data links or node references.
 

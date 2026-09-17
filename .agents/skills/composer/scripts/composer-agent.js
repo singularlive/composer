@@ -5652,7 +5652,7 @@ const { findSkillInstallations, getDuplicateInstallations, getInstallationScope 
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 142;
+const SKILL_VERSION = 144;
 const PACKAGE_VERSION = '1.7.15';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
@@ -8141,19 +8141,19 @@ async function run() {
       const type = requireOption(parsed.options, 'node-type');
       if (![
         'text', 'textarea', 'number', 'normalizednumber', 'counter', 'color',
-        'image', 'checkbox', 'audio', 'video', 'data', 'jsonfile', 'json', 'datetime', 'location', 'selection', 'button', 'timecontrol', 'infotext', 'metricfont'
+        'image', 'checkbox', 'audio', 'video', 'data', 'jsonfile', 'json', 'datetime', 'location', 'selection', 'button', 'timecontrol', 'clock', 'infotext', 'metricfont'
       ].includes(type)) {
         throw new Error(
           '--node-type must be "text", "textarea", "number", "normalizednumber", ' +
           '"counter", "color", "image", "checkbox", "audio", "video", "data", ' +
-          '"jsonfile", "json", "datetime", "location", "selection", "button", "timecontrol", "infotext", or "metricfont"'
+          '"jsonfile", "json", "datetime", "location", "selection", "button", "timecontrol", "clock", "infotext", or "metricfont"'
         );
       }
       const target = parsed.options.target || (parsed.options['element-id'] ? 'layout' : 'data');
       if (!['data', 'layout', 'standalone'].includes(target)) {
         throw new Error('--target must be "data", "layout", or "standalone"');
       }
-      if (target === 'standalone' && !['button', 'timecontrol', 'metricfont'].includes(type)) {
+      if (target === 'standalone' && !['button', 'timecontrol', 'metricfont', 'clock'].includes(type)) {
         requireOption(parsed.options, 'value-file');
       }
       const metricFontOptions = ['family', 'weight', 'style', 'subset', 'font-source'];
@@ -8178,6 +8178,9 @@ async function run() {
       }
       if (type === 'timecontrol' && target === 'standalone' && parsed.options['value-file'] !== undefined) {
         throw new Error('Time Control creation does not accept --value-file');
+      }
+      if (type === 'clock' && parsed.options['value-file'] !== undefined) {
+        throw new Error('Clock creation does not accept --value-file; use set-control-value commands after creation');
       }
       if (type === 'infotext') {
         if (target !== 'standalone') throw new Error('Info Text requires --target standalone');
@@ -8234,7 +8237,7 @@ async function run() {
         value: target === 'standalone'
           ? type === 'button'
             ? { __singularButton: true, ts: 0 }
-            : type === 'timecontrol'
+            : type === 'timecontrol' || type === 'clock'
             ? undefined
             : type === 'metricfont'
             ? undefined
