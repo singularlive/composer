@@ -6,11 +6,11 @@ This reference owns Control Node scope, authority, and inspection. Continue to [
 
 A Control Node is a composition-level input. It may directly expose a selected widget-data or tile/group Transform/Effect property, or it may remain standalone so an external payload can trigger composition-script processing. Supported agent-created types are `text`, `textarea`, `number`, `normalizednumber`, `counter`, `color`, `image`, `checkbox`, `audio`, `video`, `data`, `jsonfile`, `json`, `datetime`, `location`, `selection`, `button`, `timecontrol`, `clock`, `infotext`, and `metricfont`.
 
-For native duration clocks, read [Clock Control Nodes](control-node-clock.md) before creation, configuration, commands, linking, or consuming `clockChanged` in a script. Clock is distinct from Time Control and current-time widgets.
+For native duration timers, read [Timer Control Nodes](control-node-timer.md) before creation, configuration, commands, linking, or consuming `timerChanged` in a script. Timer is distinct from Time Control and current-time widgets.
 
 Native Gradient Control Nodes are outside agent support because their implementation-specific payload is not a suitable public contract. Author structured gradients directly on compatible widget fields. Use a Color Control Node linked to a Gradient field only when the public input is intentionally one solid color.
 
-Targets resolve in the active composition. Unless the user explicitly requests an ancestor-owned public control, create a linked control beside its target and a standalone control where its consuming script lives. An ancestor-owned control may link into a descendant; sibling and unrelated sources are invalid. Confirm `activeComposition.stack` before mutation.
+Targets resolve in the active composition. Unless the user requests an ancestor-owned public control or an established shared-theme contract already defines one, create a linked control beside its target and a standalone control where its consuming script lives. An ancestor-owned control may link into a descendant; sibling and unrelated sources are invalid. Confirm `activeComposition.stack` before mutation. Decide content versus theme scope using [the authoring standard](authoring-quality.md); use [theme promotion](recipes/promote-theme-controls.md) when moving existing local styling to root without moving module copy.
 
 Every agent-authored public control belongs in an ordinary semantic Control Node container organized around the operator's task. Default to Large (`width: "double"`); use Small (`width: ""`) only for a concrete density reason. Verify ordered membership with `control-nodes` before handoff.
 

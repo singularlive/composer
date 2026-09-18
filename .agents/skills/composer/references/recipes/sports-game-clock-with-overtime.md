@@ -1,6 +1,6 @@
 # Sports game clock with overtime
 
-For a new native duration clock, read [Clock Control Nodes](../control-node-clock.md) first. Native Clock provides countdown, stopping, signed overtime and `clockChanged` without a Timer widget. Keep the Time Control/Timer construction below for existing graphics using that architecture; custom `+m:ss` overtime can instead be derived from Clock events in an unlinked text widget.
+For a new native duration timer, read [Timer Control Nodes](../control-node-timer.md) first. Native Timer provides countdown, stopping, signed overtime and `timerChanged` without a Timer widget. Keep the Time Control/Timer construction below for existing graphics using that architecture; custom `+m:ss` overtime can instead be derived from Timer Control Node events in an unlinked text widget.
 
 Use this pattern when an operator-controlled clock must count down from a fixed regulation duration and continue upward after zero with a `+m:ss` overtime display. The native Time Control owns elapsed state and operator actions; a Timer widget emits elapsed-time updates; a composition script formats those updates into an unlinked Metric Text widget.
 

@@ -64,7 +64,7 @@ Keep the saved authorization available for follow-up structural work unless the 
 
 ## Required references
 
-For native Clock inputs or `clockChanged`, read [Clock Control Nodes](control-node-clock.md). It owns the event envelope, source/key filtering, event gate, command units, formatted getter behavior, and listener example. These are Control Node messages, not Timer widget events.
+For native Timer inputs or `timerChanged`, read [Timer Control Nodes](control-node-timer.md). It owns the event envelope, source/key filtering, event gate, command units, formatted getter behavior, and listener example. These are Control Node messages, not Timer widget events.
 
 For widget-owned template outputs, read [widget-nodes.md](widget-nodes.md). The handoff and fast summary expose a separate `widgetNodes` snapshot; its values are editor samples, not public Control Node payloads or live Player state.
 

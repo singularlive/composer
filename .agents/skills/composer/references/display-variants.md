@@ -12,6 +12,8 @@ Display variants represent presentation contexts, not merely resolutions. Two va
 
 Follow the display-presentation ownership policy in "Choose the right structural unit" in [authoring-quality.md](authoring-quality.md). The commands below configure presentation relevance without authorizing a reorganization of the existing composition tree or public controls.
 
+For a portrait extension to an already-authored landscape module, follow [Add a portrait presentation](recipes/existing-module-portrait.md). Preserve its managed landscape group, reuse existing content and theme sources, and keep the new presentation under the original parent lifecycle. A new aspect ratio is not permission to replace the original visual system.
+
 Inspect the scene-level contract from any ordinary scope:
 
 ```bash

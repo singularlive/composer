@@ -4,7 +4,7 @@ Read [Control Node design and lifecycle](control-nodes.md) first for ownership, 
 
 ## Change metadata
 
-For `clock`, first read [Clock configuration and commands](control-node-clock.md). Its coupled direction/endpoints and format/frequency settings are validated together; Clock settings do not accept `null` or default/reset payload metadata.
+For `timer`, first read [Timer configuration and commands](control-node-timer.md). Its coupled direction/endpoints and format/frequency settings are validated together; Timer settings do not accept `null` or default/reset payload metadata.
 
 Inspect first, then pass only the properties to change:
 
@@ -22,7 +22,7 @@ Renaming `id` atomically migrates payload, local and cross-composition widget li
 
 ## Change a value
 
-Clock uses `set-control-value` with a command object such as `{"command":"adjust","value":-1.5}`, in seconds. Raw anchors and read-side state are rejected. See [Clock](control-node-clock.md); `timer-action` remains exclusive to Time Control.
+Timer uses `set-control-value` with a command object such as `{"command":"adjust","value":-1.5}`, in seconds. Raw anchors and read-side state are rejected. See [Timer](control-node-timer.md); `timer-action` remains exclusive to Time Control.
 
 ```bash
 node scripts/composer-agent.js control-nodes

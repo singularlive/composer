@@ -2,6 +2,26 @@
 
 Read [Control Node design and lifecycle](control-nodes.md) first for ownership, authority, inspection, and conflict rules. Use this reference when creating controls, links, or specialized control types; use [Control Node commands](control-node-commands.md) for CLI syntax.
 
+## Create versus reuse
+
+`--reuse-existing` is lookup-and-link, not create-or-reuse. It requires exactly one existing control with the exact public ID passed as `--name` and the same type in the selected source composition. A missing source returns `NOT_FOUND`; a duplicate source or incompatible type is an error. Reuse preserves that source's value and metadata; it does not initialize from the new target. Omit the flag for initial creation, then inspect the returned public `id`, internal `keyId`, source composition, and value before linking another target.
+
+For example, with the descendant module active and global typography requested:
+
+```bash
+node scripts/composer-agent.js create-control --name "Font" --node-type metricfont --tile-id <first-text-id> --property font --source-composition root
+```
+
+Only after successful creation and source/link readback, reuse the exact returned public ID (not the display title or an assumed unsuffixed name):
+
+```bash
+node scripts/composer-agent.js create-control --name "<returned-font-public-id>" --node-type metricfont --tile-id <next-text-id> --property font --source-composition root --reuse-existing
+```
+
+If any prerequisite fails, stop dependent link attempts. In particular, do not repeat `--reuse-existing` on additional targets after `NOT_FOUND`. Inspect the intended source, resolve the cause, and verify successful creation before continuing. Do not split a failed atomic batch into sequential retries. Batched `reuseExisting: true` also requires a source that already exists when the batch is validated; do not use it to refer to a control being created earlier in that same batch.
+
+A Metric Font control supplies the complete font value, including weight. Share it only across roles intended to use that same value; preserve separate weight roles with separate controls. One control can drive multiple targets through successive exact-field links, not a bulk font operation. For already-linked local themes, follow [Promote theme controls to root](recipes/promote-theme-controls.md) rather than implicitly replacing their sources.
+
 ## Create, with an optional link
 
 ```bash
@@ -22,7 +42,7 @@ node scripts/composer-agent.js create-control --name "Headline Font" --node-type
 node scripts/composer-agent.js create-controls --file <controls.json>
 ```
 
-Creation follows Composer's normal path. Linked value controls initialize from the target property's current value, so linking does not change the rendered graphic. Clock is the exception: it initializes stopped at its native begin, not from target text. A standalone value control requires an explicit `--value-file`; Button, Time Control, and Clock instead use their fixed native initial states. Standalone creation writes only the model field and payload, with no widget `dataLink` or layout `nodeRef`.
+Creation follows Composer's normal path. Linked value controls initialize from the target property's current value, so linking does not change the rendered graphic. Timer is the exception: it initializes stopped at its native begin, not from target text. A standalone value control requires an explicit `--value-file`; Button, Time Control, and Timer instead use their fixed native initial states. Standalone creation writes only the model field and payload, with no widget `dataLink` or layout `nodeRef`.
 
 When a user asks to change a template's colors, make its colors changeable, or “use what is there,” preserve the current palette as the initial values of semantic Color Control Nodes rather than leaving colors baked into widgets. If scope is unclear, confirm whether the request covers one element, one module, or a shared theme. For a palette shared by sibling root modules, create the first link from a root-owned control with `--source-composition root`, reuse that exact control for every additional descendant target with `--reuse-existing`, and place the controls in a root theme container. Verify the controls, links, and target readback before changing a control and restoring it once to prove propagation without changing the final design.
 
@@ -49,7 +69,7 @@ Use a standalone control when the value is an external/script input rather than 
 | `location` | `location` | `{text,long,lat}` with a string label and finite numeric coordinates |
 | `selection` | `selection`; `text`/`textarea` with `format: "text"`; `color`/`gradient` with `format: "color"`; `image` with `format: "image"` | String option ID; non-Selection fields require an explicit option source |
 | `timecontrol` | `timecontrol` | Native `{UTC,isRunning,value}` elapsed-time state |
-| `clock` | `text`, `textarea` | Native stopped-at-zero duration anchor; no supplied value; read [Clock](control-node-clock.md) |
+| `timer` | `text`, `textarea` | Native stopped-at-zero duration anchor; no supplied value; read [Timer](control-node-timer.md) |
 | `infotext` | Not linkable; standalone only | Sanitized HTML string |
 | `metricfont` | `metricfont` | Complete Composer-resolved `{fontData:{family,weight,style,subset,mg,...}}` value |
 
@@ -83,7 +103,7 @@ This compatibility table is the supported agent contract, not a copy of every or
 
 ## Specialized controls
 
-Native Clock supports count up/down, stopping, overtime, fractional commands, and optional rich events without a Timer widget. Read [Clock Control Nodes](control-node-clock.md) for creation, configuration, command units, links, and the complete `clockChanged` contract.
+Native Timer supports count up/down, stopping, overtime, fractional commands, and optional rich events without a Timer widget. Read [Timer Control Nodes](control-node-timer.md) for creation, configuration, command units, links, and the complete `timerChanged` contract.
 
 Button controls are standalone event inputs. Create one without a value file, then use `press-control --id <control-id>` for each activation. Composer persists the native `{__singularButton:true,ts}` marker with a fresh timestamp; generic `set-control-value` writes are rejected so callers cannot replay or fabricate button events. Button metadata supports `buttonWidth` values `auto`, `small`, `medium`, `large`, and `fill`, plus the common title, ordering, visibility, advanced-style, and display-variant fields. Buttons always use immediate updates and do not create data links or node references.
 

@@ -81,7 +81,7 @@ Definition rules:
 - Every group must contain id, title, and childIds.
 - Every childIds entry must reference a defined field.
 - An optional group activeId must reference a defined checkbox field.
-- Use only these field types: text, textarea, number, normalizednumber, checkbox, selection, color, image, metricfont, gradient, json, counter, and button. Clock fields are not supported.
+- Use only these field types: text, textarea, number, normalizednumber, checkbox, selection, color, image, metricfont, gradient, json, counter, and button. Timer fields are not supported.
 - Add disableDataLink: true to a generated field only when it must remain editable exclusively in Composer.
 - Keep HTML, CSS, and JavaScript self-contained. Do not encode them as Base64.
 - Keep the complete minified definition below the Composer agent's dedicated 256 KiB serialized-value limit. Measure the outer JSON.stringify(definitionText) length; embedded quotes and backslashes add escaping overhead. Other generated field values retain the normal 32 KiB limit.

@@ -374,7 +374,7 @@ The `context` object provides access to common objects, including global storage
 
 ### 2.5 Event Listeners
 
-Native Clock Control Nodes emit optional `clockChanged` custom messages through `message` when `emitEvents` is enabled. Read [Clock Control Nodes](../control-node-clock.md) for the exact `msg.params` envelope, stable key/source filtering, fractional seconds state, commands, and complete listener example. Script payload getters and Clock `payload_changed` values remain formatted strings, not rich state.
+Native Timer Control Nodes emit optional `timerChanged` custom messages through `message` when `emitEvents` is enabled. Read [Timer Control Nodes](../control-node-timer.md) for the exact `msg.params` envelope, stable key/source filtering, fractional seconds state, commands, and complete listener example. Script payload getters and Timer `payload_changed` values remain formatted strings, not rich state.
 
 The `comp.addListener(eventType, callbackFunction)` method stores one handler per composition and event type. Registering again for the same pair replaces the previous handler; it does not append another listener. When extending an existing script or merging a recipe, combine the existing and new logic in one handler, preserving its scope filters and propagation behavior. Composition-script listeners are removed when that script is uninstalled.
 
