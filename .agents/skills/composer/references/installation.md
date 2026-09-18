@@ -43,6 +43,22 @@ Never trust generic installer exit text alone. Verify every requested destinatio
 
 `COMPOSER_AGENT_VERSION_MISMATCH` reports both protocol numbers and which side is newer. Keep or install the latest available skill regardless of which side is newer. When the installed skill is newer, wait for Composer to reach the reported skill protocol, then reopen the paired composition. When Composer is newer, update the selected skill to the latest available release. Never downgrade the skill to match an older Composer deployment, and do not continue with editor commands while the versions differ.
 
+Do not propose a Control Node type from the old payload while upgrading. After replacement, reread the installed `SKILL.md` and type-specific references before making that decision.
+
+### Manual repository staging
+
+The `singularlive/composer` Git repository nests its payload at `.agents/skills/composer`. The checkout root is not an installable payload. With caller-chosen, unused sibling paths on the destination volume, the PowerShell staging sequence is:
+
+```powershell
+git -c core.longpaths=true clone --depth 1 https://github.com/singularlive/composer.git <checkout-sibling>
+Move-Item -LiteralPath <checkout-sibling>/.agents/skills/composer -Destination <staging-sibling>
+node <staging-sibling>/scripts/composer-agent.js doctor --capture
+```
+
+Require successful validation before renaming anything. Then rename the installed directory to an unused backup sibling, rename the verified staging directory to the installed path, and validate that destination as described above. Restore the backup only if the filesystem replacement fails, never to downgrade for protocol compatibility. Remove only task-owned checkout/staging leftovers after success; preserve installer-owned lock metadata.
+
+Some agent hosts treat an in-session replacement as newly downloaded executable code. A reported Claude Code auto-mode run inconsistently denied subsequent CLI/helper calls as "Code from External". This is a host approval boundary, not a Composer protocol or container error. Do not evade it by copying executables, broadening permissions, or repeating denied calls. Release any held lease through the approved `finish-work` path when available; if that is also blocked, ask the operator to cancel work in Composer. Continue in a fresh session or after explicit host approval for the verified installed CLI/helper paths. Any host-specific allow rule must be reviewed by the user and narrowly scoped, not a blanket Node permission.
+
 After the versions match, `EDITOR_RELOAD_REQUIRED` means the paired composition still has a stale loaded editor: reload or reopen that composition and retry because pairing persists. `COMPOSER_EDITOR_DISCONNECTED` means no paired composition answered within the two-second cross-process grace: release any work lease and ask the user to reopen the paired composition. The Composer AI connection starts automatically; do not instruct the user to open or foreground its panel. A new pairing code is needed only when authorization is missing, expired, or revoked.
 
 ## Windows troubleshooting

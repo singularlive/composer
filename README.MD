@@ -2,139 +2,154 @@
 
 Use an AI agent to inspect, build, animate, and refine graphics in your open [Singular Composer](https://www.singular.live/) composition.
 
-The `composer` skill works with the composition you already have open. It can inspect existing elements, create graphics, organize sub-compositions, expose Control Nodes, add animations and behaviors, and help author composition scripts.
+The `composer` skill works with editable Composer elements: it can create graphics, organize independently controllable sub-compositions, expose Control Nodes, add motion, and author composition scripts. You describe the result and what must stay unchanged; the agent inspects the composition and verifies the affected structure and behavior.
 
-## Install
+[Get started](#getting-started) | [Example requests](#example-requests) | [Troubleshooting](docs/troubleshooting.md) | [What's changed](.agents/skills/composer/CHANGELOG.md)
+
+## Requirements
+
+- An AI agent that supports installing skills and running local Node.js commands.
+- Node.js **22.x** on the machine running the agent.
+- Access to **Composer AI**, currently limited to eligible accounts on the beta Composer deployment; it is not available to every Singular account.
+- **Google Chrome** installed on the agent's machine for screenshots and Singular Player verification.
+
+The skill includes its runtime dependencies. You do not need to run `npm install` inside it.
+
+## Getting started
+
+### Install
+
+Choose one scope for a fresh installation.
+
+Available across projects:
+
+```bash
+npx skills add singularlive/composer -g -y
+```
+
+Current project only:
 
 ```bash
 npx skills add singularlive/composer -y
 ```
 
-Restart your agent after installation if it does not discover the skill immediately.
+A project installation takes precedence over a global copy. Restart your agent if it does not discover the skill. Already installed? Follow [Updating the skill](docs/troubleshooting.md#updating-the-skill) instead of installing over a working copy.
 
-## Quick start
+### Connect and try a request
 
 1. Open the composition you want to edit in Singular Composer.
-2. Ask your agent to use the `composer` skill. For example:
+2. Ask your agent:
 
    ```text
-   Use $composer to create a clean broadcast lower third in the open composition.
+   Use the composer skill to create a lower third with editable name and title
+   fields in its own sub-composition. Preserve all existing content.
    ```
 
-3. When asked to pair, click **Agent** in the Composer toolbar.
-4. Send the six-character pairing code to your agent.
-5. After the agent connects, the pairing dialog closes automatically. Keep the Composer tab open while the agent works. You can watch progress in the draggable status panel and click **Cancel operation** at any time.
+3. When the agent asks to pair, click **Composer AI** (the magic-wand icon) in the Composer toolbar to open the connection panel.
+4. Send the six-character pairing code only to that agent. Codes are one-time use and expire after 10 minutes.
+5. Keep the Composer tab open. The Composer AI panel shows activity while the agent works. Answer any questions in your agent chat, including revision approval requests.
 
-The pairing code is one-time use and expires after 10 minutes. After pairing, the scene/account authorization remains valid for 30 days and Composer resumes it automatically after a reload, so you do not need to pair for every task. Composer locks only while the agent is actively working and unlocks when the task finishes. **Cancel operation** interrupts the current task without revoking the saved authorization; use **Disconnect AI Agent** when you want to revoke it.
+Skill invocation differs between agents; some also support a shortcut such as `$composer`.
+
+### While the agent works
+
+Composer locks editing while an agent operation is active, including while waiting for revision approval. When the operation ends, **Return to Composer** lets you continue editing without disconnecting the agent; the panel reopens when work starts again. **AI Agent needs your input.** means a question is waiting in your agent chat.
+
+**Cancel Operation** interrupts the current task without revoking authorization. It is not an undo: changes already applied may remain. Once the operation has stopped, use **Disconnect AI Agent** to revoke authorization and require new pairing.
+
+Authorization can last up to 30 days. Keeping the paired composition open maintains reconnection eligibility, including while idle. After it closes or loses connection, there is a 30-minute reconnect grace period; authenticated agent commands also refresh that period. After the grace period or authorization expiry, pair again. See [connection recovery](docs/troubleshooting.md#the-composer-session-is-unavailable).
 
 ## Example requests
 
-You describe the result you want; the skill handles inspection, commands, readback, and visual verification.
+The agent performs applicable model, visual, and runtime checks and should report anything it could not verify. State the desired result, the target, and what must be preserved.
 
 ### Build a graphic
 
 ```text
-Use $composer to create a lower third for a football broadcast. Include the
-player name, team, number, and a logo placeholder. Use a clean dark theme with
-yellow accents, and expose the editable text and image fields as Control Nodes.
+Use the composer skill to create a football lower third with player name,
+team, number, and a logo placeholder. Use charcoal and yellow accents.
+Expose the text and logo as controls and preserve all existing content.
 ```
 
 ```text
-Use $composer to build a scoreboard from the reference image I attached.
-Separate the clock, score, and team identities into independently controllable
-sub-compositions. Preserve anything already in the composition.
+Use the composer skill to build a scoreboard from the attached reference.
+Put it in its own sub-composition, with editable team names and scores.
+Preserve the operator's text casing and verify the result.
 ```
 
 ### Refine existing work
 
 ```text
-Use $composer to make the selected title easier to read on video. Keep its text
-and position, improve contrast and spacing, then verify the result in Composer.
+Use the composer skill to improve the selected title's contrast on video.
+Keep its text, position, controls, and existing animation unchanged.
 ```
 
 ```text
-Use $composer to update only the sponsor module. Replace its image URL, keep
-the existing animation, and do not change the other groups.
+Use the composer skill to add a portrait display variant for the lower third.
+Preserve its landscape layout and share the same text and theme controls.
 ```
 
 ### Add motion
 
 ```text
-Use $composer to animate the headline, subtitle, and logo into view in that
-order. Use a short stagger and keep the background visible when the text exits.
+Use the composer skill to animate the headline, subtitle, and logo into view
+in that order with a short stagger. Keep the background visible on text exit.
+Verify the motion in Singular Player.
+```
+
+### Work with controls
+
+```text
+Use the composer skill to expose the selected text, visibility, and opacity
+as controls in a named Control Node container. Preserve existing links.
 ```
 
 ```text
-Use $composer to add a subtle continuous pulse to the live indicator. Do not
-change any other behaviors or Timeline animations.
-```
-
-### Work with Control Nodes
-
-```text
-Use $composer to expose the selected text, its visibility, and its opacity as
-Control Nodes. Keep existing controls and links unchanged.
-```
-
-```text
-Use $composer to set the score_home Control Node to 3 and verify that the
-linked text updates in Composer.
+Use the composer skill to create a native Timer Control Node counting down
+from five minutes. Display it as mm:ss in linked Metric Text. Verify start,
+pause, reset, and stopping at zero in Singular Player.
 ```
 
 ### Add runtime logic
 
 ```text
-Use $composer to add a composition script that formats the clock Control Node
-as MM:SS. Verify the persisted script and its behavior in Singular Player.
+Use the composer skill to configure the native Timer as a countdown that
+continues past zero, with Timer events enabled. Add an overtime indicator
+in a separate, unlinked script-owned readout. Preserve the existing Timer
+text link and formatting, and verify overtime and reset in Singular Player.
 ```
 
-The skill uses a separate authorized handoff for composition scripts. You should never need to copy or share a Composition API token or access token.
+Basic Timer formatting does not need a composition script. For derived behavior, the skill uses a separate authorized scripting handoff; you should never need to share a Composition API token.
 
 ## Writing effective requests
 
-Include the details that matter to the result:
+Include the target composition or selected element, desired text and data, colors, assets, dimensions, editable controls, and what must remain unchanged. Specify In, Out, Update, or continuous motion when timing matters.
 
-- which composition, selected element, group, or module to change;
-- the text, data, colors, images, and dimensions to use;
-- which elements should remain independently controllable;
-- which fields should become public Control Nodes;
-- the intended In, Out, Update, or continuous Behavior motion;
-- what must be preserved.
-
-Screenshots and short reference videos are useful when layout, styling, reveal order, or timing matters. State which aspects should match and which may be adapted.
+Attach screenshots or short reference videos and explain which aspects should match. Supply accessible asset URLs for images you want included; attached reference images are not automatically uploaded as assets.
 
 ## Safety and privacy
 
-- Pair only with the composition you intend to edit.
-- Treat the pairing code as a short-lived secret and send it only to the agent doing the work.
-- Never paste access tokens, browser storage, or Composition API tokens into chat.
-- Use **Cancel operation** to interrupt the current task and unlock Composer without revoking the saved authorization.
-- Use **Disconnect AI Agent** when you want to revoke the authorization and require a new pairing code for future work.
-- Ask for inspection-only work when you do not want any changes.
-- Name anything that must be preserved, especially before deletion or broad visual refinement.
+- Pair only with the composition you intend to edit. Share the pairing code only with your chosen agent.
+- Never paste access tokens, browser storage, or Composition API tokens into chat or GitHub issues.
+- Before high-impact edits, the agent recommends a revision and waits for your choice. A revision captures the last persisted scene, not unsaved edits; confirm your changes have saved before relying on it.
+- Ask for inspection-only work when you do not want changes, and identify anything that must be preserved.
+- After cancellation or an uncertain result, inspect what changed before retrying. Cancellation does not roll back completed changes.
+- Composition content and references inspected by the agent are subject to your agent provider's data-handling policies. Review those policies before sharing confidential material.
 
-The skill does not replace raw composition JSON or execute arbitrary code through the paired editor connection. Composition scripting uses a separate scoped authorization and Singular Player remains the authority for runtime behavior.
+The skill does not replace raw composition JSON or provide arbitrary execution through the paired editor connection. Composition scripts use a separate scoped handoff, and Singular Player is the authority for runtime behavior.
 
-## Troubleshooting
+## Capabilities and limitations
 
-### The Agent button is missing
+Supported workflows include Metric Text, shapes, images, AI Graphics, Table and Grid, sub-compositions, Control Nodes and containers, native Timer controls, display variants, Timeline and Update animations, continuous behaviors, and composition scripting. Available widget fields depend on the loaded Composer version.
 
-Confirm that you are using a supported Singular Composer environment and account, and that you opened a composition in the editor rather than a dashboard or control application.
+AI Graphics supports programmable graphics; this is distinct from generating bitmap image assets. The skill does not automatically search for assets, upload local files, guarantee pixel-perfect recreation, or provide unlimited autonomous refinement.
 
-### The pairing code was rejected
+For technical details, see the [widget reference](.agents/skills/composer/references/widgets.md) and [Control Node reference](.agents/skills/composer/references/control-nodes.md). These are agent-facing operating references, not prerequisites for getting started.
 
-Pairing codes are one-time use and expire after 10 minutes. Click **Agent** again and send the newly generated code.
+## Help and feedback
 
-### The agent says the Composer session is unavailable
+- [Troubleshooting and updates](docs/troubleshooting.md)
+- [Release changelog](.agents/skills/composer/CHANGELOG.md)
+- [Report a problem or request a feature](https://github.com/singularlive/composer/issues/new/choose)
 
-Keep the Composer tab open while the agent is working. After a refresh or reopening the composition, allow Composer to resume the saved authorization automatically. Generate a fresh pairing code only when the authorization has expired, was explicitly disconnected, or was revoked.
-
-### A command targeted the wrong composition
-
-Navigate to the intended composition in Composer, then repeat your request. The skill automatically verifies the active composition before continuing.
-
-## Scope and limitations
-
-The skill supports Text, Rectangle, Circle, Image, AISVG, and Table-based workflows, ordinary and widget-owned sub-compositions, Control Nodes, Timeline and Update animations, continuous behaviors, and composition scripting.
-
-It does not automatically search for assets, generate images, upload local files, guarantee pixel-perfect recreation, replace raw composition JSON, or provide unlimited autonomous refinement. Provide accessible image URLs or attached references when assets matter.
+GitHub issues are public. Remove credentials, private URLs, composition content, and personal information before posting logs or screenshots.

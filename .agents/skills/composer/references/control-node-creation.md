@@ -35,7 +35,7 @@ node scripts/composer-agent.js create-control --name "Remote Brand Color" --node
 node scripts/composer-agent.js create-control --name "Remote Team" --node-type selection --target standalone --value-file <temporary-directory>/initial-team.json --options-url <https-or-protocol-relative-url> --use-reload true
 node scripts/composer-agent.js create-control --name "Sponsor" --node-type selection --target standalone --value-file <temporary-directory>/initial-sponsor.json --image-options-csv-file <temporary-directory>/dashboard-images.csv
 node scripts/composer-agent.js create-control --name "Sponsor" --node-type selection --target standalone --value-file <temporary-directory>/initial-sponsor.json --image-options-csv <csv-text>
-node scripts/composer-agent.js create-control --name "Game Clock" --node-type timecontrol --target standalone
+node scripts/composer-agent.js create-control --name "Game Timer" --node-type timer --target standalone
 node scripts/composer-agent.js create-control --name "Venue" --node-type location --target standalone --value-file <temporary-directory>/venue.json
 node scripts/composer-agent.js create-control --name "Brand Font" --node-type metricfont --target standalone --family "Open Sans" --weight 700 --subset auto
 node scripts/composer-agent.js create-control --name "Headline Font" --node-type metricfont --tile-id <metric-text-id> --property font
@@ -104,6 +104,8 @@ This compatibility table is the supported agent contract, not a copy of every or
 ## Specialized controls
 
 Native Timer supports count up/down, stopping, overtime, fractional commands, and optional rich events without a Timer widget. Read [Timer Control Nodes](control-node-timer.md) for creation, configuration, command units, links, and the complete `timerChanged` contract.
+
+Upgrade first after a protocol mismatch, then reread the installed type reference. Existing Time Control/Timer widget graphics retain their separate elapsed-time contract.
 
 Button controls are standalone event inputs. Create one without a value file, then use `press-control --id <control-id>` for each activation. Composer persists the native `{__singularButton:true,ts}` marker with a fresh timestamp; generic `set-control-value` writes are rejected so callers cannot replay or fabricate button events. Button metadata supports `buttonWidth` values `auto`, `small`, `medium`, `large`, and `fill`, plus the common title, ordering, visibility, advanced-style, and display-variant fields. Buttons always use immediate updates and do not create data links or node references.
 

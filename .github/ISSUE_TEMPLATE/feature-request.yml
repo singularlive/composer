@@ -1,0 +1,32 @@
+name: Request a feature
+description: Describe a Composer authoring workflow you would like to improve.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: This request is public. Do not include credentials, private URLs, customer content, or sensitive screenshots.
+  - type: textarea
+    id: workflow
+    attributes:
+      label: What are you trying to do?
+      description: Describe the authoring task and what currently gets in the way.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired result
+      description: Explain the behavior you would expect and how you would use it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Current workaround or alternatives
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed credentials, private URLs, and sensitive content from this request and attachments.
+          required: true

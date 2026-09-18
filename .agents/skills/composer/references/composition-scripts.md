@@ -77,7 +77,7 @@ For functions shared by multiple composition scripts, use the versioned [`contex
 - [Inline styled text](recipes/inline-styled-text.md): receive Metric Text `bounds` through `msg.params`, route by originating tile ID, and position adjacent text runs from `getPositionX()` and `getSizeX()`.
 - [Optional animated module](recipes/optional-animated-module.md): coordinate conditional visibility with local animation state.
 - [Breaking-news lower third](recipes/breaking-news-lower-third.md): build a reusable urgent label and replaceable headline with Update motion.
-- [Current-time clock module](recipes/current-time-clock-module.md): drive a native clock with shared typography.
+- [Current-time clock module](recipes/current-time-clock-module.md): drive the Current Date and Time widget with shared typography (wall-clock time, not a duration Control Node).
 
 See the complete [recipe index](recipes.md) for authoring and verification routes.
 

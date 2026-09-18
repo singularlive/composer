@@ -50,6 +50,8 @@ A timeout, connection loss, or missing response after dispatch does not prove th
 
 Cancellation takes precedence over recovery. On `OPERATION_CANCELLED`, stop editor and script commands, clean up local task artifacts, and report any temporary state that was not restored. Await explicit authorization before restoring it; a new instruction requires fresh readiness and inspection, not blind replay of a cleanup snapshot.
 
+For container verification failures, use readback and a non-destructive no-op or authorized disposable creation probe. Never delete a container intended for recreation until the creation path has succeeded. Preserve its identity and metadata while diagnosing; follow [container recovery](control-node-commands.md#control-node-containers). Never retry non-idempotent Timer `start` or `adjust` after an uncertain acknowledgement without readback.
+
 ## Session
 
 | Command | Purpose |

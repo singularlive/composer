@@ -1,0 +1,55 @@
+name: Report a problem
+description: Report a reproducible Composer skill failure.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the [troubleshooting guide](https://github.com/singularlive/composer/blob/HEAD/docs/troubleshooting.md) first.
+        This issue is public. Never include pairing codes, tokens, browser storage, private URLs, customer content, or unsanitized logs and screenshots.
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Provide a minimal example without private composition content.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Include safe error codes and whether any changes were applied.
+    validations:
+      required: true
+  - type: dropdown
+    id: phase
+    attributes:
+      label: When does it happen?
+      options:
+        - Installation or upgrade
+        - Pairing or connection
+        - Editing in Composer
+        - Screenshot or Player verification
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and versions
+      description: Agent application, OS, Node version, skill version, and protocol numbers if available. Omit local paths and private server URLs.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed credentials, private URLs, and sensitive content from this report and attachments.
+          required: true

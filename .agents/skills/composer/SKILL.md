@@ -15,6 +15,8 @@ Reuse it for every command. Never reuse another profile or combine it with `COMP
 
 Run `node scripts/dependency-preflight.js` once per package version, Node major, and lockfile digest; reuse success until one changes. Add `--capture` for Chrome. Use `doctor` for installation diagnostics. Always install the latest available Composer skill; never downgrade for protocol compatibility.
 
+After `COMPOSER_AGENT_VERSION_MISMATCH`, follow [installation recovery](references/installation.md) before choosing Control Node types. Upgrade first, then reread type-specific references from the installed replacement; stale references are not authority for the new protocol.
+
 ## Route the task first
 
 Read only references needed for the current task and phase.

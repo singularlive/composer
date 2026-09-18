@@ -4,7 +4,9 @@ This reference owns Control Node scope, authority, and inspection. Continue to [
 
 ## Ownership and public contracts
 
-A Control Node is a composition-level input. It may directly expose a selected widget-data or tile/group Transform/Effect property, or it may remain standalone so an external payload can trigger composition-script processing. Supported agent-created types are `text`, `textarea`, `number`, `normalizednumber`, `counter`, `color`, `image`, `checkbox`, `audio`, `video`, `data`, `jsonfile`, `json`, `datetime`, `location`, `selection`, `button`, `timecontrol`, `clock`, `infotext`, and `metricfont`.
+A Control Node is a composition-level input. It may directly expose a selected widget-data or tile/group Transform/Effect property, or it may remain standalone so an external payload can trigger composition-script processing. Supported agent-created types are `text`, `textarea`, `number`, `normalizednumber`, `counter`, `color`, `image`, `checkbox`, `audio`, `video`, `data`, `jsonfile`, `json`, `datetime`, `location`, `selection`, `button`, `timecontrol`, `timer`, `infotext`, and `metricfont`.
+
+Use native `timer` for duration inputs and `timerChanged` for their optional script events. Legacy `timecontrol` and the production Timer widget have separate contracts and must not be implicitly migrated.
 
 For native duration timers, read [Timer Control Nodes](control-node-timer.md) before creation, configuration, commands, linking, or consuming `timerChanged` in a script. Timer is distinct from Time Control and current-time widgets.
 

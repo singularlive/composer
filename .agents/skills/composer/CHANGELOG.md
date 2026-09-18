@@ -2,6 +2,13 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.16 - Protocol 149
+
+- Correct native Timer terminology and its `control-node-timer.md` and `timerChanged` contracts; legacy Time Control and production Timer widgets are unchanged.
+- Repair ordinary-container verification after native child deletion and empty membership normalization; expose dangling membership and bounded, sanitized mismatch diagnostics.
+- Clarify upgrade-first type discovery, nested repository staging, non-destructive container recovery, and host-message counter limits.
+- Give each future protocol change a new semantic package version and matching changelog entry. Protocols 143 through 148 previously reused 1.7.15; this entry corrects that packaging gap without inventing historical releases.
+
 ## 1.7.15 - Protocol 142
 
 - Add `begin-work`, which acquires the task lease and waits for editor readiness in one invocation.
