@@ -2,6 +2,17 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.19 - Protocol 152
+
+- Default newly created native Timers to End disabled; preserve explicit settings and enabled endpoints on older saved models that omit the flag.
+- Place Output format and Updates after Direction, and End enabled immediately before the End fields.
+
+## 1.7.18 - Protocol 151
+
+- Add native Timer `endEnabled` metadata, defaulting to true for existing controls.
+- Support unbounded duration without endpoint stopping or overtime, retaining end and stop settings for re-enabling.
+- Document stopwatch authoring and endpoint-mode transitions; public commands and state shape are unchanged.
+
 ## 1.7.17 - Protocol 150
 
 - Document native Timer endpoint Restart, Running/Paused/Ended/Overtime feedback, and fractional-preserving whole-unit edits.

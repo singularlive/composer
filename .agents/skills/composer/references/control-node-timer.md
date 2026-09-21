@@ -1,6 +1,6 @@
 # Timer Control Nodes
 
-Use native `timer` for an operator-controlled, server-synchronized duration: count up, count down, stop at an endpoint, or continue into overtime. It is not legacy `timecontrol`, the Timer widget, or a current-date/time widget. Do not build a script interval or hidden Timer widget merely to display its formatted duration. Preserve existing Time Control/Timer graphics unless migration is requested.
+Use native `timer` for an operator-controlled, server-synchronized duration: count up, count down, run without an endpoint, stop at an endpoint, or continue into overtime. It is not legacy `timecontrol`, the Timer widget, or a current-date/time widget. Do not build a script interval or hidden Timer widget merely to display its formatted duration. Preserve existing Time Control/Timer graphics unless migration is requested.
 
 Read [Control Node ownership](control-nodes.md) first. Put the timer inside the graphic's sub-composition, in a semantic Large Control Node container. Directly link its formatted output to an inspected `text` or `textarea` widget field, preferably the appropriate Metric Text family in a new graphic. Scripts are optional, for derived presentation or actions based on numeric state.
 
@@ -23,6 +23,8 @@ Timer cannot be a Table column or an incoming link destination. Outbound links s
 
 ## Configuration
 
+New Timers start with End disabled. Settings are ordered Direction, Output format, Updates, Begin, End enabled, End, Stop at end, Emit script events. End and Stop at end are hidden while disabled. Set `endEnabled: true` explicitly when configuring a bounded Timer.
+
 `update-control` takes a flat JSON patch. This configures a five-minute countdown with tenths and script events:
 
 ```json
@@ -30,6 +32,7 @@ Timer cannot be a Table column or an incoming link destination. Outbound links s
   "direction": "down",
   "beginValue": 300,
   "endValue": 0,
+  "endEnabled": true,
   "stopAtEnd": true,
   "format": "mm:ss.S",
   "frequency": "100",
@@ -41,12 +44,15 @@ Timer cannot be a Table column or an incoming link destination. Outbound links s
 | --- | --- |
 | `direction` | `"up"` (default) or `"down"` |
 | `beginValue` | Finite non-negative seconds, including fractions; default `0` |
-| `endValue` | Finite non-negative seconds, including fractions; default `300`; strictly above begin for up, below begin for down |
-| `stopAtEnd` | Boolean, default `true`; clamp at end and stop effectively, otherwise continue beyond end |
+| `endValue` | Finite non-negative seconds, including fractions; default `300`; when End enabled, strictly above begin for up, below begin for down |
+| `endEnabled` | Boolean, default `false` for new Timers; omitted on older saved models means `true`. False disables endpoint stopping and overtime while retaining endValue/stopAtEnd |
+| `stopAtEnd` | Boolean, default `true`; with End enabled, clamp at end and stop effectively, otherwise continue beyond end |
 | `format` | Default `"m:ss"`; exact formats below |
 | `frequency` | String `"1000"` (seconds, default) or `"100"` (tenths) |
 | `emitEvents` | Boolean, default `false`; gates only `timerChanged` custom messages |
 | `immediateUpdate` | Boolean, default `true`; standard presentation setting, not an event gate or propagation repair |
+
+For a stopwatch starting at zero, patch `{"direction":"up","beginValue":0,"endEnabled":false}`, then send `{"command":"start"}`. No sentinel endpoint or special command is needed. With End disabled, `atOrPastEnd` and `overtime` are always false and `overtimeSeconds` is zero; the operator form shows Running or Paused, never Ended/Overtime. The settings editor hides End and Stop at end without clearing them. Re-enabling validates retained endpoint ordering and applies the configured clamp; disabling does not restart an already ended Timer. Patch a valid `endValue` in the same update if necessary. Direction changes still swap omitted begin/end and reset while End is disabled.
 
 Formats are `s`, `m`, `m:ss`, `mm:ss`, `h:mm:ss`, `hh:mm:ss`, `s.S`, `m:ss.S`, `mm:ss.S`, `h:mm:ss.S`, and `hh:mm:ss.S`. `s` is total seconds; `m` is whole total minutes. Minute-only formats do not wrap at 60 minutes; hours do not wrap at 24. Doubled `mm`/`hh` pads to at least two digits, not a maximum width. `.S` adds tenths and requires `frequency: "100"`; patch both together. The agent rejects inconsistent combinations rather than automatically changing frequency. Formatting rounds down for count up and up for count down at display precision; event seconds retain finer precision. Negative durations have a minus sign, including countdown overtime past zero. Overtime beyond a nonzero endpoint need not be negative.
 
