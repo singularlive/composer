@@ -2,6 +2,12 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.17 - Protocol 150
+
+- Document native Timer endpoint Restart, Running/Paused/Ended/Overtime feedback, and fractional-preserving whole-unit edits.
+- Document formatted text preservation when deleting a native Timer with local or descendant linked consumers.
+- Keep existing CLI and script commands unchanged; legacy Time Control and Timer widgets remain independent.
+
 ## 1.7.16 - Protocol 149
 
 - Correct native Timer terminology and its `control-node-timer.md` and `timerChanged` contracts; legacy Time Control and production Timer widgets are unchanged.

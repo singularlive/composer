@@ -52,7 +52,11 @@ Formats are `s`, `m`, `m:ss`, `mm:ss`, `h:mm:ss`, `hh:mm:ss`, `s.S`, `m:ss.S`, `
 
 A direction change swaps omitted begin/end values and resets stopped at the resulting begin. Explicit begin/end values in that patch override the swap. Other timing/format changes preserve current effective duration and running state, then apply the new endpoint clamp. Changing begin alone does not reset current time. Event-gate-only or presentation-only patches preserve the anchor. Common `id`, `title`, `index`, `hidden`, `style`, `hideTitle`, and `displayVariantRelevance` editing remains available; `type` and `keyId` are immutable. Timer settings cannot be removed with `null`. `defaultValue`/`resetValue` are unsupported: reset uses begin.
 
-The operator form shows format-relevant hour/minute/second whole-number inputs in a vertical column, Play/Pause and Reset, plus Ended/Overtime when applicable. It refreshes once per second even for tenths formats. Linked text and script output retain fractional formatting. Editing current time preserves effective running/paused state, including leaving a completed timer stopped when edited back into range.
+The operator form shows format-relevant hour/minute/second whole-number inputs in a vertical column, Play/Pause and Reset, and Running, Paused, Ended or Overtime status. At a stopping endpoint, Play becomes Restart: it uses `start` to reset to begin and run. The public `play` command still does nothing at that endpoint. Overtime shows its elapsed duration in the selected output format and explicitly indicates when paused. The form refreshes once per second even for tenths formats; linked text and script output retain fractional formatting.
+
+Whole-unit edits apply a delta to the precise current duration, preserving its fractional remainder and effective running/paused state. For example, a paused countdown at 1.599 seconds displays 2; editing that input to 4 stores 3.599 seconds. Editing a completed timer back into range leaves it stopped until Play is pressed.
+
+Deleting a native Timer through Composer or `delete-control` preserves its effective formatted value as static text in formerly linked Text/Text Area properties, including descendant consumers of an ancestor-owned Timer. It removes the source and its links, not the destination widgets. Reinspect destination values, links and container membership after deletion; verify rendering separately. Legacy Time Control and Timer widget behavior is unchanged.
 
 ## Commands and units
 
