@@ -48,7 +48,7 @@ Each helper request has a 30-second deadline covering headers and body, and a 32
 6. For the common active-composition case, pass the handoff to the helper and read the suggested target directly:
 
    ```bash
-   node scripts/composer-agent.js script-handoff --compact |
+  node scripts/composer-agent.js script-handoff --connection <conversation-connection-name> --compact |
      node scripts/compositionScriptCli.js --handoff-file - --action get-script
    ```
 
@@ -61,6 +61,19 @@ Each helper request has a 30-second deadline covering headers and body, and a 32
 13. If verification exposes a structural problem, return to Composer, re-inspect before mutating, fix the composition or Control Node wiring, then generate a fresh handoff before editing the script again. Use a full composition-script summary only if the repaired target falls outside the fresh active scope.
 
 Keep the saved authorization available for follow-up structural work unless the user explicitly asks to disconnect the agent. The script phase does not become a paired-editor command merely because it belongs to the same runtime skill.
+
+### Fresh pipe for every action
+
+Generate a fresh `script-handoff --connection <conversation-connection-name> --compact` for **each** summary, get, put, readback, and verification action. Pipe stdout directly to `--handoff-file -`; never redirect the handoff to a file, save it as an artifact, or reuse a cached handoff. A script source file is not a handoff and may be task-temporary if it contains no credentials.
+
+```powershell
+node scripts/composer-agent.js script-handoff --connection <conversation-connection-name> --compact |
+  node scripts/compositionScriptCli.js --handoff-file - --action put-script --script-file <task-dir>/script.js
+node scripts/composer-agent.js script-handoff --connection <conversation-connection-name> --compact |
+  node scripts/compositionScriptCli.js --handoff-file - --action get-script
+```
+
+Keep producer stderr visible and separate from stdout. Do not use `2>&1`, suppress stderr, or print the handoff to diagnose it. Check both processes' exit statuses when using a process runner: a shell pipeline's last exit code does not establish producer success. If the helper reports empty input, inspect the producer's sanitized failure, connection name, work lease and readiness first. Do not feed old credentials into a retry. Stop on cancellation; read back any uncertain write before deciding whether another write is needed.
 
 ## Required references
 
@@ -78,6 +91,7 @@ For functions shared by multiple composition scripts, use the versioned [`contex
 - [Optional animated module](recipes/optional-animated-module.md): coordinate conditional visibility with local animation state.
 - [Breaking-news lower third](recipes/breaking-news-lower-third.md): build a reusable urgent label and replaceable headline with Update motion.
 - [Current-time clock module](recipes/current-time-clock-module.md): drive the Current Date and Time widget with shared typography (wall-clock time, not a duration Control Node).
+- [Public Google Sheet to Table](recipes/sheet-driven-table.md): public-only source validation, a single Table Control Node authority, guarded live refresh and explicit Player verification gates.
 
 See the complete [recipe index](recipes.md) for authoring and verification routes.
 

@@ -51,7 +51,7 @@ node scripts/composer-agent.js configure-display-variants --file <configuration.
 node scripts/composer-agent.js activate-display-variant --name "Venue-signage"
 ```
 
-Configuration is one root undo batch around Composer's native transition. Rename/delete migration covers `displayVariantRelevance` on Control Node fields and groups plus `layout.adaptations.displayVariant` on tiles and groups across every composition; stale-name verification occurs before commit. Empty `variants` with empty `active` disables display variants. Treat configuration as high-impact and recommend a revision first. Activation alone changes the persisted active presentation through the same native resolution/global/render path and does not require a revision.
+Configuration is one root undo batch around Composer's native transition. Rename/delete migration covers `displayVariantRelevance` on Control Node fields and groups plus `layout.adaptations.displayVariant` on tiles and groups across every composition; stale-name verification occurs before commit. Empty `variants` with empty `active` disables display variants. Treat configuration as high-impact under the [revision policy](revisions.md#revision-approval-before-mutation), including its verified empty-starter exception. Activation alone changes the persisted active presentation through the same native resolution/global/render path and does not require a revision.
 
 Assign presentation relevance in the active composition with one manifest:
 

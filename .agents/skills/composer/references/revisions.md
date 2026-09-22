@@ -8,9 +8,17 @@ Most element and control commands operate on the **currently active composition*
 
 ## Revision approval before mutation
 
-Before the first high-impact mutation in a task, recommend a revision through the AI chat question UI and wait for the user's choice. This is an agent-chat decision, not a Composer dialog or an automatic server prompt.
+Before the first high-impact mutation in a task, recommend a revision through the AI chat question UI and wait for the user's choice, unless inspection confirms the empty-starter exception below. This is an agent-chat decision, not a Composer dialog or an automatic server prompt.
 
 High-impact work includes multi-composition or broad element changes, recursive deletion, migration, display-variant configuration, composition-script changes, control/link restructuring, orchestration, and replacement of an existing visual system.
+
+### Empty-starter exception
+
+Do not ask for or create a revision for a verified empty starter scene: root contains only its default group and optionally one empty default sub-composition (such as `Overlay 1`), with no authored visual elements, Control Nodes, scripts, or custom configuration to preserve. Inspect root and the default child rather than inferring emptiness from the active scope's counts or from names alone. Empty default groups are scaffolding, not content worth backing up. Proceed directly with the requested first build, including its controls and script, without a revision question.
+
+This exception applies to the whole scene at the start of the task, not merely an empty target inside an authored scene. If any existing authored content, controls, scripts, or custom configuration is present elsewhere, or emptiness is uncertain, use the normal high-impact gate. Do not interrupt the same initial-build task with a revision prompt just because its own first mutations have populated the empty scene. An explicit user request to create a revision still takes precedence.
+
+### Approval procedure
 
 Do not prompt for inspection, capture, playback, isolated text/color/property edits, variant activation, or another high-impact phase already covered by a revision created during the same task. An explicit request to create a revision is already approval; do not ask again.
 

@@ -29,7 +29,7 @@ Read only references needed for the current task and phase.
 | Isolated property edit | "Isolated property edits" in [command-basics.md](references/command-basics.md), then the matching widget guide |
 | Elements, layout, fonts, primitives, or declarative graphics | [element-commands.md](references/element-commands.md), [graphics.md](references/graphics.md), or [auxiliary-commands.md](references/auxiliary-commands.md) |
 | Widget selection or configuration | [widgets.md](references/widgets.md), then its routed widget guide |
-| Compositions, revisions, or display variants | [composition-structure.md](references/composition-structure.md), [composition-commands.md](references/composition-commands.md), [revisions.md](references/revisions.md), or [display-variants.md](references/display-variants.md) |
+| Compositions, app template matches, revisions, or display variants | [composition-structure.md](references/composition-structure.md), [composition-commands.md](references/composition-commands.md), [revisions.md](references/revisions.md), or [display-variants.md](references/display-variants.md) |
 | Timeline, Update, Behavior, logic layers, or playback | [composition-motion.md](references/composition-motion.md) and [motion-commands.md](references/motion-commands.md) |
 | Control Nodes, containers, values, links, or deletion | [control-nodes.md](references/control-nodes.md), then its routed creation, editing, or command reference |
 | Native Timer duration control or `timerChanged` script messages | [control-node-timer.md](references/control-node-timer.md) |
@@ -65,7 +65,7 @@ Composer is the source of truth:
 
 1. Run `inspect`, confirm `activeComposition.stack`, and read targets through the narrowest applicable inspector.
 2. Read required live schemas and ownership through the routed reference; never infer mutable contracts from memory.
-3. Before the first high-impact mutation in a task, recommend a revision through the AI chat question UI and wait for the user's choice. Read [revision approval](references/revisions.md#revision-approval-before-mutation) for the criteria, exclusions, and consent procedure before proceeding.
+3. Before the first high-impact mutation in a task, recommend a revision through the AI chat question UI and wait for the user's choice, except for a verified empty starter scene. A default group and empty default sub-composition with no authored content or Control Nodes do not need a backup prompt. Read [revision approval](references/revisions.md#revision-approval-before-mutation) for the scene-wide empty-starter check, other exclusions, and consent procedure before proceeding.
 4. Make one coherent, bounded change through the highest-level supported operation.
 5. Reinspect the changed scope and verify authoritative readback, links, ownership, and unrelated state.
 

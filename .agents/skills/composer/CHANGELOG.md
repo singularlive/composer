@@ -2,6 +2,22 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.22 - Protocol 155
+
+- List accessible app template IDs and names, and read the root composition's declared template match.
+- Assign or clear `defaultAppID` with catalog validation, cancellation checks, native Undo and verified readback.
+
+## 1.7.21 - Protocol 154
+
+- Skip revision questions and automatic checkpoints for an inspected empty starter scene containing only default groups and an optional empty default sub-composition.
+- Keep the exception for the whole initial-build task; retain revision approval for existing authored content and explicit revision requests.
+
+## 1.7.20 - Protocol 153
+
+- Add a public-sheet Table candidate recipe with exact source identity, single row authority, guarded polling and explicit Player/live-source verification gates.
+- Diagnose empty script handoffs and sanitize malformed JSON errors; document fresh credential-safe pipelines with explicit connection profiles.
+- Clarify first-build revision approval, snapshot/live ownership, root-first template exit and missing-Chrome handoff checks.
+
 ## 1.7.19 - Protocol 152
 
 - Default newly created native Timers to End disabled; preserve explicit settings and enabled endpoints on older saved models that omit the flag.

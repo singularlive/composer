@@ -5652,8 +5652,8 @@ const { findSkillInstallations, getDuplicateInstallations, getInstallationScope 
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 152;
-const PACKAGE_VERSION = '1.7.19';
+const SKILL_VERSION = 155;
+const PACKAGE_VERSION = '1.7.22';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -5703,6 +5703,7 @@ const BOOLEAN_OPTIONS = new Set([
   'always-execute',
   'create',
   'remove',
+  'clear',
   'preview',
   'replace',
   'reuse-existing'
@@ -5714,6 +5715,7 @@ const KNOWN_COMMANDS = new Set([
   'inspect', 'find-elements', 'composition-tree', 'resolve-references', 'script-handoff', 'control-composition',
   'timeline-link', 'set-timeline-link', 'logic-layers', 'set-logic-layer', 'rename-logic-layer',
   'create-composition', 'orchestrate', 'create-revision', 'list-revisions', 'read-revision', 'compare-revision',
+  'list-app-templates', 'app-template-match', 'set-app-template-match',
   'restore-revision', 'delete-revision', 'delete-composition', 'open-composition', 'widget-subcompositions',
   'open-widget-subcomposition', 'update-table', 'update-grid', 'timeline2', 'display-variants',
   'configure-display-variants', 'activate-display-variant', 'set-display-variant-relevance', 'control-nodes',
@@ -7861,6 +7863,27 @@ async function run() {
     case 'list-revisions':
       result = await executeCommand('composition.revision.list', {});
       break;
+    case 'list-app-templates':
+      assertAllowedOptions(parsed.options, [], parsed.command);
+      result = await executeCommand('appTemplates.list', {});
+      break;
+    case 'app-template-match':
+      assertAllowedOptions(parsed.options, [], parsed.command);
+      result = await executeCommand('composition.appTemplateMatch.inspect', {});
+      break;
+    case 'set-app-template-match': {
+      assertAllowedOptions(parsed.options, ['id', 'clear'], parsed.command);
+      const options = parsed.options;
+      if (options.clear !== undefined) {
+        if (options.clear !== true || options.id !== undefined) throw new Error('Use --clear alone or --id <positive integer>');
+        result = await executeCommand('composition.appTemplateMatch.set', { clear: true });
+      } else {
+        const id = requireOption(options, 'id');
+        if (!/^[1-9][0-9]*$/.test(id) || !Number.isSafeInteger(Number(id))) throw new Error('--id must be a positive integer');
+        result = await executeCommand('composition.appTemplateMatch.set', { id: Number(id) });
+      }
+      break;
+    }
     case 'read-revision':
       result = await executeCommand('composition.revision.read', {
         revisionId: requireOption(parsed.options, 'revision-id')

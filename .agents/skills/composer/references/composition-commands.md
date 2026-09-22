@@ -6,6 +6,10 @@ Use these command contracts with the matching composition or widget guide.
 
 | Command | Purpose |
 | --- | --- |
+| `list-app-templates` | List all accessible app template IDs, names, published availability and `useSpecificComposition` metadata. |
+| `app-template-match` | Read the root composition's `defaultAppID` and resolve its template name without navigating. |
+| `set-app-template-match --id <id>` | From root, assign an accessible app template ID as the composition's declared match. |
+| `set-app-template-match --clear` | From root, clear the declared match. |
 | `create-composition --name <name> [--group-id <id>]` | **Targeted only:** create one ordinary on-the-fly sub-composition outside a representable orchestration. |
 | `orchestrate --file <manifest.json>` | **Preferred for related ordinary modules:** from root, create or reuse up to 25 keyed modules, apply graphics plus separate Timeline, Update, and Behavior assignments, and set explicit parent timeline links in one rollback-safe operation. |
 | `create-revision --description <text>` | Save the last persisted composition version as a numbered revision. |
@@ -34,6 +38,16 @@ Prefer `orchestrate` when constructing or refining several related ordinary modu
 See [compositions.md](compositions.md).
 
 By design, widget-owned templates are copied when Composer exits standalone edit mode. Treat the owner tile plus field as stable and every identity discovered inside the open template as edit-session scoped, including the raw composition ID, descendant element IDs, node model keys, Widget Node `keyId` values, and link locations. Discard them on exit or reopen and prefer `open-widget-subcomposition` for every later navigation. `inspect`, `open-widget-subcomposition`, and Widget Node command responses expose this contract as `identityScope`; use its opaque `sessionToken` with `--template-session` on subsequent template commands. See [widget-subcompositions.md](widget-subcompositions.md).
+
+## App Template Matches
+
+List templates for the user to choose, then assign the selected numeric ID. Names are labels and may be duplicated; assignment accepts an ID only. These are app template IDs, not existing Control App instance IDs. The match declares which template should be used when creating a Control App from the composition; it does not create or modify a Control App.
+
+`list-app-templates` returns `{ templates, total }`, sorted by name then ID. Each template contains `id`, `name`, `publishedAvailable`, and `useSpecificComposition`. The account-visible development and published catalogs are combined by ID; development metadata takes precedence. Nothing is hidden because it lacks a published version or has `useSpecificComposition: true`. That flag means app creation requires a composition declaring that template ID in `defaultAppID`.
+
+`app-template-match` always reads the root setting, including when an ordinary child or widget-owned template is open. It returns `compositionId`, the stored `id` (or `null`), `status` (`none`, `resolved`, or `missing`), and `template` (the catalog entry or `null`). An unresolved stored ID is retained and never silently cleared. A catalog request failure is `APP_TEMPLATE_CATALOG_FAILED`, not `missing`.
+
+Assign and clear require `open-composition --id root` first. Exactly one of `--id <positive integer>` and `--clear` is required. Assignment refreshes the accessible catalog and rejects an absent ID with `APP_TEMPLATE_NOT_FOUND` before any mutation. Clearing needs no catalog access. Both change only root `settings.defaultAppID`, preserve `defaultAppVersion` and other settings, support native Undo, and return verified match readback plus `changed` and `previousId`. Repeating an identical assignment or clear is a no-op. Normal Composer saving persists the setting; command success proves editor-model readback, not completion of the asynchronous save.
 
 ## Tables and Grids
 

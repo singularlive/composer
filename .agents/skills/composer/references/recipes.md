@@ -4,6 +4,8 @@ Recipes describe verified ways to combine Composer structure, widgets, Control N
 
 Add or use a recipe only when the pattern is reusable, non-obvious, and verified in Singular Player. Keep one-off visual treatments in the composition rather than generalizing them here.
 
+Candidate patterns awaiting Player verification are listed separately below. They are not verified recipes; complete their stated gates before treating them as established runtime guidance.
+
 | Desired result | Recipe | Use it for |
 | --- | --- | --- |
 | One coherent overlay with movable bounds and shared motion | [Overlay in a sized group](recipes/overlay-in-a-sized-group.md) | Lower thirds, reporter tags, bugs, and other units whose children share one canvas position and lifecycle |
@@ -16,3 +18,7 @@ Add or use a recipe only when the pattern is reusable, non-obvious, and verified
 | A current date/time display with shared typography | [Current-time clock module](recipes/current-time-clock-module.md) | Lower thirds, scoreboards, bugs, and other modules needing a native ticking clock without JavaScript |
 | An operator-controlled sports countdown that continues into overtime | [Sports game clock with overtime](recipes/sports-game-clock-with-overtime.md) | Match clocks that count down from a fixed duration and then display elapsed overtime as `+m:ss` |
 | Public AI Graphics styling with script-owned runtime data | [Linked AI Graphics style](recipes/linked-ai-graphics-style.md) | Directly linked colors and dimensions combined with script-forwarded data or discrete motion commands |
+
+## Candidate pending Player verification
+
+- [Public Google Sheet to Table](recipes/sheet-driven-table.md): exact public-tab/range source, single row authority and guarded polling. Mocked logic and version-1 scenario validation are covered; Player and real Google network verification remain required.

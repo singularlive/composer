@@ -15,6 +15,8 @@ The user's request owns explicit content, style, behavior, assets, and scope. Us
 
 Plan the required structure, public inputs, lifecycle, and acceptance checks in whatever concise form serves the task. No prescribed brief format is required. Ask only when a missing decision materially changes the requested output, controls, runtime behavior, or required branding.
 
+For graphics driven by an external source, establish whether the user wants a snapshot or live updates before building. Confirm the exact source/tab/range, refresh interval, empty/error behavior and who owns subsequent edits. Connector access is not Player authorization. Public Google Sheets use the [sheet-driven Table recipe](recipes/sheet-driven-table.md); private-sheet integration is outside that recipe's scope.
+
 Apply the construction rules, visual-quality requirements, and completion gate below to the user's requirements and the task-specific choices. They remain the standard for every graphic, including work created from a sparse prompt.
 
 ## Capture budget
