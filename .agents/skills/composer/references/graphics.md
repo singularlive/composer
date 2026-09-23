@@ -26,13 +26,13 @@ Datetime fields are schema-aware: an unset empty string may become an integer Un
 
 The [Gradient widget](widgets/gradient.md) uses a `css_string` textarea containing CSS declarations. It is distinct from schema fields typed `gradient` and from the unsupported native Gradient Control Node.
 
-Color is another deliberate exception to runtime-shape preservation. For any widget field whose schema type is `color` or `gradient`, use an RGBA object as the primary solid-color format:
+Color is another deliberate exception to runtime-shape preservation. Widget fields whose schema type is `color` or `gradient` accept all JSON-representable tinycolor2 colors: named colors, `transparent`, hex with or without `#`, RGB/HSL/HSV strings and objects, percentages and alpha. Values may switch between these representations. An RGBA object remains a convenient explicit solid-color format:
 
 ```json
 { "r": 0, "g": 74, "b": 173, "a": 1 }
 ```
 
-RGBA is tinycolor2-compatible and Composer renders it directly as a color or converts it to a solid gradient as required by the widget. Do not copy a structured gradient from `get` or `primitives` merely because that is how Composer stores or reports the field. Use a complete structured gradient runtime object only when the user explicitly asks for a linear, radial, multi-stop, or otherwise non-solid gradient. Author that object directly on the compatible widget field; do not create a Gradient Control Node for it. Native Gradient controls are intentionally outside agent support because their complex payload is not a suitable external-control contract. Tinycolor2-compatible strings may be accepted by underlying widget paths, but RGBA remains the agent's default format.
+Composer renders a tinycolor2 color directly or converts it to a solid gradient as required by the widget. Preserve requested color notation; no RGBA rewrite is required. Do not copy a structured gradient from `get` or `primitives` merely because that is how Composer stores or reports the field. Use a complete structured gradient runtime object only when the user explicitly asks for a linear, radial, multi-stop, or otherwise non-solid gradient. Author that object directly on the compatible widget field; do not create a Gradient Control Node for it. Native Gradient controls are intentionally outside agent support because their complex payload is not a suitable external-control contract.
 
 Other shape-sensitive values still follow readback exactly: Text `font` is an object containing `fontData` and formatting, for example. Use the catalog-backed commands in [text.md](widgets/text.md) for font changes.
 
@@ -57,6 +57,8 @@ node scripts/composer-agent.js delete --id <tile-id>
 ```
 
 To release that primitive from reconciliation ownership, create or identify the intended ordinary group, then run `move --id <tile-id> --group-id <group-id>` after readback. Do not use this sequence to place new visual primitives directly in root. Primitives are created with no In or Out animation.
+
+`create --group-id` is not supported. For an existing ordinary group, the current path is create, inspect, then move; delete a leftover managed group only after confirming it is empty and no longer needed. See [item order and zindex](element-commands.md#moving-between-groups) before choosing `move --index`.
 
 Prefer declarative `apply` over one-off `create` for anything beyond a single scratch element.
 
@@ -136,7 +138,7 @@ Rules:
 - `key` is required, unique, and stable across refinement passes. Keys are 1-100 characters of letters, numbers, dots, underscores, and hyphens.
 - `name` is optional and defaults to the key.
 - `layout` accepts the constrained geometry fields plus the complete documented Effect-property set.
-- `properties` keys must exist in the selected primitive schema, and values must match the current or default field type. Schema fields typed `color` or `gradient` are the exception: use an RGBA object for a solid color even when the current/default value is a structured gradient.
+- `properties` keys must exist in the selected primitive schema, and values must match the current or default field type. Schema fields typed `color` or `gradient` are the exception: any JSON-representable tinycolor2 solid color is accepted even when the current/default value is a structured gradient.
 - The array order is **back-to-front**: backgrounds first, foreground text last. This is the reverse viewpoint from Composer Navigator, whose index `0` is front-most. When visual overlap is wrong, verify which ordering model the current command uses before changing bounds or offsets.
 
 ### Managed group bounds and clipping
@@ -241,7 +243,7 @@ For a reference measured in design-canvas pixels, declare both the canvas and `u
 }
 ```
 
-A style may contain only `key`, optional `primitive`, `layout`, and `properties`. One `style` reference is allowed per element. The style primitive, when present, must match. Layout and properties merge shallowly by field with explicit element fields winning. Nested non-color runtime objects such as `font` are atomic and must be supplied in their complete widget-runtime shape. For schema fields typed `color` or `gradient`, an RGBA object is the complete preferred solid-color value; supply a structured gradient only when the user explicitly requests one.
+A style may contain only `key`, optional `primitive`, `layout`, and `properties`. One `style` reference is allowed per element. The style primitive, when present, must match. Layout and properties merge shallowly by field with explicit element fields winning. Nested non-color runtime objects such as `font` are atomic and must be supplied in their complete widget-runtime shape. For schema fields typed `color` or `gradient`, any JSON-representable tinycolor2 solid color is accepted; supply a structured gradient only when the user explicitly requests one.
 
 Validation and successful apply responses add:
 

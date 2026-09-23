@@ -35,6 +35,11 @@ Use these command contracts with [control-nodes.md](control-nodes.md) when desig
 | `create-control --name <name> --node-type <number\|checkbox> --target layout --element-type <tile\|group> --element-id <id> --property <layout-property> [--source-composition <root\|ancestor-id>]` | **Targeted only:** create and link one explicitly requested Transform/Effect public control; never use as a graphic-authoring default. The optional source follows the same ancestor rule. |
 | `create-controls --file <controls.json>` | **Preferred for related controls:** validate, create, optionally link, and verify a batch atomically. Linked entries may set `sourceCompositionId` to `root` or an active-stack ancestor ID. |
 | `delete-control --id <control-id>` | Delete one supported control through the normal cleanup path. |
+| `unlink-layout-ref --element-type <tile\|group> --element-id <id> --property <layout-property>` | **Targeted only:** remove the one layout nodeRef for an inspected element/property in the active composition, without deleting its source or other refs. |
+
+Layout entries in `control-nodes.nodeRefs` include `dangling` and `sourceStatus`. Native composition Control/Widget Node sources report `resolved`, `missing-field`, or `missing-composition`, using current keys and legacy public-name fallback. Unsupported source shapes report `dangling: null` and `sourceStatus: "unsupported"`, not a proven broken link. Inspection never repairs automatically.
+
+For an explicitly approved layout-ref removal, pass the exact target pair to `unlink-layout-ref`. Supported properties are the Transform/Effect properties in [Control Node creation](control-node-creation.md#transform-and-effect-controls). The command returns `previousRef`, `refId` and `status: "unlinked"` (or `"unchanged"` when absent); ambiguous duplicate refs are rejected. It removes only that ref in a verified Undo batch and leaves stored layout values, data links, other nodeRefs and group-level refs alone. It does not freeze an evaluated runtime value, so inspect the remaining layout and verify appearance afterward. Widget-template session and active-scope rules still apply.
 
 ### Control Node containers
 
@@ -118,7 +123,7 @@ Table Control Nodes are a compound Control App input, distinct from the Table wi
 
 Supported column types are `text`, `textarea`, `image`, `number`, `normalizednumber`, `counter`, `color`, `checkbox`, `selection`, `datetime`, and `location`. Column IDs must be unique normalized Control Node names. Optional widths are `tiny`, `small`, `medium`, `large`, and `x-large`. Number columns accept a positive finite `step`; normalized numbers additionally accept finite `low <= high`; Selection requires 1–100 unique `{id,title}` options. Optional `defaultValue` must exactly match the declared type.
 
-Every row must be an object containing every declared column exactly once. Values are never coerced, clamped, padded, truncated, or silently removed. Row count must remain within `minRows` and `maxRows`, and the complete schema/options/rows request is limited by the normal 32 KiB Control Node value bound. `datetime` uses an integer Unix millisecond timestamp; `color` uses an RGBA object; `location` uses `{text,long,lat}` with finite coordinates.
+Every row must be an object containing every declared column exactly once. Values are never coerced, clamped, padded, truncated, or silently removed. Row count must remain within `minRows` and `maxRows`, and the complete schema/options/rows request is limited by the normal 32 KiB Control Node value bound. `datetime` uses an integer Unix millisecond timestamp; `color` accepts any JSON-representable tinycolor2 color without changing its stored representation; `location` uses `{text,long,lat}` with finite coordinates.
 
 Creation defaults to auto height, 20 UI lines, 0–20 data rows, operator row add/delete enabled, and sorting enabled. Reapplying an identical creation is idempotent; a same-name different definition is a conflict. `--source-composition` may place the complete Table group/field/payload in root or another active-stack ancestor.
 

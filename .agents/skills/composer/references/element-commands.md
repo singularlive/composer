@@ -104,6 +104,8 @@ Both the tile and the target group must be in the active composition. `--index` 
 
 The move rewrites the target group's item priorities and each moved tile's `layout.zindex`, exactly as a layer-list drag does. It leaves the source group's remaining priorities untouched, and does not touch the tile's data, links, keyframes, or effects.
 
+`--index` is an item position, not an absolute `zindex`: native sorting assigns `targetGroup.layout.zindex + index`. Lower Composer zindex values are front-most. Verify returned `groupOrder` and `moved.zindex` instead of inferring stacking from an old stored value.
+
 Any tile can be moved into or out of any group. Moving a declarative graphic out of its metadata-owned managed graphics group releases it from `graphics.apply`: its spec key is cleared, it becomes an ordinary element, and the response reports `releasedKey`. A later `apply` whose spec still lists that key will build a new element for it rather than reclaim the moved one.
 
 ## Groups
@@ -133,7 +135,7 @@ Supported group layout fields are `left`, `top`, `width`, `height`, `rotateX/Y/Z
 The Effect-property contract for tiles and groups is:
 
 - visibility and transform: `visible`; `scaleX/Y` from -10000 to 10000 with `lockScale`; and `skewX/Y` from -89.9 to 89.9 degrees;
-- shadow: `filterDropShadowMode` (`"none"`, `"box"`, or `"drop"`), `filterDropShadowX/Y` (-100 to 100 pixels), `filterDropShadowBlur` (0 to 100 pixels), `filterDropShadowSpread` (-50 to 50 pixels), `filterDropShadowColor` as `{r,g,b,a}`, and `filterDropShadowInset`;
+- shadow: `filterDropShadowMode` (`"none"`, `"box"`, or `"drop"`), `filterDropShadowX/Y` (-100 to 100 pixels), `filterDropShadowBlur` (0 to 100 pixels), `filterDropShadowSpread` (-50 to 50 pixels), `filterDropShadowColor` as any JSON-representable tinycolor2 color, and `filterDropShadowInset`;
 - filters: `opacity` (0–100), `filterBlur` (0–300), `filterBrightness` and `filterContrast` (0–200), `filterGrayscale`, `filterInvert`, and `filterSepia` (0–100), `filterHueRotate` (0–360), and `filterSaturate` (0–500);
 - render options: `backfaceVisibility`, active when the composition uses 3D perspective.
 

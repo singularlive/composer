@@ -2,6 +2,18 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.28 - Protocol 161
+
+- Accept every JSON-representable tinycolor2 color for Color Control Node creation, reuse, value/default/reset updates, Table color cells, widget color/gradient fields and typed shadow colors.
+- Preserve submitted color representations and unrelated values; render shadow strings and objects through tinycolor2, retaining invalid-color rejection and structured-gradient support.
+
+## 1.7.27 - Protocol 160
+
+- Accept Composer-valid legacy Color payloads when reusing local or ancestor controls without rewriting the source; retain strict RGBA authoring and invalid-color rejection.
+- Preserve omitted Selection metadata when updating options rather than normalizing the source on every patch.
+- Add targeted `unlink-layout-ref` with verified removal, Undo and ambiguity rejection; report dangling native layout sources in `control-nodes`.
+- Clarify shared-theme preservation, item order versus zindex, and the current managed-group creation boundary.
+
 ## 1.7.26 - Protocol 159
 
 - Preserve array or JSON-string Table/Grid content during updates and use structural readback/recovery, reporting confirmed unchanged failures without uncertain recovery.

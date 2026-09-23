@@ -6,6 +6,8 @@ Read [Control Node design and lifecycle](control-nodes.md) first for ownership, 
 
 `--reuse-existing` is lookup-and-link, not create-or-reuse. It requires exactly one existing control with the exact public ID passed as `--name` and the same type in the selected source composition. A missing source returns `NOT_FOUND`; a duplicate source or incompatible type is an error. Reuse preserves that source's value and metadata; it does not initialize from the new target. Omit the flag for initial creation, then inspect the returned public `id`, internal `keyId`, source composition, and value before linking another target.
 
+All Color operations accept JSON-representable values understood by tinycolor2: named colors, `transparent`, hex with or without `#` (3/4/6/8 digits), RGB/RGBA, HSL/HSLA and HSV/HSVA strings, and RGB/HSL/HSV objects with optional alpha and supported percentage channels. Tinycolor2 validity is authoritative, including its permissive channel handling. Values are validated without rewriting their representation. Both `create-control --reuse-existing` and `create-controls` with `reuseExisting: true` preserve source payload and metadata. Invalid colors are rejected. Do not rewrite a shared theme control just to satisfy tooling or create a local duplicate to bypass an ancestor link. Verify actual target rendering after linking and changing/restoring the source.
+
 For example, with the descendant module active and global typography requested:
 
 ```bash
@@ -57,7 +59,7 @@ Use a standalone control when the value is an external/script input rather than 
 | `number` | `number`, `normalizednumber`, numeric `text` | Finite number |
 | `normalizednumber` | `normalizednumber`, `number` | Percentage from 0 to 100 |
 | `counter` | `counter`, `number`, `normalizednumber` | Integer |
-| `color` | `color`, `gradient` | Exact RGBA object with RGB from 0 to 255 and alpha from 0 to 1; direct RGBA gradient values are preserved and structured gradients initialize from `solidColor` |
+| `color` | `color`, `gradient` | Any JSON-representable tinycolor2 color; direct colors are preserved and structured gradients initialize from `solidColor` |
 | `image` | `image` | String image URL/value |
 | `checkbox` | `checkbox` | Boolean |
 | `audio` | `audio` | String audio URL/value |

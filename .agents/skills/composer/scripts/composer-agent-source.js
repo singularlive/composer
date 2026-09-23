@@ -14,8 +14,8 @@ const { findSkillInstallations, getDuplicateInstallations, getInstallationScope 
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 159;
-const PACKAGE_VERSION = '1.7.26';
+const SKILL_VERSION = 161;
+const PACKAGE_VERSION = '1.7.28';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -85,7 +85,7 @@ const KNOWN_COMMANDS = new Set([
   'unlink-widget-nodes', 'set-control-value', 'set-control-font', 'create-table-control', 'set-table-control',
   'update-table-control', 'link-table-control', 'unlink-table-control', 'press-control', 'timer-action',
   'control-time', 'update-control', 'create-control-container', 'configure-control-container',
-  'delete-control-container', 'create-control', 'create-controls', 'delete-control', 'get', 'get-many',
+  'delete-control-container', 'create-control', 'create-controls', 'delete-control', 'unlink-layout-ref', 'get', 'get-many',
   'get-layouts', 'set-layouts', 'get-properties', 'set-properties', 'select', 'move', 'update', 'fonts',
   'set-font', 'timeline-animations', 'set-timeline-animation', 'set-timeline-animations', 'update-animations',
   'set-update-animation', 'set-update-animations', 'behaviors', 'set-behavior', 'set-behaviors', 'create-group',
@@ -2777,6 +2777,14 @@ async function run() {
     case 'delete-control':
       result = await executeCommand('controlNode.delete', {
         id: requireOption(parsed.options, 'id')
+      });
+      break;
+    case 'unlink-layout-ref':
+      assertAllowedOptions(parsed.options, ['element-type', 'element-id', 'property', 'compact'], 'unlink-layout-ref');
+      result = await executeCommand('controlNode.layout.unlink', {
+        elementType: requireOption(parsed.options, 'element-type'),
+        elementId: requireOption(parsed.options, 'element-id'),
+        propertyId: requireOption(parsed.options, 'property')
       });
       break;
     case 'get':
