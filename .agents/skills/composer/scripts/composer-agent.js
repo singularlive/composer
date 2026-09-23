@@ -5652,8 +5652,8 @@ const { findSkillInstallations, getDuplicateInstallations, getInstallationScope 
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 155;
-const PACKAGE_VERSION = '1.7.22';
+const SKILL_VERSION = 158;
+const PACKAGE_VERSION = '1.7.25';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -6994,7 +6994,7 @@ function isPlainObject(value) {
 }
 
 function validateTableControlValue(control, value, pathLabel, widgetLabel = 'table') {
-  if (!['text', 'image', 'number', 'color'].includes(control.type)) {
+  if (!['text', 'image', 'number', 'color', 'checkbox'].includes(control.type)) {
     throw new Error(`${widgetLabel} template control "${control.id}" has unsupported type "${control.type}"`);
   }
   if ((control.type === 'text' || control.type === 'image') && typeof value !== 'string') {
@@ -7002,6 +7002,9 @@ function validateTableControlValue(control, value, pathLabel, widgetLabel = 'tab
   }
   if (control.type === 'number' && (typeof value !== 'number' || !Number.isFinite(value))) {
     throw new Error(`${pathLabel} must be a finite number for control "${control.id}"`);
+  }
+  if (control.type === 'checkbox' && typeof value !== 'boolean') {
+    throw new Error(`${pathLabel} must be a boolean for checkbox control "${control.id}"`);
   }
   if (
     control.type === 'color' &&

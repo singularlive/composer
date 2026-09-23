@@ -436,10 +436,10 @@ async function compareCapturedPixels(page, before, after, assertion) {
       }
     }
     return {
-      passed: changedPixels >= input.minimumChangedPixels,
+      passed: input.match ? changedPixels <= input.maximumChangedPixels : changedPixels >= input.minimumChangedPixels,
       changedPixels,
       comparedPixels: width * height,
-      requiredChangedPixels: input.minimumChangedPixels,
+      ...(input.match ? { maximumChangedPixels: input.maximumChangedPixels } : { requiredChangedPixels: input.minimumChangedPixels }),
       region: { x, y, width, height }
     };
   }, {
@@ -447,6 +447,8 @@ async function compareCapturedPixels(page, before, after, assertion) {
     after: afterPng.toString('base64'),
     region: assertion.region,
     tolerance: assertion.tolerance === undefined ? 8 : assertion.tolerance,
+    match: assertion.action === 'assertPixelsMatch',
+    maximumChangedPixels: assertion.maximumChangedPixels === undefined ? 0 : assertion.maximumChangedPixels,
     minimumChangedPixels: assertion.minimumChangedPixels || 1
   });
 }

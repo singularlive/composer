@@ -25,7 +25,7 @@ title.setPayload({ text: "CHAMPIONS" });
 
 The renderer uses a local animation-frame loop for fill movement/color cycling/breathing, sheen passes/drift, and glow breathing/flicker/drift/color shifting. Native In state resumes the loop; other animation states pause it. Pausing or changing unrelated properties preserves accumulated phase. These loops do not implement character/word In/Out or text-change transitions. No Widget Timeline setup is needed to publish the style UI.
 
-`bounds` messages contain `{ event: "bounds", leftPx, topPx, widthPx, heightPx, left, top, width, height }`, relative to the widget surface. Receive them from the composition message listener:
+`bounds` messages contain `{ event: "bounds", leftPx, topPx, widthPx, heightPx, left, top, width, height }`, relative to the widget surface. Use the signature `(event, msg, e)`: the first argument is the event-name string, not the message. Receive them from the composition message listener:
 
 ```javascript
 comp.addListener("message", function (event, msg, e) {

@@ -2,6 +2,21 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.25 - Protocol 158
+
+- Prefer direct widget-property writes for script-fetched data, while permitting justified Control Node exceptions; retain single-authority and Control App propagation boundaries.
+
+## 1.7.24 - Protocol 157
+
+- Add bounded `assertPixelsMatch` checkpoints so independent expected-state captures can reject blank or stale Table output, not merely detect pixel changes.
+- Document directly linked subtitle bounds/input ordering and a tested one-frame coalescing example with empty-input and close cleanup.
+
+## 1.7.23 - Protocol 156
+
+- Keep script-fetched rows and runtime status out of Control Nodes; rewrite the public-sheet recipe to update unlinked widgets directly with padded rows and clamped page output.
+- Accept strict boolean Checkbox values in Table/Grid row validation and local Update-animation batches inside the active widget-template session, preserving cross-scope and token guards.
+- Document observed Table reliability workarounds, payload shapes and numeric-string page-link limits; clarify Metric Text listener arguments and rendered-bounds accent sizing.
+
 ## 1.7.22 - Protocol 155
 
 - List accessible app template IDs and names, and read the root composition's declared template match.

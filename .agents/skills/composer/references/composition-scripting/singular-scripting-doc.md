@@ -203,30 +203,15 @@ const wiTitle = comp.findWidget("Title")[0];
 const wiTeam1Name = comp.findWidget("Team1 Group", "teamName")[0];
 ```
 
-**Getting/Setting Payload**:
+**Reading Operator Inputs and Writing Widget Output**:
 
 ```javascript
-// Returns payload as JSON object
-const payload = comp.getPayload2();   
-console.log(payload); 
-
-// Sets the control node content 
-const payload = {"Title": "The Title"};   
-comp.setPayload(payload);
+const payload = comp.getPayload2();
+const title = comp.findWidget("Derived Title")[0];
+title.setPayload({ text: String(payload.Title || "") });
 ```
 
-If a control node model has type `table`, the value passed to `setPayload()` for that control node should be an array of row objects whose keys match the table column IDs/titles.
-
-```javascript
-const payload = {
-  "t1": [{
-    "Name": "Test",
-    "Height": "100.0"
-  }]
-};
-
-comp.setPayload(payload);
-```
+The destination must be unlinked when the script writes its widget properties directly. Prefer native links for exact one-to-one inputs. By default, send script-fetched or derived data directly to widget properties rather than Control Nodes. `comp.setPayload()` remains available for justified exceptions with a deliberate runtime consumer and ownership contract; explain the reason and verify the intended host behavior. Output iframe writes do not propagate back to the Control App UI, so they cannot be relied on to publish operator-facing data or status. External hosts may set operator inputs through the Player SDK. The Table example (section 4.7) uses direct widget writes, not a backing Table Control Node. Native Timer action commands remain a separate runtime action contract, not a feedback mechanism for the Control App.
 
 ### 2.2 The Widget Object (`widget`)
 
@@ -346,8 +331,7 @@ The `context` object provides access to common objects, including global storage
         (status, message) => {
           switch (status) {
             case "message":
-              console.log("we have received data:", status, message);
-              comp.setPayload({name: message.payload.name});
+              comp.findWidget("Name")[0].setPayload({ text: String(message.payload.name || "") });
               break;
             case "connecting":
             case "connect":
@@ -637,9 +621,9 @@ This example demonstrates how to get references to sub-compositions and widgets 
 })();
 ```
 
-### 4.2 Reading and Updating Control Nodes
+### 4.2 Reading Control Nodes and Updating Output
 
-This example shows how to read control node payload using `getPayload()` (array of key-value pairs) and `getPayload2()` (JSON object), and how to update control node content using `setPayload()`.
+This example reads operator inputs with `getPayload2()` and writes derived text to an unlinked widget. It never writes the operator inputs. `getPayload()` returns an array of key-value pairs.
 [Lower Script]
 ```javascript
 (function() {

@@ -74,7 +74,7 @@ ml.setPayload({
 
 Empty or whitespace-only text hides the element. The renderer preserves the saved payload when truncating the displayed DOM. HTML is unsanitized and can change measurement; prefer plain text and never interpolate untrusted markup. Renderer fallbacks above are not guaranteed catalog defaults. Keep line limits positive integers with `minLines <= maxLines` and `lineHeight > 0`.
 
-`emitEvents` sends `{ event: "bounds", leftPx, topPx, widthPx, heightPx, left, top, width, height }` through the widget custom-message channel for nonempty text. Receive it from the composition message listener:
+`emitEvents` sends `{ event: "bounds", leftPx, topPx, widthPx, heightPx, left, top, width, height }` through the widget custom-message channel for nonempty text. Use the signature `(event, msg, e)`: the first argument is the event-name string, not the message. Receive it from the composition message listener:
 
 ```javascript
 comp.addListener("message", function (event, msg, e) {

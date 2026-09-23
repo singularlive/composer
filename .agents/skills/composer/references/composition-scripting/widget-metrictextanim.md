@@ -34,7 +34,7 @@ Configure the Composer `widget` Timeline effect with a positive duration during 
 
 Native text updates require enabled `useUpdateAnimation`, settled In state, existing units and a text-only payload delta with nonempty new text. Non-text changes and clearing rebuild/snap instead. Update halves use cached Timeline durations with a 0.5-second fallback; `updateOverlap` controls their overlap. Rapid updates finish the previous update before starting the next. These source rules are not a guarantee that every loaded version behaves identically.
 
-`emitEvents` sends the same `bounds` message as Metric Text for nonempty text. The composition listener receives the envelope as `msg.params`, the bounds payload as `msg.params.data`, and the originating tile ID as `msg.params.id`; use that ID to route messages from multiple widgets:
+`emitEvents` sends the same `bounds` message as Metric Text for nonempty text. The callback signature is `(event, msg, e)`; `event` is the event-name string, not the message. The composition listener receives the envelope as `msg.params`, the bounds payload as `msg.params.data`, and the originating tile ID as `msg.params.id`; use that ID to route messages from multiple widgets:
 
 ```javascript
 comp.addListener("message", function (event, msg, e) {

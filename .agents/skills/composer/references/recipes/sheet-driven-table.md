@@ -1,6 +1,6 @@
 # Public Google Sheet to Table
 
-Status: candidate pending Singular Player and real public-source verification. Mocked-comp tests do not establish those gates.
+Status: corrected widget-only architecture. The supplied club-table task reports Player observations, not verification of this nine-column example. Mocked tests do not establish Google, Player or Control App behavior.
 
 Use this recipe for standings, results or rosters from an **already publicly readable** Google Sheet. Private-sheet integration is out of scope. Decide live refresh versus one-time snapshot before building; neither is a universal default. Confirm the interval with the user (60 seconds below is an example).
 
@@ -18,15 +18,17 @@ Read [authoring quality](../authoring-quality.md), [revisions](../revisions.md),
 
 1. Reuse an appropriate ordinary graphic sub-composition; keep root for orchestration. Put the coherent graphic in a sized managed group. Design, font, placement and motion follow the user's contract, not this recipe's data source.
 2. Inspect/create Table widget 1182 and its dynamic widget-owned row template. Use native Metric Text/Image elements with template controls matching the exact row keys/types. Retain the template session token for scoped commands. Exit through root, reopen the owning ordinary composition, discard template IDs and reread the owner relationship.
-3. Configure Table layout/options before linking. Create a `Standings` Table Control Node with matching column IDs/types and verified initial rows (or an explicitly agreed empty state). Link it to `tableContent`. Once linked, do not use `update-table` for rows: write `Standings` only.
-4. Put standalone `Sheet ID`, `Sheet Tab`, `Sheet Range` (Text), `Auto Update` (Checkbox), `Refresh Seconds` (Number, 5-3600), and `Sheet Status` (Text, script-owned status) in a Large `Data Source` container. Default Auto Update off until access and configuration are confirmed. Put header controls in a separate semantic Large container. The Table Control Node retains its native table group.
-5. The script writes only `Standings` and `Sheet Status` Control Node payloads. It never writes `tableContent` or row-template widgets. Disable operator editing of status where the host supports it. Explain that while Auto Update is on, operator row edits are overwritten on the next successful refresh, even if the source is unchanged.
+3. Configure an unlinked Table named `Standings`, `updateStyle: "update"`, and 10 elements per page. Seed its stored `tableContent` with verified fallback rows, padded to the agreed capacity (40 below). Do not create a Table Control Node for fetched data. When migrating an existing linked table, unlink first and preserve its stored fallback.
+4. Put standalone `Sheet ID`, `Sheet Tab`, `Sheet Range` (Text), `Auto Update` (Checkbox), and `Refresh Seconds` (Number, 5-3600) in a Large `Data Source` container. Default Auto Update off until access and configuration are confirmed. In a Large `Graphic` container, put directly linked Title/Subtitle inputs and a standalone Page Counter (1 through capacity / page size, with deliberate decrement/increment/set-1 actions). Name the unlinked indicator Metric Text `Page Indicator`.
+5. The script reads operator Control Nodes via `getPayload2()` and writes only widgets: `tableContent`, string `currentPage`, and indicator text. It never writes Control Node payloads. Fetch failures retain the last good graphic and emit a sanitized console warning. Do not fabricate operator-facing fetch status; a separate supported channel or an agreed on-output indicator needs its own contract.
 
-The example expects nine row controls: text `rank`, `club`, `mp`, `w`, `d`, `l`, `pts`, and image `logo`, `arrow`. Numeric columns are validated as non-negative integers and converted to text for these controls. Adapt this explicit schema to the inspected template, not vice versa without approval. Blank club rows are skipped. Extra source columns are ignored; visibility/reference-only columns have no implicit effect. Agree any filtering separately. Empty image values are allowed; nonempty images must be credential-free HTTPS URLs. An empty valid range clears rows; failed/invalid reads never do.
+The source expects nine columns: `rank`, `club`, `mp`, `w`, `d`, `l`, `pts`, `logo`, `arrow`. The template exposes the seven text and two image fields plus Color controls `rowColor`, `textColor` and Checkbox controls `logoVisible`, `arrowVisible`. Link colors to all relevant fills/text/strokes and visibility to the individual image tiles, not a template group. Numeric columns become text; blank club rows are skipped and extra source columns ignored. Adapt the explicit schema and colors to the inspected template and user's design.
+
+Observed Table workarounds, not intended semantics: use `update`, keep a constant padded row count even after a shrink or empty result, and never send empty image strings or data-URI placeholders. Seed at least one image field with an approved real credential-free HTTPS URL; the script reuses that URL for hidden badges. Padding uses empty text, alpha-zero colors and hidden image tiles. Validate the padded payload against the 32 KB limit. Count real rows, not padding, when computing pages. See [Table reliability](../widgets/table.md#observed-runtime-workarounds).
 
 ## Script pattern
 
-Follow [composition scripts](../composition-scripts.md) and the [runtime API](../composition-scripting/singular-scripting-doc.md). Read and merge the existing script/listener before writing; `addListener` supports one listener per composition/event. The example is a complete ES2017-compatible local script for an otherwise empty script slot. It requires browser XMLHttpRequest, URL and Blob APIs. Initial fetch occurs only with Auto Update on. There is at most one current request; configuration changes abort the old request and invalidate late callbacks. Requests time out after 15 seconds. Errors produce a status without logging source data, URLs or response bodies.
+Follow [composition scripts](../composition-scripts.md) and the [runtime API](../composition-scripting/singular-scripting-doc.md). Merge existing listeners; `addListener` supports one per composition/event. This ES2017 example requires XMLHttpRequest, URL and Blob. Initial fetch requires Auto Update. One current request is allowed; configuration changes abort it and invalidate late callbacks. The timeout is 15 seconds. Warnings contain no source data, URLs or response bodies. The seed must already use the same padding contract; agree an empty fallback with a real hidden image URL if no verified rows are available.
 
 ```javascript
 (function() {
@@ -36,13 +38,51 @@ Follow [composition scripts](../composition-scripts.md) and the [runtime API](..
   var generation = 0;
   var configKey = null;
   var onPayload = null;
+  var table = null;
+  var indicator = null;
+  var fallbackImage = null;
+  var rowCount = 0;
+  var capacity = 40;
+  var pageSize = 10;
   var columns = ['rank', 'club', 'logo', 'mp', 'w', 'd', 'l', 'pts', 'arrow'];
   var numeric = ['rank', 'mp', 'w', 'd', 'l', 'pts'];
 
-  function status(value) {
-    if (composition && composition.getPayload2()['Sheet Status'] !== value) {
-      composition.setPayload({ 'Sheet Status': value });
+  function warn() {
+    console.warn('Sheet refresh unavailable; retaining last good rows');
+  }
+
+  function contentRows(value) {
+    if (typeof value === 'string') value = JSON.parse(value);
+    if (value && !Array.isArray(value)) value = value.content;
+    if (typeof value === 'string') value = JSON.parse(value);
+    if (!Array.isArray(value)) throw new Error('content');
+    return value;
+  }
+
+  function imageUrl(value) {
+    var image = new URL(value);
+    if (image.protocol !== 'https:' || image.username || image.password) throw new Error('image');
+    return value;
+  }
+
+  function applyPage() {
+    var pages = Math.max(1, Math.ceil(rowCount / pageSize));
+    var requested = Number(composition.getPayload2().Page);
+    var page = Math.max(1, Math.min(pages, Number.isInteger(requested) ? requested : 1));
+    if (table.getPayload().currentPage !== String(page)) table.setPayload({ currentPage: String(page) });
+    var label = page + ' / ' + pages;
+    if (indicator.getPayload().text !== label) indicator.setPayload({ text: label });
+  }
+
+  function paddedRows(rows) {
+    var result = rows.slice();
+    while (result.length < capacity) {
+      result.push({ rank: '', club: '', mp: '', w: '', d: '', l: '', pts: '',
+        logo: fallbackImage, arrow: fallbackImage, logoVisible: false, arrowVisible: false,
+        rowColor: { r: 0, g: 0, b: 0, a: 0 }, textColor: { r: 0, g: 0, b: 0, a: 0 } });
     }
+    if (new Blob([JSON.stringify({ content: result })]).size > 32768) throw new Error('rows');
+    return result;
   }
 
   function cancel() {
@@ -81,14 +121,17 @@ Follow [composition scripts](../composition-scripts.md) and the [runtime API](..
           if (String(value).trim() === '' || !Number.isSafeInteger(Number(value)) || Number(value) < 0) throw new Error('number');
           value = String(Number(value));
         }
-        if ((name === 'logo' || name === 'arrow') && value !== '') {
-          var image = new URL(String(value));
-          if (image.protocol !== 'https:' || image.username || image.password) throw new Error('image');
+        if (name === 'logo' || name === 'arrow') {
+          row[name + 'Visible'] = value !== '';
+          value = value === '' ? fallbackImage : imageUrl(String(value));
         }
         row[name] = String(value);
       });
+      row.rowColor = { r: 20, g: 30, b: 40, a: 1 };
+      row.textColor = { r: 255, g: 255, b: 255, a: 1 };
       rows.push(row);
     });
+    if (rows.length > capacity) throw new Error('capacity');
     if (new Blob([JSON.stringify(rows)]).size > 32768) throw new Error('rows');
     return rows;
   }
@@ -101,18 +144,22 @@ Follow [composition scripts](../composition-scripts.md) and the [runtime API](..
     function failed() {
       if (!active()) return;
       request = null;
-      status('Refresh failed; retaining last good rows');
+      warn();
     }
     current.onload = function() {
       if (!active()) return;
       if (current.status !== 200) { failed(); return; }
       var rows;
-      try { rows = rowsFrom(current.responseText); } catch (error) { failed(); return; }
+      var padded;
+      try { rows = rowsFrom(current.responseText); padded = paddedRows(rows); } catch (error) { failed(); return; }
       request = null;
-      if (JSON.stringify(composition.getPayload2().Standings) !== JSON.stringify(rows)) {
-        composition.setPayload({ Standings: rows });
+      var existing;
+      try { existing = contentRows(table.getPayload().tableContent); } catch (error) { existing = null; }
+      if (JSON.stringify(existing) !== JSON.stringify(padded)) {
+        table.setPayload({ tableContent: JSON.stringify({ content: padded }) });
       }
-      if (composition && generation === expectedGeneration) status('Updated');
+      rowCount = rows.length;
+      applyPage();
     };
     current.onerror = failed;
     current.ontimeout = failed;
@@ -131,6 +178,7 @@ Follow [composition scripts](../composition-scripts.md) and the [runtime API](..
   }
 
   function configure() {
+    applyPage();
     var payload = composition.getPayload2();
     var config = { id: payload['Sheet ID'], tab: payload['Sheet Tab'], range: payload['Sheet Range'],
       enabled: payload['Auto Update'], seconds: payload['Refresh Seconds'] };
@@ -138,16 +186,15 @@ Follow [composition scripts](../composition-scripts.md) and the [runtime API](..
     if (configKey === nextKey) return;
     configKey = nextKey;
     cancel();
-    if (config.enabled === false) { status('Auto Update off'); return; }
+    if (config.enabled === false) return;
     if (config.enabled !== true || typeof config.id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(config.id) ||
         typeof config.tab !== 'string' || !config.tab.trim() || config.tab.length > 100 ||
         typeof config.range !== 'string' || !/^[A-Z]+[1-9][0-9]*:[A-Z]+[1-9][0-9]*$/i.test(config.range) ||
         !Number.isInteger(config.seconds) || config.seconds < 5 || config.seconds > 3600) {
-      status('Invalid source configuration; retaining last good rows');
+      warn();
       return;
     }
     var currentGeneration = generation;
-    status('Refreshing');
     interval = setInterval(function() { refresh(config, currentGeneration); }, config.seconds * 1000);
     refresh(config, currentGeneration);
   }
@@ -155,6 +202,14 @@ Follow [composition scripts](../composition-scripts.md) and the [runtime API](..
   return {
     init: function(comp) {
       composition = comp;
+      table = comp.findWidget('Standings')[0];
+      indicator = comp.findWidget('Page Indicator')[0];
+      if (!table || !indicator) throw new Error('Missing table or indicator');
+      var seed = contentRows(table.getPayload().tableContent);
+      var imageRow = seed.find(function(row) { return row.logo; });
+      if (!imageRow) throw new Error('Seed requires an approved HTTPS image');
+      fallbackImage = imageUrl(imageRow.logo);
+      rowCount = seed.filter(function(row) { return String(row.club || '').trim(); }).length;
       onPayload = function() { configure(); };
       composition.addListener('payload_changed', onPayload);
       configure();
@@ -165,6 +220,10 @@ Follow [composition scripts](../composition-scripts.md) and the [runtime API](..
       configKey = null;
       onPayload = null;
       cancel();
+      table = null;
+      indicator = null;
+      fallbackImage = null;
+      rowCount = 0;
     }
   };
 })();
@@ -174,7 +233,7 @@ Follow [composition scripts](../composition-scripts.md) and the [runtime API](..
 
 Mocked-comp tests prove parsing/lifecycle logic, not Google access, Player integration, images or table fit. Before live authoring, run `dependency-preflight.js --capture`. If Chrome is unavailable, use the [verification-unavailable handoff](../capture.md#verification-unavailable); do not claim a successful runtime refresh.
 
-Use an approved public fixture with the nine headers above. In a private verification page, a custom Playwright harness may intercept only that fixture's exact gviz endpoint: serve row `Example Club` with pts 10 on the first request and pts 11 on the next. No credentials, real data or production requests are mocked. Set Refresh Seconds to 5 for this test only. The harness must assert through the Player composition API that `Standings` changes from the exact first rows to the exact second rows; never simulate this by writing Standings itself. Restore the requested interval afterward. The bundled verifier does not have network-fixture or payload assertions; use a task-temporary harness for these checks alongside this version-1 visual scenario:
+Use an approved public fixture with the nine headers above. In a private verification page, a custom Playwright harness may intercept only that fixture's exact gviz endpoint: serve `Example Club` with pts 10 then 11. No credentials, real data or production requests are mocked. Set Refresh Seconds to 5 for this test only. Assert normalized `table.getPayload().tableContent` converges to the expected padded rows and inspect rendered row output; never simulate fetching by writing a data Control Node. Restore the requested interval. The bundled verifier lacks network-fixture and widget-payload assertions; use a task-temporary harness alongside this version-1 visual scenario:
 
 ```json
 {
@@ -196,4 +255,4 @@ Use an approved public fixture with the nine headers above. In a private verific
 
 Replace placeholders with the inspected fixture identity; wait values are fixture budgets, not proof of success. Assert payload convergence in the custom harness before captures; capture only the table/pts region with unrelated animations settled. Pixel change alone is not a row assertion. Drive ancestors In if necessary. Test actual anonymous Google access separately without interception, then change an approved source cell and confirm the new row value after the selected interval. Do not claim the mock establishes Google reachability or CORS.
 
-Also verify: unchanged rows cause no redundant row write; config changes fetch the new tab/range and reject late old responses; disabling updates and closing abort requests/clear intervals; failure retains rows and changes Sheet Status; turning updates back on refreshes immediately. Inspect all rows at target resolution, long club names, logo/arrow loading, pagination and row-template fit. Update managed Control App extracts before testing their behavior. Clean up only task-owned fixtures and restore scope/state. Record separately which of unit logic, Player fixture, real network, visual quality and Control App behavior actually passed.
+Also verify: unchanged rows cause no redundant row write across array/string/object readbacks; config changes reject late responses; disabling updates and closing abort requests/clear intervals; failure retains rows with only a console warning; reenabling refreshes immediately. Exercise 20 to 10 to zero real rows at constant capacity, clamping a Page 2 request to 1 without rewriting the operator's Page value. Inspect long names, logo contrast on the actual backing, tile visibility, pagination and row fit. In update mode, do not promise page-transition stagger beyond per-row Update effects. For rolling replacements, use clipped row groups and verified UpdateOut/UpdateIn assignments; header fades are a separate design choice. Update managed Control App extracts before testing them. Record unit logic, Player fixture, real network, visual and Control App evidence separately. Do not modify user scenes as part of contributor regression work.

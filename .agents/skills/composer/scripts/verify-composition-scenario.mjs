@@ -32,6 +32,7 @@ const ACTIONS = new Set([
   'assertState',
   'assertDom',
   'assertPixelsChanged',
+  'assertPixelsMatch',
   'capture'
 ]);
 
@@ -253,9 +254,10 @@ function validateStep(step, index, captureNames) {
     return;
   }
 
-  if (step.action === 'assertPixelsChanged') {
+  if (step.action === 'assertPixelsChanged' || step.action === 'assertPixelsMatch') {
     assertAllowedKeys(step, [
-      'action', 'from', 'to', 'region', 'tolerance', 'minimumChangedPixels'
+      'action', 'from', 'to', 'region', 'tolerance',
+      step.action === 'assertPixelsMatch' ? 'maximumChangedPixels' : 'minimumChangedPixels'
     ], label);
     for (const key of ['from', 'to']) {
       if (typeof step[key] !== 'string' || !captureNames.has(step[key])) {
@@ -271,6 +273,10 @@ function validateStep(step, index, captureNames) {
     if (step.minimumChangedPixels !== undefined &&
         (!Number.isSafeInteger(step.minimumChangedPixels) || step.minimumChangedPixels < 1)) {
       throw new Error(`${label}.minimumChangedPixels must be a positive integer`);
+    }
+    if (step.maximumChangedPixels !== undefined &&
+        (!Number.isSafeInteger(step.maximumChangedPixels) || step.maximumChangedPixels < 0)) {
+      throw new Error(`${label}.maximumChangedPixels must be a non-negative integer`);
     }
     return;
   }
@@ -459,14 +465,14 @@ export async function executeVerificationScenario(options) {
           width: actual.targetBounds.width,
           height: actual.targetBounds.height
         };
-      } else if (step.action === 'assertPixelsChanged') {
+      } else if (step.action === 'assertPixelsChanged' || step.action === 'assertPixelsMatch') {
         const observed = await options.comparePixels(
           checkpoints.get(step.from),
           checkpoints.get(step.to),
           step
         );
         entry.observed = observed;
-        if (!observed.passed) throw new Error('pixel-change assertion failed');
+        if (!observed.passed) throw new Error('pixel assertion failed');
       } else if (step.action === 'capture') {
         const captured = await capture(step.name);
         checkpoints.set(step.name, captured);

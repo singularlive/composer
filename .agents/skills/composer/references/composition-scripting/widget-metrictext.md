@@ -90,7 +90,7 @@ comp.addListener("message", function (event, msg, e) {
 });
 ```
 
-`msg.params` is the widget-message envelope, `msg.params.data` is the bounds payload, and `msg.params.id` is the originating tile ID. Use that ID as the routing key when several widgets emit messages.
+The callback signature is `(event, msg, e)`; `event` is the event-name string, so a single-argument handler cannot read bounds. `msg.params` is the widget-message envelope, `msg.params.data` is the bounds payload, and `msg.params.id` is the originating tile ID. Use that ID as the routing key when several widgets emit messages.
 
 The bounds describe the rendered text box after overflow processing, including metric padding rather than glyph ink alone. `none` and `clip` retain the natural rendered width; `fitScale` reports the uniformly scaled box when the natural text exceeds the available width, and `fitWidth` reports the horizontally fitted box. Use `overflow: "none"` when sizing a separate shape to natural text without compression. Empty text returns before this message, so clearing does not promise a zero-bounds event. See the [inline styled text recipe](../recipes/inline-styled-text.md) for a complete consumer and dependent-layout pattern. Verify payload changes, clearing, font readiness and resize in the Player; stored values alone are insufficient evidence.
 

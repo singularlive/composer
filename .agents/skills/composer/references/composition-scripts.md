@@ -91,7 +91,7 @@ For functions shared by multiple composition scripts, use the versioned [`contex
 - [Optional animated module](recipes/optional-animated-module.md): coordinate conditional visibility with local animation state.
 - [Breaking-news lower third](recipes/breaking-news-lower-third.md): build a reusable urgent label and replaceable headline with Update motion.
 - [Current-time clock module](recipes/current-time-clock-module.md): drive the Current Date and Time widget with shared typography (wall-clock time, not a duration Control Node).
-- [Public Google Sheet to Table](recipes/sheet-driven-table.md): public-only source validation, a single Table Control Node authority, guarded live refresh and explicit Player verification gates.
+- [Public Google Sheet to Table](recipes/sheet-driven-table.md): public-only source validation, widget-owned runtime data, guarded live refresh and explicit Player verification gates.
 
 See the complete [recipe index](recipes.md) for authoring and verification routes.
 
@@ -100,6 +100,7 @@ See the complete [recipe index](recipes.md) for authoring and verification route
 Follow the construction, public-control, lifecycle, and completion requirements in [authoring-quality.md](authoring-quality.md). For script-specific implementation, preserve a clear boundary between public input and derived presentation:
 
 - Control Nodes are the externally settable contract.
+- By default, write fetched or derived data directly to unlinked widget properties, rather than routing it through Control Node payloads. Read operator inputs through `comp.getPayload2()`. This is a design preference, not an absolute prohibition: a justified exception may assign data to a Control Node when the intended runtime consumer and ownership contract call for it. State the reason and verify that path in the intended host; preserve one write authority per destination. Scripts execute in the output/Player iframe; those writes do not propagate back to the Control App UI, so a Control Node write is not a way to publish operator-facing fetch status. Normally avoid backing Table or status controls for script-owned fetches. Keep the last good graphic on failure and use a sanitized console warning; operator feedback requires an explicitly supported separate channel or an agreed on-output indicator. This propagation boundary is expert-provided architecture guidance, not proof from Composer or Player testing.
 - Direct links are appropriate when an input maps directly to one widget property.
 - Never have a composition script call `widget.setPayload()` for a property that is also directly linked to a Control Node. A destination has one authority: either the direct link or the script, never both. If a linked update appears ineffective, verify the defining control, persisted link, app extract, loaded widget definition, and Player behavior before changing ownership.
 - The normal Composer graphic canvas does not install composition scripts. The dedicated Composition Script editor preview and Singular Player do. A canvas value therefore cannot prove or disprove a runtime script write.
@@ -198,7 +199,7 @@ Choose the locale, time zone, and format from the user's contract; do not silent
 For a real-time NYC weather lower third, a sound split is:
 
 1. Build a named `NYC Weather Lower Third` sub-composition with Text/Image primitives and In/Out timelines.
-2. Expose stable inputs such as location, temperature, condition, icon, and updated time through Control Nodes.
+2. Expose only operator-owned inputs, such as location, through Control Nodes. If the script fetches temperature, condition, icon, or updated time, write those directly to unlinked widgets; do not create backing Control Nodes for fetched data.
 3. Verify the links and baseline layout in Composer.
 4. Use the scripting phase to inspect the persisted composition structure and attach a root or sub-composition script that formats or fetches the weather data.
 5. Verify first with deterministic mock payloads in the Player, then verify any user-approved live data source. Do not invent a weather provider, endpoint, credentials, or polling contract.

@@ -82,6 +82,8 @@ Prefer `set-timeline-animations --file` whenever two or more assignments form on
 
 Each Timeline, Update, or Behavior batch entry may include `compositionId`. The command groups entries by ordinary composition, applies all groups in one root undo batch, and restores the exact starting ordinary scope. Omit `compositionId` to target the active composition. Keys remain unique across the complete manifest; Timeline `after` dependencies must stay within one composition.
 
+Exception: `set-update-animations --template-session <current-token> --file <assignments.json>` supports a local Update batch inside the active widget-owned template without navigation. Omit each `compositionId` or use the current template ID. Any cross-composition entry is rejected before mutation. Missing/stale tokens remain rejected; leaving template mode invalidates internal identities. Timeline/Behavior scope rules are unchanged.
+
 ```json
 {
   "timelineAnimations": [

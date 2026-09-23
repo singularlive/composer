@@ -21,11 +21,32 @@ The Table widget creates one host box per visible item. It instantiates and resi
 - `elementsPerPage` controls visible instance count and is capped at 100 by the widget.
 - `lineSpacing` is a percentage distributed between visible instances.
 - `layoutDirection: "horizontal"` advances hosts down the vertical axis; the alternate value advances them across the horizontal axis. Preserve the live selection values reported by `get`.
-- Page transition style and offset stagger instance changes; the row template owns its own In/Out animation.
+- Page transition style and offset configure instance changes; the row template owns its own In/Out animation. Do not assume a page-switch stagger in `update` mode; see the observations below.
 
-The widget accepts a direct array or an object with a `content` property, where `content` may itself be an array or a JSON string. The agent writes the canonical object form as a JSON string: `{ "content": [...] }`.
+The runtime accepts a direct row array, an object `{ "content": [...] }`, a JSON string of that object, and an object whose `content` is a JSON row-array string. Scripts use `table.setPayload({ tableContent: JSON.stringify({ content: rows }) })`. Normalize string/object/array readback before comparing rows; a local last-write cache alone is not authoritative.
 
-A Table Control Node payload is a direct JSON row array, so it may be linked to the widget's `tableContent` JSON field with `link-table-control`. The row keys and values must still match the widget-owned template's exposed controls. When linked, update the defining Table Control Node rather than calling `update-table`; the stored `tableContent` value remains the unlinked fallback and does not represent the effective linked value.
+Observed after a Table Control Node link/unlink: stored `tableContent` became an array, and generic `set-properties` required that array type. `update-table` writes the canonical JSON-string object and must not be assumed to repair type drift. Inspect the live field type; preserve array type through a typed property write when necessary, then verify. Runtime `setPayload` acceptance is distinct from the editor's type-preserving setter. Table Control Node `getPayload2()` also returned an array initially and a JSON string after a script write in the supplied observation; this is not permission to write runtime data into Control Nodes.
+
+A Table Control Node is appropriate for operator/external-owned rows only. Its direct row array may link to `tableContent` with `link-table-control`, with keys matching template controls. The external writer updates that defining input rather than using `update-table`; stored widget content remains the unlinked fallback. For script-fetched data, leave `tableContent` unlinked and write the widget directly, with no backing Table Control Node or script-written status control.
+
+### Pagination and numeric strings
+
+Observed `currentPage` runtime values are strings despite the number schema. Counter and Number links returned `INCOMPATIBLE_PROPERTY`; numeric-string linking is not supported by this workflow. Keep Page as a standalone bounded Counter, read it from `comp.getPayload2()`, clamp against real rows (exclude padding), then write `table.setPayload({ currentPage: String(page) })` and an unlinked Metric Text indicator. Do not rewrite the operator's Page input to report the clamp. `update-table` preserves the inspected option type; accepting a numeric specification value does not prove native numeric linking works.
+
+## Observed runtime workarounds
+
+These are supplied Player observations from a club-table task, not intended semantics or an independent rerun of every widget version. Product confirmation is pending. Check actual output, not just readback.
+
+| Observed-only behavior | Workaround |
+| --- | --- |
+| `timeline` bulk changes updated only the first changed visible row; later reversions could be ignored. `update` applied all changed rows. | Use `updateStyle: "update"` for live data and row UpdateOut/UpdateIn effects for replacement motion. |
+| Shrinking 20 rows to 10 or 1 left stale rows in both modes. | Keep an agreed constant capacity from the stored seed onward. Pad with empty text, alpha-zero colors for all visible fills/text/strokes, and hidden image tiles. Reject overflow rather than silently truncate. |
+| Empty image `""` broke later updates; a data-URI one-pixel GIF dropped the next update. Real HTTPS URLs worked. | Supply an approved real HTTPS image URL even in padding; hide unused images with template Checkbox controls. |
+| A template-group `visible` node reference had no runtime effect through rows; tile-level visibility worked. | Link Checkbox controls to individual tiles' `visible` references, not the group. |
+| The Table tile's `widget` Timeline effect did not animate rows on composition In. | Use a verified reveal on the Table tile; do not claim the Widget effect animates rows. |
+| Page switches in `update` mode were instant apart from row Update effects. | Verify requested page motion; do not promise a separate page-transition stagger. |
+
+Padding requires complete template fields and remains subject to the content-size limit. Compute pages from real rows to avoid exposing blank padded pages. Verify logos on their actual backing. Contributor issue records and reproduction scenarios are maintained separately from the shipped skill; all observations above remain observed-only until independently reproduced.
 
 ## Update a table
 
@@ -58,7 +79,7 @@ The command:
 
 1. verifies that the tile is a Table widget;
 2. resolves the current `composition` relationship from the owner;
-3. validates every row against the template's complete exposed-control contract, rejecting unknown or missing keys and incompatible text, number, image, or tinycolor2-compatible color values;
+3. validates every row against the template's complete exposed-control contract, rejecting unknown or missing keys and incompatible text, number, image, boolean Checkbox, or tinycolor2-compatible color values (Checkbox accepts only `true`/`false`, not strings or numbers);
 4. validates supported options and preserves the widget's live runtime types;
 5. rejects more than 1,000 rows or serialized content above 32 KB;
 6. applies options followed by `tableContent`, recording attempted fields before dispatch so recovery includes a committed write even if its acknowledgement is lost;
