@@ -2,6 +2,13 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.26 - Protocol 159
+
+- Preserve array or JSON-string Table/Grid content during updates and use structural readback/recovery, reporting confirmed unchanged failures without uncertain recovery.
+- Retain sanitized, short-lived pairing-mismatch diagnostics for connection checks; include both versions on acknowledgement mismatch and document pre-claim code preservation.
+- Document staged upgrades of physically distinct host installs and consent-based handling of older leftovers.
+- Add a sheet-column extension checklist and present/absent/restored Player scenario; prefer numeric gviz display formatting while validating raw values and tolerating explicitly optional missing headers.
+
 ## 1.7.25 - Protocol 158
 
 - Prefer direct widget-property writes for script-fetched data, while permitting justified Control Node exceptions; retain single-authority and Control App propagation boundaries.

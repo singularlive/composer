@@ -1,9 +1,9 @@
 {
   "name": "singular-composer-agent-skill-runtime",
-  "version": "1.7.25",
+  "version": "1.7.26",
   "private": true,
   "composerAgent": {
-    "protocolVersion": 158,
+    "protocolVersion": 159,
     "coreRuntime": "scripts/composer-agent.js",
     "coreDependenciesBundled": [
       "tinycolor2",

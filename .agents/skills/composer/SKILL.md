@@ -45,6 +45,8 @@ Read only references needed for the current task and phase.
 
 Composer AI availability is deployment- and account-gated. If absent or ineligible, report the blocker and stop. For new authorization, request the visible six-character code; never request the token or poll an intent. Run `pair --code <code>` immediately when supplied. `PAIRING_CODE_INVALID` is terminal; request a fresh code without retrying. Require `paired: true` and `acknowledged: true`. Use `check-connection --connection <conversation-connection-name>` for a read-only check.
 
+Do not filter pairing stdout/stderr or hide its exit status. Inspect the complete sanitized result; a protocol mismatch before the claim does not consume the code, but expiration still applies. Follow [installation recovery](references/installation.md) before retrying.
+
 For tasks requiring editor commands, run before `inspect` or mutation:
 
 ```bash

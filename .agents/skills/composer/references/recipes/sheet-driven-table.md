@@ -46,6 +46,7 @@ Follow [composition scripts](../composition-scripts.md) and the [runtime API](..
   var pageSize = 10;
   var columns = ['rank', 'club', 'logo', 'mp', 'w', 'd', 'l', 'pts', 'arrow'];
   var numeric = ['rank', 'mp', 'w', 'd', 'l', 'pts'];
+  var optionalColumns = [];
 
   function warn() {
     console.warn('Sheet refresh unavailable; retaining last good rows');
@@ -77,9 +78,11 @@ Follow [composition scripts](../composition-scripts.md) and the [runtime API](..
   function paddedRows(rows) {
     var result = rows.slice();
     while (result.length < capacity) {
-      result.push({ rank: '', club: '', mp: '', w: '', d: '', l: '', pts: '',
+      var padding = { rank: '', club: '', mp: '', w: '', d: '', l: '', pts: '',
         logo: fallbackImage, arrow: fallbackImage, logoVisible: false, arrowVisible: false,
-        rowColor: { r: 0, g: 0, b: 0, a: 0 }, textColor: { r: 0, g: 0, b: 0, a: 0 } });
+        rowColor: { r: 0, g: 0, b: 0, a: 0 }, textColor: { r: 0, g: 0, b: 0, a: 0 } };
+      optionalColumns.forEach(function(name) { padding[name] = ' '; });
+      result.push(padding);
     }
     if (new Blob([JSON.stringify({ content: result })]).size > 32768) throw new Error('rows');
     return result;
@@ -102,24 +105,32 @@ Follow [composition scripts](../composition-scripts.md) and the [runtime API](..
     if (data.status !== 'ok' || !data.table || !Array.isArray(data.table.cols) || !Array.isArray(data.table.rows)) throw new Error('response');
     var headers = data.table.cols.map(function(column) { return String(column.label || '').trim().toLowerCase(); });
     columns.forEach(function(name) {
-      if (headers.indexOf(name) < 0 || headers.indexOf(name) !== headers.lastIndexOf(name)) throw new Error('headers');
+      if ((headers.indexOf(name) < 0 && optionalColumns.indexOf(name) < 0) ||
+          headers.indexOf(name) !== headers.lastIndexOf(name)) throw new Error('headers');
     });
     if (data.table.rows.length > 1000) throw new Error('rows');
     var rows = [];
     data.table.rows.forEach(function(source) {
       if (!source || !Array.isArray(source.c)) throw new Error('row');
-      function cell(name) {
-        var value = source.c[headers.indexOf(name)];
-        return value && value.v != null ? value.v : '';
+      function cell(name, formatted) {
+        var index = headers.indexOf(name);
+        var value = index < 0 ? null : source.c[index];
+        if (!value || value.v == null) return '';
+        if (formatted && typeof value.v === 'number' && typeof value.f === 'string') return value.f;
+        return value.v;
       }
       if (!String(cell('club')).trim()) return;
       var row = {};
       columns.forEach(function(name) {
         var value = cell(name);
         if (typeof value !== 'string' && typeof value !== 'number') throw new Error('cell');
+        if (optionalColumns.indexOf(name) >= 0 && String(value).trim() === '') {
+          row[name] = ' ';
+          return;
+        }
         if (numeric.indexOf(name) >= 0) {
           if (String(value).trim() === '' || !Number.isSafeInteger(Number(value)) || Number(value) < 0) throw new Error('number');
-          value = String(Number(value));
+          value = typeof value === 'number' ? cell(name, true) : String(Number(value));
         }
         if (name === 'logo' || name === 'arrow') {
           row[name + 'Visible'] = value !== '';
@@ -256,3 +267,56 @@ Use an approved public fixture with the nine headers above. In a private verific
 Replace placeholders with the inspected fixture identity; wait values are fixture budgets, not proof of success. Assert payload convergence in the custom harness before captures; capture only the table/pts region with unrelated animations settled. Pixel change alone is not a row assertion. Drive ancestors In if necessary. Test actual anonymous Google access separately without interception, then change an approved source cell and confirm the new row value after the selected interval. Do not claim the mock establishes Google reachability or CORS.
 
 Also verify: unchanged rows cause no redundant row write across array/string/object readbacks; config changes reject late responses; disabling updates and closing abort requests/clear intervals; failure retains rows with only a console warning; reenabling refreshes immediately. Exercise 20 to 10 to zero real rows at constant capacity, clamping a Page 2 request to 1 without rewriting the operator's Page value. Inspect long names, logo contrast on the actual backing, tile visibility, pagination and row fit. In update mode, do not promise page-transition stagger beyond per-row Update effects. For rolling replacements, use clipped row groups and verified UpdateOut/UpdateIn assignments; header fades are a separate design choice. Update managed Control App extracts before testing them. Record unit logic, Player fixture, real network, visual and Control App evidence separately. Do not modify user scenes as part of contributor regression work.
+
+## Add a column
+
+Extend the existing graphic without rebuilding it. Preserve source row order unless sorting is explicitly requested; placement, alignment, font and emphasis are user-specific choices, not part of the data recipe.
+
+1. Inspect the owner, template controls, fallback runtime type, current script and source headers. Apply the revision gate for authored scenes. Agree a stable row key, display formatting and whether a missing header should blank that optional column or reject the response. Required identity headers such as club remain required.
+2. Open the row template through the owner tile/field and retain its session token. Add the native text tile and a Text template control such as `points`; link any cell fill to the existing padding-aware color control. Reuse existing colors rather than freezing a new opaque fill. Adjust geometry only as agreed. Use the current token for local Update batches; verify phases, clipping and layer order.
+3. Add the new key to every real and padded fallback row. Use a blank display value such as `' '` for padding and absent optional values, and retain transparent fills/hidden image tiles. Exit via root, reopen the ordinary owner, discard template IDs, and rediscover its copied template contract. Reseed with `update-table`, which preserves array versus JSON-string stored content. Verify all padded rows and unchanged options; after a failure read back before retrying.
+4. Update the header mapping in the existing script, preserving listeners, cancellation, capacity and single authority. For this example, insert the following immediately after `var optionalColumns = [];` to extend the nine-column schema with optional numeric Points:
+
+```javascript
+columns.push('points');
+numeric.push('points');
+optionalColumns.push('points');
+```
+
+5. The shared `cell()` tolerates absent optional headers and null/missing cells. For numeric display it prefers gviz `f` when `v` is a number and `f` is a string, falling back to `v`; validate and calculate with raw `v`, not locale-formatted text. This preserves sheet formatting (including grouping or leading zeros) rather than inventing a numeric display format. Malformed numbers still reject the refresh; duplicate recognized headers also reject it. Missing optional Points produces `' '` and does not retain stale points or blank the entire table.
+6. Widen the operator's Sheet Range through `set-control-value` to include the actual new column; do not infer its letter from this example. Save through fresh script handoffs and require byte-for-byte readback. Keep this recipe's flow sheet -> script -> widget; do not introduce a backing data Control Node or write operator Range/Page values from the script.
+7. In Player, verify all visible values on pages 1 and 2, remove only the optional header from the range, require blank cells, then restore it and require the original values. Inspect Update motion separately at intermediate frames. Real source edits and Control App behavior require their own checks.
+
+### Column verification scenario
+
+For a separately authorized fixture, place the nine required columns in A:I and optional Points in J. Seed fallback rows to match that approved fixture except that points are blank, and set Auto Update off **before Player loads**. The blank fallback is the independent expected empty-column image. Adapt both ranges and the points-only pixel region below to the inspected layout; x=82/y=20/width=18/height=65 is illustrative, not a design rule. Use a fixture without motion in other fields during comparison. Confirm source convergence and inspect every visible point; fixed waits and pixel changes alone do not prove a successful fetch. Run in a task-temporary verification page, restoring the user's controls afterward if any authoring changes were needed.
+
+```json
+{
+  "version": 1,
+  "steps": [
+    { "action": "jumpTo", "state": "In" },
+    { "action": "setPayload", "payload": { "Page": 1, "Auto Update": false } },
+    { "action": "wait", "milliseconds": 2000 },
+    { "action": "capture", "name": "expected-empty-column" },
+    { "action": "setPayload", "payload": { "Sheet ID": "PUBLIC_FIXTURE_ID", "Sheet Tab": "Standings", "Sheet Range": "A1:J41", "Refresh Seconds": 30, "Auto Update": true } },
+    { "action": "wait", "milliseconds": 3000 },
+    { "action": "capture", "name": "points-present" },
+    { "action": "assertPixelsChanged", "from": "expected-empty-column", "to": "points-present", "region": { "unit": "percent", "x": 82, "y": 20, "width": 18, "height": 65 }, "minimumChangedPixels": 1 },
+    { "action": "setPayload", "payload": { "Sheet Range": "A1:I41" } },
+    { "action": "wait", "milliseconds": 3000 },
+    { "action": "capture", "name": "points-absent" },
+    { "action": "assertPixelsMatch", "from": "expected-empty-column", "to": "points-absent", "region": { "unit": "percent", "x": 82, "y": 20, "width": 18, "height": 65 }, "maximumChangedPixels": 0 },
+    { "action": "setPayload", "payload": { "Sheet Range": "A1:J41" } },
+    { "action": "wait", "milliseconds": 3000 },
+    { "action": "capture", "name": "points-restored" },
+    { "action": "assertPixelsMatch", "from": "points-present", "to": "points-restored", "region": { "unit": "percent", "x": 82, "y": 20, "width": 18, "height": 65 }, "maximumChangedPixels": 0 },
+    { "action": "setPayload", "payload": { "Page": 2 } },
+    { "action": "wait", "milliseconds": 2000 },
+    { "action": "capture", "name": "points-page-2" },
+    { "action": "setPayload", "payload": { "Auto Update": false } }
+  ]
+}
+```
+
+The supplied Points-extension task reported a real Google/Player run with points on two pages, blank cells after excluding the header, restoration after widening the range, and zero script errors. That is user-supplied evidence for its six-column layout, not an independent rerun of this ten-column example. Live cell edits, Control App behavior and detailed roll-animation inspection were not verified.

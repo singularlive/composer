@@ -41,6 +41,22 @@ Never trust generic installer exit text alone. Verify every requested destinatio
 
 ## Protocol mismatch and reconnect recovery
 
+### Multiple installations
+
+Use `doctor` from the selected installation to inventory known host paths before upgrading. Compare canonical `realPath`, not just `.claude`, `.agents` or `.codex` names: paths resolving to the same physical payload are aliases, not separate copies to replace. Preserve those symlinks/junctions. Two physically distinct global copies (for example `~/.claude/skills/composer` and `~/.agents/skills/composer`) can serve different hosts; upgrading only one leaves the other stale.
+
+Within the user-approved upgrade scope, repeat the same verified sibling staging and same-volume rename swap for **each physically distinct host copy** that can be selected. Use one current release payload, but a separate staging/backup sibling on each destination's volume. Run `doctor --capture` from every final destination and compare package/protocol versions; require no remaining older duplicate payloads. A same-version physical duplicate may still be listed by doctor and is not itself a failed upgrade. Do not silently replace a project checkout or unrelated customized install. Alternatively, remove a redundant copy only with explicit user consent after confirming which host resolves to the retained installation.
+
+Inventory older `composer-*` backup, staging and old folders separately from live installs. Report their paths and, when readable, payload versions; do not execute unknown leftover scripts merely to identify them. Never auto-delete other sessions' backups or treat a folder name as proof it is unused. Ask for confirmation of specific paths before cleanup, preserve installer-owned lock metadata, and remove only this task's own leftovers without further approval. `doctor` discovers installed host paths, not all sibling leftovers; absence from its duplicate list is not cleanup authorization.
+
+### Pairing diagnosis
+
+Do not pipe `pair` output through grep, line filters or other commands that hide stdout/stderr or the exit status. Inspect the complete sanitized result and require both `paired: true` and `acknowledged: true`. Report the error code and protocol numbers on failure; never print a claim response body containing credentials or the stored credential file.
+
+The server rejects a version mismatch **before** consuming a visible pairing code or claiming an intent. That specific pre-claim failure does not consume the code, but its original expiration still applies and the user can replace it. After upgrading, the same still-valid code can be used; do not automatically retry while versions differ. `PAIRING_CODE_INVALID` still requires a fresh code. A failure after a successful claim, such as acknowledgement mismatch, is a different stage and does not imply the code remains unused.
+
+After an HTTP pairing mismatch, `check-connection` reports the most recent mismatch for that connection profile, including both protocol numbers, rather than falling through to stale credentials. This is explicitly a saved diagnostic, not a fresh server probe: it expires after 30 minutes, is ignored when the running skill version changes, and is cleared when a new pairing attempt starts. Only the two versions and a timestamp are retained beside the profile; no code, intent secret, token or server URL is stored there.
+
 `COMPOSER_AGENT_VERSION_MISMATCH` reports both protocol numbers and which side is newer. Keep or install the latest available skill regardless of which side is newer. When the installed skill is newer, wait for Composer to reach the reported skill protocol, then reopen the paired composition. When Composer is newer, update the selected skill to the latest available release. Never downgrade the skill to match an older Composer deployment, and do not continue with editor commands while the versions differ.
 
 Do not propose a Control Node type from the old payload while upgrading. After replacement, reread the installed `SKILL.md` and type-specific references before making that decision.

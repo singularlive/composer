@@ -5652,8 +5652,8 @@ const { findSkillInstallations, getDuplicateInstallations, getInstallationScope 
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 158;
-const PACKAGE_VERSION = '1.7.25';
+const SKILL_VERSION = 159;
+const PACKAGE_VERSION = '1.7.26';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -6348,12 +6348,50 @@ async function createHttpError(response) {
     : `Request failed with status ${response.status}`);
   if (body && body.error && typeof body.error.composerAgentCode === 'string') {
     error.code = body.error.composerAgentCode;
+    if (error.code === 'COMPOSER_AGENT_VERSION_MISMATCH') {
+      const legacyVersion = error.message.match(/Composer server version (\d+)\./);
+      error.serverVersion = Number.isSafeInteger(body.error.serverVersion)
+        ? body.error.serverVersion : legacyVersion ? Number(legacyVersion[1]) : null;
+    }
   }
   return error;
 }
 
+function clearPairingDiagnostic() {
+  try { fs.unlinkSync(activeCredentialsPath + '.pairing-status.json'); }
+  catch (error) { if (error.code !== 'ENOENT') throw new Error('Unable to clear previous pairing diagnostic'); }
+}
+
+async function pairingHttpError(response) {
+  const error = await createHttpError(response);
+  if (error.code === 'COMPOSER_AGENT_VERSION_MISMATCH' && Number.isSafeInteger(error.serverVersion)) {
+    try {
+      fs.writeFileSync(activeCredentialsPath + '.pairing-status.json', JSON.stringify({
+        skillVersion: SKILL_VERSION, serverVersion: error.serverVersion, recordedAt: Date.now()
+      }), { mode: 0o600 });
+    } catch (storageError) {
+      error.message += ' (Unable to retain the version diagnostic for check-connection.)';
+    }
+  }
+  return error;
+}
+
+function assertNoRecentPairingMismatch() {
+  let diagnostic;
+  try { diagnostic = JSON.parse(fs.readFileSync(activeCredentialsPath + '.pairing-status.json', 'utf8')); }
+  catch (error) { return; }
+  if (!diagnostic || diagnostic.skillVersion !== SKILL_VERSION ||
+      !Number.isSafeInteger(diagnostic.serverVersion) || diagnostic.serverVersion === SKILL_VERSION ||
+      !Number.isSafeInteger(diagnostic.recordedAt) || diagnostic.recordedAt > Date.now() ||
+      Date.now() - diagnostic.recordedAt > 30 * 60 * 1000) return;
+  const error = new Error(`The last pairing attempt was rejected: installed skill protocol ${SKILL_VERSION}, Composer protocol ${diagnostic.serverVersion}. This is a saved pairing diagnostic, not a live server check. Install the latest skill and retry pairing after the protocols match; the pre-claim mismatch did not consume the code, but it may expire.`);
+  error.code = 'COMPOSER_AGENT_VERSION_MISMATCH';
+  throw error;
+}
+
 async function pair(options) {
   preflightCredentialStorage();
+  clearPairingDiagnostic();
   const server = normalizeServerUrl(options.server || DEFAULT_SERVER_URL);
   const code = requireOption(options, 'code').toUpperCase();
   const response = await fetch(server + '/composer-agent/pairing/claim', {
@@ -6367,7 +6405,7 @@ async function pair(options) {
   });
 
   if (!response.ok) {
-    throw await createHttpError(response);
+    throw await pairingHttpError(response);
   }
 
   return finishPairing(server, await response.json());
@@ -6375,6 +6413,7 @@ async function pair(options) {
 
 async function pairIntent(options) {
   preflightCredentialStorage();
+  clearPairingDiagnostic();
   const server = normalizeServerUrl(options.server || DEFAULT_SERVER_URL);
   const intentId = requireOption(options, 'intent-id');
   const intentSecret = readIntentSecret(options);
@@ -6395,7 +6434,7 @@ async function pairIntent(options) {
     if (response.ok) {
       return finishPairing(server, await response.json());
     }
-    const responseError = await createHttpError(response);
+    const responseError = await pairingHttpError(response);
     if (responseError.code === 'COMPOSER_AGENT_VERSION_MISMATCH' ||
         (response.status !== 409 && response.status !== 429)) {
       throw responseError;
@@ -6455,6 +6494,9 @@ async function finishPairing(server, pairing) {
   } catch (err) {
     if (err && err.code === 'COMPOSER_AGENT_VERSION_MISMATCH') {
       acknowledgement.reason = 'version-mismatch';
+      acknowledgement.code = err.code;
+      acknowledgement.skillVersion = SKILL_VERSION;
+      acknowledgement.serverVersion = err.serverVersion;
     } else if (err && err.code === 'SESSION_CANCELLED') {
       acknowledgement.reason = 'authorization-rejected';
     } else if (/Timed out waiting/.test(err && err.message || '')) {
@@ -6494,6 +6536,7 @@ function assertCompatibleComposerAgentVersion(authentication, allowMismatch) {
   }
   const error = new Error(message);
   error.code = 'COMPOSER_AGENT_VERSION_MISMATCH';
+  error.serverVersion = Number.isInteger(serverVersion) ? serverVersion : null;
   throw error;
 }
 
@@ -7135,8 +7178,22 @@ async function updateTable(options, isGrid = false) {
     });
   });
 
-  const tableContent = JSON.stringify({ content: specification.rows }, null, 2);
-  if (Buffer.byteLength(tableContent, 'utf8') > MAX_TABLE_CONTENT_BYTES) {
+  const sameValue = (left, right) => {
+    if (left === right) return true;
+    if (!left || !right || typeof left !== 'object' || typeof right !== 'object' ||
+        Array.isArray(left) !== Array.isArray(right)) return false;
+    const keys = Object.keys(left);
+    return keys.length === Object.keys(right).length && keys.every(key =>
+      Object.prototype.hasOwnProperty.call(right, key) && sameValue(left[key], right[key]));
+  };
+  const storedContent = table.data.tableContent;
+  if (!Array.isArray(storedContent) && typeof storedContent !== 'string') {
+    throw new Error(`${widgetTitle} tableContent must be an array or JSON string; no changes dispatched`);
+  }
+  const tableContent = Array.isArray(storedContent)
+    ? specification.rows : JSON.stringify({ content: specification.rows }, null, 2);
+  const serializedContent = typeof tableContent === 'string' ? tableContent : JSON.stringify(tableContent);
+  if (Buffer.byteLength(serializedContent, 'utf8') > MAX_TABLE_CONTENT_BYTES) {
     throw new Error(`serialized ${widgetLabel} content exceeds the 32 KB widget-data limit`);
   }
   const requestedOptions = specification.options === undefined ? {} : specification.options;
@@ -7196,7 +7253,7 @@ async function updateTable(options, isGrid = false) {
     verified = requireWidgetTile(await executeCommand('element.get', { elementType: 'tile', id: id }), id);
     if (!verified.widget || verified.widget.id !== table.widget.id ||
         verified.data.composition !== table.data.composition ||
-        updates.some(update => verified.data[update.name] !== update.value)) {
+        updates.some(update => !sameValue(verified.data[update.name], update.value))) {
       throw new Error(`${widgetTitle} readback did not match the requested update`);
     }
   } catch (err) {
@@ -7213,8 +7270,8 @@ async function updateTable(options, isGrid = false) {
       }
       for (const update of updates) {
         const value = current.data[update.name];
-        if (value !== update.previous &&
-            (!attempted.includes(update) || restored.has(update.name) || value !== update.value)) {
+        if (!sameValue(value, update.previous) &&
+          (!attempted.includes(update) || restored.has(update.name) || !sameValue(value, update.value))) {
           throw new Error('Recovery values conflict');
         }
       }
@@ -7222,8 +7279,11 @@ async function updateTable(options, isGrid = false) {
     }
     try {
       let current = await readRecoveryState();
+      if (updates.every(update => sameValue(current.data[update.name], update.previous))) {
+        err.message += ` (${widgetTitle} readback confirms no change; no compensation needed)`;
+      }
       for (const update of attempted.slice().reverse()) {
-        if (current.data[update.name] !== update.previous) {
+        if (!sameValue(current.data[update.name], update.previous)) {
           await executeCommand('element.update', {
             elementType: 'tile',
             id: id,
@@ -7694,6 +7754,10 @@ async function run() {
   if (parsed.command !== 'capture-worker') configureCredentialScope(parsed.options);
   activeTemplateSessionToken = parsed.options['template-session'] || null;
   let result;
+  if (parsed.command === 'check-connection') {
+    assertAllowedOptions(parsed.options, ['timeout', 'compact'], 'check-connection');
+    assertNoRecentPairingMismatch();
+  }
   if (!['pair', 'pair-intent', 'capture', 'capture-worker'].includes(parsed.command)) {
     validatePairedServerOption(parsed.options);
   }
