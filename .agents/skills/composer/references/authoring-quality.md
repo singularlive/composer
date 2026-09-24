@@ -19,6 +19,10 @@ For graphics driven by an external source, establish whether the user wants a sn
 
 Apply the construction rules, visual-quality requirements, and completion gate below to the user's requirements and the task-specific choices. They remain the standard for every graphic, including work created from a sparse prompt.
 
+### Control App compatibility
+
+For structural authoring, inspect `app-template-match` to discover an existing Control App template contract. For a requested Control App integration or changes to externally addressed structure, controls, or behavior, follow [Using Integration Resources](composition-commands.md#using-integration-resources) before choosing those interfaces. A graphic can look correct while remaining unusable by its Control App if a required public ID, type, composition scope, or lifecycle differs. Preserve documented interfaces; design freely only where the contract leaves room. Unrelated isolated visual edits need no resource fetch or template reassignment.
+
 ## Capture budget
 
 Use zero captures for nonvisual or model-only work and normally one for a straightforward visual build or fix. For reference-driven work, allow up to five successful refinement captures by default; baseline, settled In, settled Out, and required animation-state evidence are verification captures and do not consume that budget. Continue past five only while each pass addresses a concrete discrepancy, with ten successful refinement captures as the emergency ceiling. Failed captures do not count. Never recapture unchanged output. Stop when the result is close enough, the latest pass makes no meaningful improvement, two consecutive passes fail to reduce the discrepancy, or Composer returns a non-recoverable apply or capture error.
@@ -166,6 +170,7 @@ Do not present composition work as finished until every applicable check below p
 5. **Dynamic content:** Exercise realistic long, short, wide, empty, and repeated values wherever those variations could affect the layout.
 6. **Animation:** For graphics with In/Out behavior, verify the settled In and intended settled Out frames. Verify intermediate states when the visual contract depends on motion between them.
 7. **Runtime behavior:** Verify composition scripts and other Player-owned behavior in Singular Player with deterministic inputs. A successful write, Composer readback, or single screenshot is not proof of runtime behavior.
+	For template-integrated work, report the template ID/version/status and which contract requirements were verified through model readback, Player, and the actual Control App separately. Missing resources, unresolved contract differences, and untested Control App behavior remain explicit limitations; assigning `defaultAppID` is not compatibility proof.
 8. **Final state:** Restore the composition, controls, timeline, viewport, and navigation stack to the state requested by the user, then inspect the relevant scope again.
 9. **Handoff:** Keep the best final visual artifact when one was needed. Tell the user what was created or changed, which controls and behaviors matter to their use of the graphic, what was verified, and any remaining visible difference, unsupported behavior, placeholder asset, or other limitation. Do not burden the user with internal construction details unless they ask or those details affect editing, control, reuse, or a limitation.
 

@@ -2,6 +2,21 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.31 - Protocol 164
+
+- Default structural authoring to UNO Essentials (template ID 518) when neither the user nor the root match specifies a template, and read its Integration Resources before interface design.
+- Preserve explicit choices and existing matches; default discovery does not automatically change composition settings.
+
+## 1.7.30 - Protocol 163
+
+- Teach template-integrated authoring to discover the root match, interpret Integration Resources and preserve exact documented composition interfaces before dependent writes.
+- Require version-aware requirement mapping, explicit handling of missing/conflicting resources and separate model, Player and Control App evidence; avoid resource fetches for unrelated isolated visual edits.
+
+## 1.7.29 - Protocol 162
+
+- Add read-only app-template Integration Resources discovery for API information, raw API JSON and the optional Markdown composition contract.
+- Resolve an explicit template or the root match to its published or development version, preserving nullable text and enforcing account visibility and bounded responses.
+
 ## 1.7.28 - Protocol 161
 
 - Accept every JSON-representable tinycolor2 color for Color Control Node creation, reuse, value/default/reset updates, Table color cells, widget color/gradient fields and typed shadow colors.

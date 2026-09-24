@@ -5652,8 +5652,8 @@ const { findSkillInstallations, getDuplicateInstallations, getInstallationScope 
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 161;
-const PACKAGE_VERSION = '1.7.28';
+const SKILL_VERSION = 164;
+const PACKAGE_VERSION = '1.7.31';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -5715,7 +5715,7 @@ const KNOWN_COMMANDS = new Set([
   'inspect', 'find-elements', 'composition-tree', 'resolve-references', 'script-handoff', 'control-composition',
   'timeline-link', 'set-timeline-link', 'logic-layers', 'set-logic-layer', 'rename-logic-layer',
   'create-composition', 'orchestrate', 'create-revision', 'list-revisions', 'read-revision', 'compare-revision',
-  'list-app-templates', 'app-template-match', 'set-app-template-match',
+  'list-app-templates', 'app-template-match', 'set-app-template-match', 'app-template-integration-resources',
   'restore-revision', 'delete-revision', 'delete-composition', 'open-composition', 'widget-subcompositions',
   'open-widget-subcomposition', 'update-table', 'update-grid', 'timeline2', 'display-variants',
   'configure-display-variants', 'activate-display-variant', 'set-display-variant-relevance', 'control-nodes',
@@ -7934,6 +7934,21 @@ async function run() {
       assertAllowedOptions(parsed.options, [], parsed.command);
       result = await executeCommand('appTemplates.list', {});
       break;
+    case 'app-template-integration-resources': {
+      assertAllowedOptions(parsed.options, ['id', 'status'], parsed.command);
+      const params = {};
+      if (parsed.options.id !== undefined) {
+        const id = parsed.options.id;
+        if (!/^[1-9][0-9]*$/.test(id) || !Number.isSafeInteger(Number(id))) throw new Error('--id must be a positive integer');
+        params.id = Number(id);
+      }
+      if (parsed.options.status !== undefined) {
+        if (!['published', 'development'].includes(parsed.options.status)) throw new Error('--status must be published or development');
+        params.status = parsed.options.status;
+      }
+      result = await executeCommand('appTemplates.integrationResources.inspect', params);
+      break;
+    }
     case 'app-template-match':
       assertAllowedOptions(parsed.options, [], parsed.command);
       result = await executeCommand('composition.appTemplateMatch.inspect', {});

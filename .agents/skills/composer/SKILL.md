@@ -29,7 +29,7 @@ Read only references needed for the current task and phase.
 | Isolated property edit | "Isolated property edits" in [command-basics.md](references/command-basics.md), then the matching widget guide |
 | Elements, layout, fonts, primitives, or declarative graphics | [element-commands.md](references/element-commands.md), [graphics.md](references/graphics.md), or [auxiliary-commands.md](references/auxiliary-commands.md) |
 | Widget selection or configuration | [widgets.md](references/widgets.md), then its routed widget guide |
-| Compositions, app template matches, revisions, or display variants | [composition-structure.md](references/composition-structure.md), [composition-commands.md](references/composition-commands.md), [revisions.md](references/revisions.md), or [display-variants.md](references/display-variants.md) |
+| Compositions, app template matches or Integration Resources, revisions, or display variants | [composition-structure.md](references/composition-structure.md), [composition-commands.md](references/composition-commands.md), [revisions.md](references/revisions.md), or [display-variants.md](references/display-variants.md) |
 | Timeline, Update, Behavior, logic layers, or playback | [composition-motion.md](references/composition-motion.md) and [motion-commands.md](references/motion-commands.md) |
 | Control Nodes, containers, values, links, or deletion | [control-nodes.md](references/control-nodes.md), then its routed creation, editing, or command reference |
 | Native Timer duration control or `timerChanged` script messages | [control-node-timer.md](references/control-node-timer.md) |
@@ -62,6 +62,10 @@ node scripts/composer-agent.js finish-work --connection <conversation-connection
 Require `COMPOSER_WORK_RELEASED`. Before a blocking question, send `status --state waiting-for-user`, release, then wait. [Revisions](references/revisions.md) own the approval exception. Use `complete` only for explicit revocation.
 
 ## Inspect, mutate, verify
+
+For Control App-driven authoring or template compatibility work, follow [Integration Resources](references/composition-commands.md#using-integration-resources) before choosing structure, public controls, or scripts. Discover an existing root template match during structural authoring; preserve its integration contract when changing externally addressed content. Unrelated isolated visual edits do not require fetching resources.
+
+When neither the user nor the existing root match specifies an app template, use **UNO Essentials (ID `518`)** as the authoring default and read its Integration Resources with `--id 518`. Explicit user choices and existing matches take precedence; do not replace an unresolved existing match with the default.
 
 Composer is the source of truth:
 
