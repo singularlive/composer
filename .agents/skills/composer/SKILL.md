@@ -63,6 +63,8 @@ Require `COMPOSER_WORK_RELEASED`. Before a blocking question, send `status --sta
 
 ## Inspect, mutate, verify
 
+For a template-matched composition, the composition contract is inviolable, even on explicit user request. Before structural or contract-dependent behavior changes, read the matched template's Integration Resources (the user's requested status, otherwise published) and check each proposed mutation against the contract. Never delete, rename, move or retype required Control Nodes, rename/move/delete contract-named compositions or paths, or remove required behavior. Decline breaking parts, name the exact contract entries, and offer only contract-preserving alternatives; continue safe parts within the authorized scope. Confirmation, justification or revision approval cannot override this rule. Never clear or change the match to bypass it or offer to proceed after a template switch. Removing or replacing a protecting match is the user's own action in Composer, not an agent workaround. See [Contract preservation](references/composition-commands.md#contract-preservation).
+
 For Control App-driven authoring or template compatibility work, follow [Integration Resources](references/composition-commands.md#using-integration-resources) before choosing structure, public controls, or scripts. Discover an existing root template match during structural authoring; preserve its integration contract when changing externally addressed content. Unrelated isolated visual edits do not require fetching resources.
 
 When neither the user nor the existing root match specifies an app template, use **UNO Essentials (ID `518`)** as the authoring default and read its Integration Resources with `--id 518`. Explicit user choices and existing matches take precedence; do not replace an unresolved existing match with the default.
@@ -70,7 +72,7 @@ When neither the user nor the existing root match specifies an app template, use
 Composer is the source of truth:
 
 1. Run `inspect`, confirm `activeComposition.stack`, and read targets through the narrowest applicable inspector.
-2. Read required live schemas and ownership through the routed reference; never infer mutable contracts from memory.
+2. Read required live schemas and ownership through the routed reference; never infer mutable contracts from memory. For matched compositions, complete the contract-preservation check before every structural or contract-dependent mutation, including isolated node-ID edits, deletions, composition renames, and script changes. Reuse the current task's versioned contract only while its match/status/version remains current.
 3. Before the first high-impact mutation in a task, recommend a revision through the AI chat question UI and wait for the user's choice, except for a verified empty starter scene. A default group and empty default sub-composition with no authored content or Control Nodes do not need a backup prompt. Read [revision approval](references/revisions.md#revision-approval-before-mutation) for the scene-wide empty-starter check, other exclusions, and consent procedure before proceeding.
 4. Make one coherent, bounded change through the highest-level supported operation.
 5. Reinspect the changed scope and verify authoritative readback, links, ownership, and unrelated state.

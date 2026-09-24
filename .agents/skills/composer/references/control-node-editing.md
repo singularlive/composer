@@ -4,6 +4,8 @@ Read [Control Node design and lifecycle](control-nodes.md) first for ownership, 
 
 ## Change metadata
 
+Apply [Contract preservation](composition-commands.md#contract-preservation) before changing an externally addressed ID, scope, type or behavior. Required nodes in a matched composition cannot be renamed, moved, retyped or removed even on explicit request; decline those parts and offer preserving alternatives. Neither a metadata patch nor delete-and-recreate bypasses this rule.
+
 For `timer`, first read [Timer configuration and commands](control-node-timer.md). Its coupled direction/endpoints and format/frequency settings are validated together; Timer settings do not accept `null` or default/reset payload metadata.
 
 Inspect first, then pass only the properties to change:
@@ -37,6 +39,8 @@ Address a local control by public `id` (preferred) or `keyId`. Values must match
 Metric Font, Button, and Time Control use `set-control-font`, `press-control`, and `timer-action` rather than generic writes. Static Info Text changes through metadata; dynamic Info Text accepts sanitized HTML through its payload. The command writes only the selected payload field, verifies persistence, and rolls back on failure. Reinspect and confirm unrelated controls remain unchanged.
 
 ## Delete
+
+Check the matched template's contract before `delete-control`. Never delete a required node, even if the user confirms or a backup exists. Native cleanup preserves internal consistency, not external app compatibility; follow [Contract preservation](composition-commands.md#contract-preservation). Unlisted nodes remain deletable when the request, contract and normal ownership rules allow it.
 
 ```bash
 node scripts/composer-agent.js delete-control --id <control-id>

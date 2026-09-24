@@ -57,11 +57,15 @@ If the Playwright check fails, reinstall the complete Composer skill; the exact 
 Run the bundled verifier from its repository location:
 
 ```powershell
-node scripts/composer-agent.js script-handoff --compact |
+node scripts/composer-agent.js script-handoff --pipe --compact |
   node scripts/verifyComposition.mjs --handoff-file - --out <task-dir>
 ```
 
 Prefer a version-1 `--scenario-file` for supported payload, message, state, lifecycle, DOM, bounds, and checkpoint behavior. Create a separate custom harness in the task-temporary directory only when the required external trigger or assertion is outside that bounded contract. Keep the bundled verifier untouched.
+
+### Verify the visible contract state
+
+Before comparing an edited element, inspect the template's required inputs and drive them to a documented state in which that element is visible. A countdown whose begin value is zero may legitimately show its end message instead of its ring. Use scenario-local `setPayload` on the correct child composition and the appropriate documented Timer/Time Control action to initialize a nonzero countdown and reset it; do not assume similarly named controls use the same command type. Do not change saved defaults, remove required controls, or bypass their script behavior just to obtain a screenshot. Assert the intended state/visibility before measuring the edit, exercise the changed value and its return to baseline, and keep initialization separate from the behavior under test. Restore any persistent state changed by a separately authorized live workflow. This proves the exercised Player payload path, not Control App or Customize-tab rendering.
 
 ### Screenshot output
 
@@ -120,7 +124,7 @@ These are diagnostic additions to report version 1: they do not change pass/fail
 
 1. Pipe a fresh paired handoff into the bundled verification script:
    ```sh
-   node scripts/composer-agent.js script-handoff --compact |
+   node scripts/composer-agent.js script-handoff --pipe --compact |
     node scripts/verifyComposition.mjs --handoff-file - --out <task-dir>
    ```
 
@@ -158,7 +162,7 @@ These are diagnostic additions to report version 1: they do not change pass/fail
    Verify a known ordinary sub-composition without changing the user's editor scope:
 
    ```sh
-   node scripts/composer-agent.js script-handoff --composition-id <id> --compact |
+   node scripts/composer-agent.js script-handoff --pipe --composition-id <id> --compact |
     node scripts/verifyComposition.mjs --handoff-file - --composition-id active --scenario-file <task-dir>/scenario.json --out <task-dir>
    ```
 
@@ -196,7 +200,7 @@ Before diagnosing an incremental Control App update after changing an AI Graphic
 Run it without placing either handoff credential on disk:
 
 ```sh
-node scripts/composer-agent.js script-handoff --compact |
+node scripts/composer-agent.js script-handoff --pipe --compact |
   node scripts/verifyComposition.mjs --handoff-file - --scenario-file <task-dir>/scenario.json --out <task-dir>
 ```
 

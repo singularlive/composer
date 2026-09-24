@@ -2,6 +2,12 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.32 - Protocol 165
+
+- Make matched composition contracts inviolable in agent authoring, with pre-mutation checks, firm partial refusal and safe alternatives; template-match changes are not a bypass.
+- Default script-handoff to a credential-free diagnostic preview. Credential-bearing helper/verifier pipelines now require explicit --pipe and reject terminal stdout; update existing pipelines accordingly.
+- Guide Player verification to a visible contract state without rewriting saved defaults; distinguish extra controls from template-specific operator UI exposure.
+
 ## 1.7.31 - Protocol 164
 
 - Default structural authoring to UNO Essentials (template ID 518) when neither the user nor the root match specifies a template, and read its Integration Resources before interface design.

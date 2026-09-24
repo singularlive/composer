@@ -14,8 +14,8 @@ const { findSkillInstallations, getDuplicateInstallations, getInstallationScope 
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 164;
-const PACKAGE_VERSION = '1.7.31';
+const SKILL_VERSION = 165;
+const PACKAGE_VERSION = '1.7.32';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -55,6 +55,7 @@ const GRID_OPTION_FIELDS = [
 // Flags that may be passed with no value (default true) or with an explicit
 // true/false value.
 const BOOLEAN_OPTIONS = new Set([
+  'pipe',
   'capture',
   'compact',
   'selected',
@@ -1998,6 +1999,27 @@ async function buildScriptHandoff(credentials, inspection) {
   };
 }
 
+async function getScriptHandoffOutput(options) {
+  if (options.pipe === true && process.stdout.isTTY) {
+    const error = new Error('Credential-bearing handoffs require a direct pipe to the bundled helper or verifier; omit --pipe for a safe preview');
+    error.code = 'SCRIPT_HANDOFF_PIPE_REQUIRED';
+    throw error;
+  }
+  const handoff = await createScriptHandoff(options);
+  if (options.pipe === true) return handoff;
+  return {
+    version: 1,
+    kind: 'composer-agent-script-handoff-preview',
+    composerAgentVersion: SKILL_VERSION,
+    redacted: true,
+    credentialsAvailable: {
+      composition: Boolean(handoff.compositionToken),
+      agent: Boolean(handoff.composerAgentAccessToken)
+    },
+    usage: 'Use script-handoff --pipe only when stdout goes directly to compositionScriptCli.js or verifyComposition.mjs; never print, filter or save that stream'
+  };
+}
+
 async function createScriptHandoff(options) {
   const credentials = readCredentials();
   const requestedOption = options && options['composition-id'];
@@ -2219,8 +2241,8 @@ async function run() {
       break;
     }
     case 'script-handoff':
-      assertAllowedOptions(parsed.options, ['composition-id', 'compact'], 'script-handoff');
-      result = await createScriptHandoff(parsed.options);
+      assertAllowedOptions(parsed.options, ['composition-id', 'compact', 'pipe'], 'script-handoff');
+      result = await getScriptHandoffOutput(parsed.options);
       break;
     case 'control-composition': {
       const state = requireOption(parsed.options, 'state').toLowerCase();

@@ -67,7 +67,7 @@ After the first copy-on-exit, reopen once through the owner and inspect `widget-
 Model readback proves structure and links, not ticking. Use the provided [clock scenario](current-time-clock-module-scenario.json) against a fresh handoff whose selected target contains the visible clock:
 
 ```bash
-node scripts/composer-agent.js script-handoff --compact |
+node scripts/composer-agent.js script-handoff --pipe --compact |
   node scripts/verifyComposition.mjs --handoff-file - --scenario-file references/recipes/current-time-clock-module-scenario.json --out <task-dir>
 ```
 

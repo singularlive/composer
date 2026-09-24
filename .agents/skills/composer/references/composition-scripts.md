@@ -1,6 +1,6 @@
 # Composition-script workflow
 
-Use this workflow when a paired Composer task requires persisted JavaScript runtime behavior. Composition scripting is a second phase of the `composer` skill, not a separate skill and not a paired-editor command. The bundled CLIs are the only supported agent-facing interface: invoke `composer-agent.js script-handoff`, then pipe its output to `compositionScriptCli.js`. The helper calls authenticated REST endpoints internally, but agents must not treat those endpoints as an alternative workflow or construct requests to them directly.
+Use this workflow when a paired Composer task requires persisted JavaScript runtime behavior. Composition scripting is a second phase of the `composer` skill, not a separate skill and not a paired-editor command. The bundled CLIs are the only supported agent-facing interface: invoke `composer-agent.js script-handoff --pipe`, then pipe its output directly to `compositionScriptCli.js`. The helper calls authenticated REST endpoints internally, but agents must not treat those endpoints as an alternative workflow or construct requests to them directly.
 
 The authorities remain separate:
 
@@ -11,12 +11,16 @@ The authorities remain separate:
 
 The paired relay deliberately has no script command. Do not add script text to `graphics.apply`, write `compositionProps.scripts` through a generic update, or replace raw composition JSON.
 
+Before editing or clearing script behavior in a template-matched composition, apply [Contract preservation](composition-commands.md#contract-preservation). Never remove behavior required by the app/API, even on explicit request. Script additions that retain node semantics and write ownership remain allowed.
+
+Plain `script-handoff` returns only a credential-free diagnostic preview, including whether credentials are available; it is not a usable helper input. Use `script-handoff --pipe` exclusively for a direct pipe to the bundled helper or verifier. `--pipe` refuses terminal stdout with `SCRIPT_HANDOFF_PIPE_REQUIRED`, but cannot identify a downstream consumer: never send it to `head`, `tee`, logging, a file, or a tool that captures raw output. Use the default preview to diagnose handoff availability. Both modes still require the normal work lease; the preview does not grant script access.
+
 ## Source of truth by phase
 
 | Phase | Authority | Supported agent path |
 | --- | --- | --- |
 | Build or change the graphic | Open Composer model | `inspect`, `get`, `control-nodes`, and the relevant primitive schemas |
-| Hand off the active composition | Open Composer model | `composer-agent.js script-handoff` |
+| Hand off the active composition | Open Composer model | `composer-agent.js script-handoff --pipe` directly to the helper |
 | Discover structure outside the handoff scope | Persisted composition content | `compositionScriptCli.js --handoff-file - --action summary --full` |
 | Read script text | Dedicated composition-script endpoint | `compositionScriptCli.js --handoff-file - --action get-script --script-id <id>` |
 | Prove script behavior | Singular Player runtime | The bundled Playwright verifier or a separate custom harness |
@@ -44,11 +48,11 @@ Each helper request has a 30-second deadline covering headers and body, and a 32
 2. Put independently controlled modules in named sub-compositions. Give script-addressed widgets unambiguous names.
 3. Create the intended public input surface as Control Nodes in the composition whose script consumes them. Use direct links for one-to-one property inputs and standalone controls for values the script interprets, combines, or forwards. Do not expose a structured gradient through a native Gradient Control Node; keep it as an internal widget-rendering value and use a complete widget-runtime gradient object in the script when needed. A Color control is appropriate only when the external input is intentionally one solid color. Run `control-nodes` and verify every field and payload value, every required `dataLink` or `nodeRef`, and the intentional absence of links for standalone script inputs.
 4. Capture a visual baseline only when the existing layout must be preserved or compared. Otherwise verify structure through inspection and defer visual capture until the coherent layout is ready. Standalone Player capture proves the sampled visual state, not an event-driven path that was never triggered.
-5. Run `script-handoff --compact` after the final structural readback. Composer already lazily creates the Composition API token when the editor opens, so the handoff supplies the host, composition token, and paired agent authorization automatically. Pipe it directly to the helper; do not print or persist either credential.
+5. Run `script-handoff --pipe --compact` after the final structural readback. Composer already lazily creates the Composition API token when the editor opens, so the handoff supplies the host, composition token, and paired agent authorization automatically. Pipe it directly to the helper; do not print or persist either credential.
 6. For the common active-composition case, pass the handoff to the helper and read the suggested target directly:
 
    ```bash
-  node scripts/composer-agent.js script-handoff --connection <conversation-connection-name> --compact |
+  node scripts/composer-agent.js script-handoff --pipe --connection <conversation-connection-name> --compact |
      node scripts/compositionScriptCli.js --handoff-file - --action get-script
    ```
 
@@ -64,12 +68,12 @@ Keep the saved authorization available for follow-up structural work unless the 
 
 ### Fresh pipe for every action
 
-Generate a fresh `script-handoff --connection <conversation-connection-name> --compact` for **each** summary, get, put, readback, and verification action. Pipe stdout directly to `--handoff-file -`; never redirect the handoff to a file, save it as an artifact, or reuse a cached handoff. A script source file is not a handoff and may be task-temporary if it contains no credentials.
+Generate a fresh `script-handoff --pipe --connection <conversation-connection-name> --compact` for **each** summary, get, put, readback, and verification action. Pipe stdout directly to `--handoff-file -`; never redirect the handoff to a file, save it as an artifact, or reuse a cached handoff. A script source file is not a handoff and may be task-temporary if it contains no credentials.
 
 ```powershell
-node scripts/composer-agent.js script-handoff --connection <conversation-connection-name> --compact |
+node scripts/composer-agent.js script-handoff --pipe --connection <conversation-connection-name> --compact |
   node scripts/compositionScriptCli.js --handoff-file - --action put-script --script-file <task-dir>/script.js
-node scripts/composer-agent.js script-handoff --connection <conversation-connection-name> --compact |
+node scripts/composer-agent.js script-handoff --pipe --connection <conversation-connection-name> --compact |
   node scripts/compositionScriptCli.js --handoff-file - --action get-script
 ```
 
@@ -109,7 +113,7 @@ Follow the construction, public-control, lifecycle, and completion requirements 
 - For derived presentation, do not use only an in-memory signature of the last attempted write. Compare the desired value with `widget.getPayload()` when the routed widget contract supports reliable readback, or idempotently rewrite the complete derived state on each relevant payload change. A local cache cannot detect another runtime surface reapplying persisted model data.
 - When a script intentionally owns a Rectangle `fillGradient`, send a complete solid-gradient value such as `{type:"solid",solidColor:{r:20,g:30,b:40,a:1}}`. Prefer a direct Color Control Node link when the public value should propagate unchanged; never combine that link with a script write to the same field.
 - Keep input fields and the widgets they drive in the same sub-composition unless cross-composition behavior is intentional.
-- Treat widget and composition names as runtime lookup contracts once a script uses `findWidget()` or `find()`; rename them only together with the script.
+- Treat widget and composition names as runtime lookup contracts once a script uses `findWidget()` or `find()`; unprotected names may be renamed only together with the script. Contract-named compositions cannot be renamed, even with a corresponding script edit.
 
 ### Reactive standalone controls
 

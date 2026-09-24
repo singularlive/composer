@@ -21,6 +21,8 @@ Apply the construction rules, visual-quality requirements, and completion gate b
 
 ### Control App compatibility
 
+The matched [composition contract is inviolable](composition-commands.md#contract-preservation). Decline breaking requests even when explicit; do not offer a template switch or match clearing to enable them. Required names, node IDs/types/scopes and behavior remain intact while contract-safe additions and visual edits proceed within the authorized scope.
+
 For structural authoring, inspect `app-template-match` to discover an existing Control App template contract. For a requested Control App integration or changes to externally addressed structure, controls, or behavior, follow [Using Integration Resources](composition-commands.md#using-integration-resources) before choosing those interfaces. A graphic can look correct while remaining unusable by its Control App if a required public ID, type, composition scope, or lifecycle differs. Preserve documented interfaces; design freely only where the contract leaves room. Unrelated isolated visual edits need no resource fetch or template reassignment.
 
 ## Capture budget

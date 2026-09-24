@@ -375,6 +375,10 @@ function readHandoff(args) {
     throw new Error("Script handoff is not valid JSON. Pipe only script-handoff stdout; keep stderr separate. Input omitted to protect credentials.");
   }
 
+  if (handoff && handoff.kind === "composer-agent-script-handoff-preview") {
+    throw new Error("Received a redacted preview. Pipe a fresh script-handoff --pipe directly to this helper; never print or save that stream.");
+  }
+
   if (
     !handoff ||
     handoff.version !== 1 ||
@@ -584,11 +588,11 @@ function printJson(value) {
 function getUsage() {
   return [
     "Usage:",
-    "  node composer-agent.js script-handoff --connection <name> --compact | node compositionScriptCli.js --handoff-file - --action summary",
-    "  node composer-agent.js script-handoff --connection <name> --compact | node compositionScriptCli.js --handoff-file - --action summary --full",
-    "  node composer-agent.js script-handoff --connection <name> --compact | node compositionScriptCli.js --handoff-file - --action get-script",
-    "  node composer-agent.js script-handoff --connection <name> --compact | node compositionScriptCli.js --handoff-file - --action put-script --script-file <path>",
-    "  node composer-agent.js script-handoff --connection <name> --compact | node compositionScriptCli.js --handoff-file - --action clear-script",
+    "  node composer-agent.js script-handoff --pipe --connection <name> --compact | node compositionScriptCli.js --handoff-file - --action summary",
+    "  node composer-agent.js script-handoff --pipe --connection <name> --compact | node compositionScriptCli.js --handoff-file - --action summary --full",
+    "  node composer-agent.js script-handoff --pipe --connection <name> --compact | node compositionScriptCli.js --handoff-file - --action get-script",
+    "  node composer-agent.js script-handoff --pipe --connection <name> --compact | node compositionScriptCli.js --handoff-file - --action put-script --script-file <path>",
+    "  node composer-agent.js script-handoff --pipe --connection <name> --compact | node compositionScriptCli.js --handoff-file - --action clear-script",
   ].join("\n");
 }
 

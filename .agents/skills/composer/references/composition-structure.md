@@ -19,6 +19,8 @@ The structural decision standard for tiles, groups, sub-compositions, and displa
 
 ## Creating, opening, and deleting
 
+Before renaming, moving, restructuring or deleting a composition, apply [Contract preservation](composition-commands.md#contract-preservation). A matched contract's composition names and ancestor paths are protected even on explicit user request; deleting a parent must also preserve every required descendant. Do not use generic name/property writes or a template-match change to bypass this gate. Decline breaking parts and continue contract-safe additions and visual edits within the agreed scope.
+
 ```bash
 node scripts/composer-agent.js create-composition --name "Lower third"
 node scripts/composer-agent.js create-composition --name "Lower third" --group-id <group-id>

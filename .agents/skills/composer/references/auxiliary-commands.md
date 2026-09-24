@@ -35,7 +35,7 @@ Use standalone capture for rendered visual evidence. See [capture.md](capture.md
 
 ## Composition scripts
 
-There is intentionally no paired Composer-agent command for reading, writing, or executing composition scripts. Build the composition and its Control Node contract with the commands above, then create the active-composition context once:
+There is intentionally no paired Composer-agent command for reading, writing, or executing composition scripts. Build the composition and its Control Node contract with the commands above. To inspect handoff availability without printing credentials, use the default diagnostic preview:
 
 ```bash
 node scripts/composer-agent.js script-handoff --compact
@@ -49,7 +49,7 @@ node scripts/composer-agent.js script-handoff --composition-id <sub-composition-
 
 The target and the initially active scope must be root or ordinary sub-compositions in the current scene. The command uses Composer's normal navigation and inspection paths, rejects widget-owned templates, and restores the composition that was active before the command. It refuses to navigate away from a widget-owned editing scope because exiting can replace that template with a new composition ID. Use `open-widget-subcomposition` for a widget-owned template, then run the unscoped handoff while that template is active.
 
-Pipe fresh `script-handoff` output directly to `scripts/compositionScriptCli.js --handoff-file -`; use a path only for an intentionally managed short-lived handoff. This CLI pipeline is the only supported agent interface for composition scripts. The helper uses the dedicated REST endpoints internally; do not construct or invoke those requests directly. The handoff suggests the active composition as the script target and carries the scene/account-scoped authorization required by every dedicated script endpoint, so `get-script`, `put-script`, and `clear-script` do not require `--script-id` unless the caller intentionally overrides it. Explicit disconnection, `complete`, and credential expiry prevent later script access. Use `summary --full` with the same handoff for global, overlay, ambiguous, or out-of-scope discovery. Direct `--token` and `--host` operation is unsupported. See [composition-scripts.md](composition-scripts.md).
+The preview is not a helper input. Pipe fresh `script-handoff --pipe` output directly to `scripts/compositionScriptCli.js --handoff-file -` for every helper action; never print, filter, persist or cache the credential-bearing stream. `--pipe` refuses terminal stdout, but cannot distinguish the helper from an arbitrary downstream consumer. This CLI pipeline is the only supported agent interface for composition scripts. The helper uses the dedicated REST endpoints internally; do not construct or invoke those requests directly. The handoff suggests the active composition as the script target and carries the scene/account-scoped authorization required by every dedicated script endpoint, so `get-script`, `put-script`, and `clear-script` do not require `--script-id` unless the caller intentionally overrides it. Explicit disconnection, `complete`, and credential expiry prevent later script access. Use `summary --full` with a fresh handoff for global, overlay, ambiguous, or out-of-scope discovery. Direct `--token` and `--host` operation is unsupported. See [composition-scripts.md](composition-scripts.md).
 
 ## Interruption and disconnection
 
