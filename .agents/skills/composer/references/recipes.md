@@ -16,7 +16,7 @@ Candidate patterns awaiting Player verification are listed separately below. The
 | Reusable animated breaking-news lower third | [Breaking-news lower third](recipes/breaking-news-lower-third.md) | Urgent labels and replaceable headlines with independent lifecycle and Update motion |
 | Square-left and rounded-right native panel | [Asymmetric Rectangle panel](recipes/asymmetric-rectangle-panel.md) | Solid lower-third bars, labels, and tabs requiring asymmetric corners without AI Graphics |
 | A current date/time display with shared typography | [Current-time clock module](recipes/current-time-clock-module.md) | Lower thirds, scoreboards, bugs, and other modules needing a native ticking clock without JavaScript |
-| An operator-controlled sports countdown that continues into overtime | [Sports game clock with overtime](recipes/sports-game-clock-with-overtime.md) | Match clocks that count down from a fixed duration and then display elapsed overtime as `+m:ss` |
+| An operator-controlled sports countdown that continues into overtime | [Sports game clock with overtime](recipes/sports-game-clock-with-overtime.md) | Default to native Timer for new game clocks; preserve the legacy Time Control recipe for existing graphics and custom `+m:ss` presentation |
 | Public AI Graphics styling with script-owned runtime data | [Linked AI Graphics style](recipes/linked-ai-graphics-style.md) | Directly linked colors and dimensions combined with script-forwarded data or discrete motion commands |
 
 ## Candidate pending Player verification

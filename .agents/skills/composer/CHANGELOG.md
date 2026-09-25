@@ -2,6 +2,11 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.36 - Protocol 169
+
+- Default new game clocks to native Timer Control Nodes with directly linked text and explicit sport-specific timing settings.
+- Preserve existing legacy Time Control/Timer widget graphics; scope their overtime recipe and verification to that architecture.
+
 ## 1.7.35 - Protocol 168
 
 - Renew active work atomically so renewal cannot overwrite cancellation or recreate a released lease.

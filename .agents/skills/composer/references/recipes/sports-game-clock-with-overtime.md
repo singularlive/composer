@@ -1,8 +1,14 @@
 # Sports game clock with overtime
 
-For a new native duration timer, read [Timer Control Nodes](../control-node-timer.md) first. Native Timer provides countdown, stopping, signed overtime and `timerChanged` without a Timer widget. Keep the Time Control/Timer construction below for existing graphics using that architecture; custom `+m:ss` overtime can instead be derived from Timer Control Node events in an unlinked text widget.
+## New game clocks: native Timer by default
 
-Use this pattern when an operator-controlled clock must count down from a fixed regulation duration and continue upward after zero with a `+m:ss` overtime display. The native Time Control owns elapsed state and operator actions; a Timer widget emits elapsed-time updates; a composition script formats those updates into an unlinked Metric Text widget.
+For new game clocks, use the native Timer Control Node (`timer`); read [Timer Control Nodes](../control-node-timer.md) first. Link its formatted output directly to a visible text widget. Configure the regulation duration in seconds, `direction: "down"`, `endValue: 0` and `endEnabled: true`; set `stopAtEnd: true` to stop at zero or `false` for overtime, then issue `reset` to apply the configured begin value. Native Timer provides countdown, stopping, signed overtime and `timerChanged` without a Timer widget or a clock script. Only custom presentation such as `+m:ss` needs derived output from Timer Control Node events in an unlinked text widget. Use `set-control-value` commands for native Timer, not legacy `timer-action`.
+
+## Existing graphics: legacy Time Control recipe
+
+Preserve existing Time Control (`timecontrol`) and Timer widget implementations unless migration is explicitly requested and permitted by the composition contract. The construction and verification scenario below are for that legacy architecture, not the default for new game clocks.
+
+Use this legacy pattern when an existing operator-controlled clock must count down from a fixed regulation duration and continue upward after zero with a `+m:ss` overtime display. The legacy Time Control owns elapsed state and operator actions; a Timer widget emits elapsed-time updates; a composition script formats those updates into an unlinked Metric Text widget.
 
 Before structural work, read [Timer authoring](../widgets/timer.md), [Control Node creation](../control-node-creation.md), and [authoring quality](../authoring-quality.md). Before script work, read [composition scripts](../composition-scripts.md), [Timer scripting](../composition-scripting/widget-timer.md), and [Metric Text scripting](../composition-scripting/widget-metrictext.md). Before verification, read [Player debugging and verification](../composition-scripting/debugging-and-verification.md).
 
