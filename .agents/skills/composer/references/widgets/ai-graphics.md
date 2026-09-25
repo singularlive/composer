@@ -53,10 +53,13 @@ These commands are local and require neither pairing nor a work lease. Validatio
 
 ## Lifecycle and animation
 
+For transparent procedural overlays, follow the [responsive particle candidate](../recipes/responsive-particle-overlay.md) for owned root observation, height-uniform geometry/motion, bounded population transitions and zero-size/destruction handling. Its reusable resize matrix tests one mounted renderer; separate previews alone cannot prove resize cleanup or state continuity. Independent effect groups are appropriate for requested mixtures, not a universal control layout.
+
 - Keep the installed DOM persistent. Cache nodes in `mount()` and mutate only keys present in `changes` during `update()`.
 - Treat generated field declarations as Composer UI schema, not runtime JavaScript type guarantees. Composer controls and Control Node payloads may deliver serialized values; for example, a `number` or `normalizednumber` edit can reach `update()` as a numeric string.
 - Normalize each changed value according to its declared field type before using it. Parse finite numeric strings explicitly; handle boolean strings such as `"false"` without truthiness coercion; preserve text and selection strings; and validate color and metricfont objects. Image inputs may be URL strings or objects with `url` or `src`; use `context.assets.resolveImage(value)` for those supported forms. Define a deliberate fallback for empty, malformed, or out-of-range input.
 - Color fields may arrive as plain `{r,g,b,a}` values, `{type:"solid",solidColor:{r,g,b,a}}` wrappers, or CSS-compatible strings. Use `context.colors.toCss(value)` for CSS assignment. When interpolation requires numeric channels, normalize through that host conversion first and parse the resulting CSS color rather than silently retaining the previous color.
+- This renderer adapter is not the native Color Control Node input contract. Use plain RGBA for portable linked-control tests, and test wrapper normalization locally as a separate path; see [native Color payloads](../control-node-creation.md#create-versus-reuse). Preserve alpha without applying it twice.
 - Normalize only keys present in `changes`. Do not rebuild a complete payload, coerce absent fields, or rely on `typeof` checks that reject valid serialized control values.
 - Write dynamic text with `textContent`, not `innerHTML`.
 - Render finite motion deterministically in `seek(animation, context)` from `animation.timeline` and normalized `animation.progress`. Progress is timeline-local and advances from 0 to 1 for both In and Out; do not globally invert Out progress. Map individual exit properties from settled to hidden as needed.

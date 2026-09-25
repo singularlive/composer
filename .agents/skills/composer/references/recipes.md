@@ -21,4 +21,7 @@ Candidate patterns awaiting Player verification are listed separately below. The
 
 ## Candidate pending Player verification
 
+- [Responsive particle overlay](recipes/responsive-particle-overlay.md): owned widget resize observation, uniform particle geometry/motion, bounded density transitions and cleanup; local resize matrix is separate from Player/output-resolution evidence.
+- [Change-triggered celebration over linked values](recipes/change-triggered-celebration.md): preserve API-facing links, seed while disabled, cover then reveal, and prove a measured cover deadline plus suppression/exit cases.
+- [Material-preserving text color](recipes/material-preserving-color.md): derive a complete gradient and outline from one standalone Color; require saturated and near-white Player frames before promotion.
 - [Public Google Sheet to Table](recipes/sheet-driven-table.md): exact public-tab/range source, single row authority and guarded polling. Mocked logic and version-1 scenario validation are covered; Player and real Google network verification remain required.

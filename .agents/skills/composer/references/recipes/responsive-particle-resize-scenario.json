@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "evidence": "local-runtime-host",
+  "settleMilliseconds": 350,
+  "cases": [
+    { "name": "full", "width": 1920, "height": 1080 },
+    { "name": "half-width", "width": 960, "height": 1080 },
+    { "name": "quarter-width", "width": 480, "height": 1080 },
+    { "name": "reduced-height", "width": 480, "height": 540 },
+    { "name": "zero-width", "width": 0, "height": 540 },
+    { "name": "zero-height", "width": 480, "height": 0 },
+    { "name": "restored", "width": 1920, "height": 1080 }
+  ]
+}

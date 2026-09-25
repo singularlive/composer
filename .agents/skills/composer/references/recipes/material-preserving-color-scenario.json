@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "steps": [
+    { "action": "jumpTo", "state": "In" },
+    { "action": "setPayload", "payload": { "Material Text": "Goal!", "Material Color": "#d92538" } },
+    { "action": "wait", "milliseconds": 600 },
+    { "action": "capture", "name": "saturated-static" },
+    { "action": "wait", "milliseconds": 800 },
+    { "action": "capture", "name": "saturated-sheen" },
+    { "action": "setPayload", "payload": { "Material Color": "#f5f5f5" } },
+    { "action": "wait", "milliseconds": 600 },
+    { "action": "capture", "name": "near-white-static" },
+    { "action": "wait", "milliseconds": 800 },
+    { "action": "capture", "name": "near-white-sheen" },
+    { "action": "assertPixelsChanged", "from": "saturated-static", "to": "near-white-static", "minimumChangedPixels": 100 },
+    { "action": "assertLifecycle", "event": "error", "equals": 0 }
+  ]
+}

@@ -2,6 +2,19 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.34 - Protocol 167
+
+- Require owned widget-root resize observation for procedural AI Graphics, uniform particle geometry/motion scaling, bounded population transitions and complete cleanup.
+- Add a transparent particle-overlay candidate and reusable same-instance local resize matrix, distinguishing local, installed Player and output-resolution evidence.
+- Clarify existing tile layout JSON types, native Color inputs versus renderer wrappers, and separate stdout/stderr consumption for machine-readable CLI results.
+
+## 1.7.33 - Protocol 166
+
+- Correct ordinary composition clipping guidance, require parent-bounds checks and document recreate-and-relink recovery and existing explicit layout-control reuse.
+- Add celebration-over-linked-values and material-preserving text-color candidates with version-1 scenarios and explicit outstanding Player gates.
+- Explain change-triggered scenario seeding and capture latency; preserve API links, single write authority and revision/contract safeguards.
+- Use merged persisted script baselines for write audit statistics and partial updates; reject unreadable existing script stores instead of treating them as empty.
+
 ## 1.7.32 - Protocol 165
 
 - Make matched composition contracts inviolable in agent authoring, with pre-mutation checks, firm partial refusal and safe alternatives; template-match changes are not a bypass.

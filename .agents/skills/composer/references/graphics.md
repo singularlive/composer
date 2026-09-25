@@ -66,6 +66,8 @@ In a fresh composition whose sole group is the empty default `Group`, the first 
 
 ## Layout math
 
+Ordinary sub-composition tiles clip their descendants to their rendered bounds; a full-size editing canvas does not mean uncropped output. Nested percentages render in the owning frame. Inspect the parent tile and group bounds before extending an existing graphic, including node-referenced layout values. A top-left-anchored child at `top >= 100` is outside its parent's visible frame. See [composition structure](composition-structure.md) for placement and recreation constraints.
+
 Composer layout values are percentages of the active resolution. The default anchor is `{ "x": 50, "y": 50 }`, and `left`/`top` are offsets from the anchor-derived position — **not** absolute canvas coordinates:
 
 ```text

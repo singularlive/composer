@@ -105,6 +105,9 @@ Responsive layout rules:
 - Prefer percentages, cqi/cqb or cqw/cqh, CSS Grid, Flexbox, shape-based container queries, fluid clamp(), logical properties, and aspect-ratio for primary geometry, type, spacing, and motion.
 - Use fixed CSS pixels only for a deliberately invariant detail such as a hairline border or strict minimum legibility constraint. Do not use pixels for outer placement, primary dimensions, scalable spacing, or animation travel when a container-relative value can express the intent.
 - Account for very wide, landscape, portrait, and square containers.
+- For Canvas or procedural geometry, observe context.root with an owned ResizeObserver and retain resize(size, context). Route both through one idempotent measurement function using the root's untransformed local dimensions; do not rely on window resize or composition resolution alone. Update the Canvas backing store only when dimensions change, with bounded device-pixel-ratio scaling, and reset its drawing transform after a bitmap resize.
+- Use one uniform scale for particle geometry and both velocity components, for example root height divided by design height. Width-only changes must not change particle proportions, size, speed or wind angle. Treat particle population separately: derive a bounded target from available area in the same scaled coordinate system and let additions/removals settle through a bounded transition.
+- Handle zero-width/height roots without division, spawning or unbounded work; resume from fresh measurements when visible again. Disconnect the observer, cancel owned animation frames and guard queued callbacks in destroy(). Test width-only, height-only, zero-size and restored dimensions on one mounted renderer, not just separate installs.
 - Keep text and important graphics inside the visible widget bounds unless overflow is explicitly requested.
 
 Persistent DOM rules:
@@ -139,6 +142,7 @@ Runtime context rules:
 - Use context.root to access the authored Shadow DOM content.
 - Use context.data for the current complete dynamic field payload.
 - Generated `color` fields may arrive as plain `{r,g,b,a}` objects, `{type:"solid",solidColor:{r,g,b,a}}` wrappers, CSS-compatible strings such as hexadecimal values, or another value convertible by `context.colors.toCss(value)`. Use that host conversion before assigning a color to CSS or parsing it for custom interpolation; never silently retain the previous color merely because the new value uses another supported representation.
+- Renderer wrapper support does not define native Color Control Node inputs. Use plain RGBA with alpha in 0-1 for portable directly linked control tests; test solid wrappers separately at the renderer boundary. For transparent particles, apply color alpha once and multiply only by deliberate per-particle fades; do not paint a background or floor unless requested.
 - For numeric interpolation, first accept finite channels from a plain RGBA value or solid wrapper. Otherwise pass the value through `context.colors.toCss(value)`, validate the resulting CSS color, render it into a private 1-by-1 Canvas, and read `getImageData()` to obtain numeric RGBA. Clamp RGB to 0–255 and alpha to 0–1, and use an explicit design fallback only when conversion fails.
 - Use context.fonts.load(fontData) for metricfont values before applying a changed font.
 - Use context.fonts.computeMetrics(fontData, targetHeight, text) only when exact metric sizing is necessary.

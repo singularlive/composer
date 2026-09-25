@@ -41,11 +41,13 @@ Use `get-properties` as the field shortcut when complete native widget data and 
 
 `set-layouts` accepts `{ "elements": [{ "type": "tile|group", "id": "...", "layout": { ... } }] }`. Each target may appear once and each partial `layout` must be non-empty. Supported shared fields are `left`, `top`, `width`, `height`, `rotateX/Y/Z`, `anchor`, and the Effect-property set below; groups additionally support clipping and border-radius fields. The complete batch and projected response size are preflighted before mutation. Missing elements, missing tile properties, invalid values, duplicate targets, and Control Node or Widget Node layout links reject the whole operation; supported optional group fields follow `configure-group` and may be added. Successful writes share one editor batch; an unexpected write failure rolls back every target. Results contain each target's previous requested values, complete supported resulting layout, and `changed` status.
 
+Read layout values and their JSON types before copying examples. Existing tile dimensions can be numeric strings: if readback is `"width": "100"`, use `"width": "50"`, not `50`, for a width-only resize. Existing tile property validation preserves type; a number can therefore be rejected even though the dimension is mathematically numeric. Preserve each property's own readback type and omit unchanged fields. Do not stringify every layout property: typed group configuration and Effect fields retain their documented validation. Restore exact original values/types after a temporary test and never bypass linked layout ownership. The example below assumes numeric group geometry and string-valued tile dimensions:
+
 ```json
 {
 	"elements": [
 		{ "type": "group", "id": "<group-id>", "layout": { "left": 7, "top": 2.5, "width": 76, "height": 7.2 } },
-		{ "type": "tile", "id": "<tile-id>", "layout": { "left": 0, "top": 0, "width": 100, "height": 100 } }
+		{ "type": "tile", "id": "<tile-id>", "layout": { "width": "50", "height": "100" } }
 	]
 }
 ```

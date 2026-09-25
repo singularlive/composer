@@ -12,7 +12,8 @@ The structural decision standard for tiles, groups, sub-compositions, and displa
 
 - Build each module's primitives inside its sub-composition; do not place all reference elements directly in the root.
 - With a descendant target active, link an existing ancestor-owned control using `--source-composition <ancestor-id>` (or `root` for a root-owned source). Follow "Design the public control contract" in the authoring standard when choosing where to define a new shared input.
-- Position primitives in scene coordinates. A sub-composition keeps the full Composer canvas coordinate system; it is not cropped to the module's bounds.
+- Ordinary sub-composition tiles clip descendants to their rendered tile bounds in Player. The editing canvas does not grant overflow space: nested layout percentages are rendered within the owning composition's frame. A child starting at `top: 100` with a top-left anchor is outside that frame and cannot render there, even while its Timeline state is In and its DOM text updates.
+- Before placement, inspect the owning composition tile and group bounds, anchors, transforms and layout links. Fit the complete module and its motion envelope inside that frame; do not infer visibility from state or DOM text alone. Verify pixels in the owning parent's Player context.
 - Keep a separate declarative specification with its own stable keys per sub-composition. `apply` reconciles only the active composition.
 - After assembly, inspect the owning parent and verify the intended child tiles and linked or independent lifecycle. Return to the intended editor scope; root is not a mandatory verification target for nested extensions.
 - Preserve pre-existing root visuals unless the user explicitly requests migration; this architecture constrains new authoring rather than granting permission to reorganize unrelated content.
@@ -43,6 +44,8 @@ The setter resolves the immediate parent from the live composition tree, changes
 Treat that immediate parent as the linked child's operator-facing lifecycle owner. Take the parent In or Out to play the child; do not use `control-composition` on the linked child itself as playback proof. For exact Timeline-position verification, open the parent and capture `--target active --timeline ...`. A scene-root capture seeks only the root timeline: when the root-level module is intentionally unlinked, root can correctly report a zero-second duration even though its nested parent/child timeline has motion. In that case, a failed root seek diagnoses the wrong verification target, not missing child animation.
 
 Deletion removes the parent tile and recursively cleans up descendants, states, composition properties, and event references. A sub-composition cannot be deleted without its contents, so the response reports a `contents` count of the elements, nested sub-compositions, and control nodes that went with it. Confirm the scope with the user before deleting.
+
+There is no ordinary-composition re-parent command. `move` changes group membership/order within the active composition, not the owning composition. The supported recovery is an explicitly scoped recreate-and-relink workflow: inventory graphics, controls, inbound/outbound links, scripts, timelines and external paths; create the replacement under the intended parent; reapply and verify those dependencies with new IDs; then remove only the superseded, agent-owned module after approval. Preserve contract-named paths and API-facing controls. Do not delete first or claim that identities survive recreation.
 
 ### Keyed nested orchestration
 
