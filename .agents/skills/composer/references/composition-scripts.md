@@ -42,6 +42,8 @@ The helper rejects direct `--token` and `--host` operation, omits both handoff c
 
 Each helper request has a 30-second deadline covering headers and body, and a 32 MB response limit. Discovery rejects malformed JSON and invalid script-list shapes instead of treating them as empty results. A timeout after a write does not prove the write failed; obtain authoritative readback before deciding whether to retry.
 
+Concurrent script-store changes return `SCRIPT_WRITE_CONFLICT` without overwriting the newer document. Obtain a fresh handoff and read current scripts before preparing a new write; do not automatically replay the stale write. This protects overlapping server requests, not edits made between an earlier helper read and a later write request.
+
 ## End-to-end workflow
 
 1. Follow the authorization and work-lease workflow in [SKILL.md](../SKILL.md): pair or resume, run `begin-work` before `inspect`, and build the visual structure with `composer-agent`.

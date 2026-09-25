@@ -2,6 +2,13 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.35 - Protocol 168
+
+- Renew active work atomically so renewal cannot overwrite cancellation or recreate a released lease.
+- Reject malformed script writes and conflicting concurrent script-store updates; require fresh readback before retrying a conflict.
+- Reconnect the editor after transient relay failures with bounded backoff and fresh authorization checks.
+- Resolve reference batches with one request-local index and move credential regression tests out of the distributed runtime.
+
 ## 1.7.34 - Protocol 167
 
 - Require owned widget-root resize observation for procedural AI Graphics, uniform particle geometry/motion scaling, bounded population transitions and complete cleanup.
