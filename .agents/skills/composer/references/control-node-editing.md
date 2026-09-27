@@ -24,7 +24,28 @@ New values use the current type contract. Color defaults/resets accept all JSON-
 
 Renaming `id` atomically migrates payload, local and cross-composition widget links, node references, and container membership. Changing `index` reorders the field and normalizes all indexes. Reinspect fields, payload, links, ordering, and unrelated metadata after the verified rollback-safe operation.
 
+### Legacy Selection reset values
+
+Legacy UNO Selections can retain `resetValue: "id1"` even though no option has that ID. Adding an option then fails with `INCOMPATIBLE_PROPERTY`, naming `resetValue` (or `defaultValue` when that is invalid). Inspect current value and metadata; include the explicit corrected reset in the same patch. Do not add a fake `id1` option or replace local IDs with a reference's IDs. For an inspected timer whose valid default is `clockDown`, the patch is:
+
+```json
+{
+	"selections": [
+		{ "id": "clockUp", "title": "Clock Up" },
+		{ "id": "clockDown", "title": "Clock Down" },
+		{ "id": "video", "title": "Video" },
+		{ "id": "hidden", "title": "Hidden" },
+		{ "id": "ocr", "title": "OCR Input" }
+	],
+	"resetValue": "clockDown"
+}
+```
+
+Use live option titles rather than blindly copying this example. A stale default needs its own explicit correction; preserve the payload, other metadata, links and container order on readback.
+
 ## Change a value
+
+Number, Normalized Number and Counter values also accept strings containing a complete finite number, preserving the supplied representation and their range/integer constraints. The same applies to numeric default/reset values. See [numeric value compatibility](control-node-creation.md#numeric-value-compatibility); no preliminary layout normalization is needed for numeric-string links.
 
 Timer uses `set-control-value` with a command object such as `{"command":"adjust","value":-1.5}`, in seconds. Raw anchors and read-side state are rejected. See [Timer](control-node-timer.md); `timer-action` remains exclusive to Time Control.
 

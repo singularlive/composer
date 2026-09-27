@@ -33,7 +33,9 @@ Prefer a stable-keyed declarative element for settings, but omit `timeControl` a
 }
 ```
 
-Create one exact linked Time Control for operator actions:
+For a one-to-one Timer input, prefer a native link from the existing Time Control to `timeControl`. Preserve its public ID, type, scope and operator semantics; do not create a replacement control merely to change count direction. When transferring ownership from a script, remove its writes to `timeControl` through the supported script workflow, retaining unrelated period-label behavior and artwork. Never leave a native link and a script writing the same property. Keep script ownership only for a required transformation, not simple forwarding.
+
+For a new timer without an existing operator control, create one exact linked Time Control:
 
 ```bash
 node scripts/composer-agent.js create-control --name "Game Timer" --node-type timecontrol --tile-id <timer-id> --property timeControl
@@ -47,3 +49,7 @@ Creation alone is not a finished visible timer. Open or create the `composition`
 Numeric node declarations can emit padded strings when `leadingZeros` is enabled. `hours` wraps on a 24-hour Moment UTC clock while totals remain unbounded; use `totalHours`, `totalMinutes`, or `totalSeconds` for duration totals. `hoursAngle` uses a 12-hour dial; `hoursPercent` uses a 24-hour scale. `secondsMs` and its angle/percent include fractional milliseconds. `totalMinutesSeconds` combines unbounded total minutes with the seconds component.
 
 Read back links, exit the template, and rediscover its copy-on-exit relationship. Verify start/play/pause/reset, count direction, clamping, formatting, padding, subsecond frequency, template replacement, and resize in the Player over multiple frames. Timeline seek does not control the native Time Control. See [Timer scripting](../composition-scripting/widget-timer.md) for payload and message behavior.
+
+For a 15-minute countdown, set begin to 00:15:00, enable the 00:00:00 endpoint and retain the requested display format. Reset stops elapsed time at zero, so the displayed countdown returns to 15:00. Follow the [countdown verification sequence](../composition-scripting/debugging-and-verification.md#countdown-verification) before claiming success; leave the saved clock stopped at the requested beginning unless the user asks otherwise.
+
+Adapt the [15-minute countdown scenario](timer-countdown-scenario.json) in a task-temporary file: replace `<composition-id>` with the source control's SDK composition ID and `Game Clock` with its existing public ID in actions and payloads. Select the rendered clock's owning composition for capture and narrow every pixel region to the clock alone. The sample assumes `mm:ss` and a frequency of at most 1000 ms; adjust waits for the inspected cadence. Review `beginning`/`reset` as `15:00`, `near-end` as `00:02`, and `expected-zero`/`zero`/`zero-later` as `00:00`, plus a complete decreased running value. The expected-zero seed is independent of progression, but still uses the same renderer: matching captures cannot establish correct text without this review. Add existing period-control transitions when relevant, preserving their semantics. This scenario is covered by an isolated SDK fixture, not a new live Player or Control App verification.

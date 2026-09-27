@@ -63,6 +63,38 @@ node scripts/composer-agent.js script-handoff --pipe --compact |
 
 Prefer a version-1 `--scenario-file` for supported payload, message, state, lifecycle, DOM, bounds, and checkpoint behavior. Create a separate custom harness in the task-temporary directory only when the required external trigger or assertion is outside that bounded contract. Keep the bundled verifier untouched.
 
+### Evidence-specific completion
+
+Never say only "verified both settings". Identify each evidence layer and its limits:
+
+- **Model verification:** inspected source type/value/metadata, container membership and every resolved target link; this is not rendered or interactive proof.
+- **Captured appearance:** named values and images, including whether each capture loaded a separate Player. Separate 100/0 captures prove sampled endpoint appearances only, not intermediate values or propagation after initialization.
+- **Live payload propagation:** one initialized Player and the same running composition receive subsequent source changes without reload. Check every intended target at 100, an intermediate value such as 40, and 0, then restore the initial value. A payload event alone or a whole-frame difference cannot prove every target updated correctly. See the [opacity scenario](../recipes/opacity-slider.md#persistent-player-scenario).
+- **Control App testing:** separately identify the app/extract, slider presentation and operation, and actual output delivery. Player `setPayload` is not dragging the Control App slider. Report this layer as untested unless it was exercised.
+
+Report asset failures independently, including their count and whether attribution is established. Do not attribute pre-existing or unexplained failed images to a control edit. Isolated production-method and simulated SDK fixtures must be labeled as such, not called full Player verification. Restore saved values/scope and release any acquired lease; scenario-local restoration is not saved-model restoration.
+
+Review verification screenshots for obvious unrelated regressions, including palette changes, missing artwork and clipping. Report them without silently expanding the repair scope. A workaround that repairs the current appearance is not a root-cause repair or proof that future preset selections work. Structural revision totals cannot prove individual values, links or script contents unchanged; use supported property-level evidence or explicitly leave that comparison unresolved.
+
+### Color interpretation diagnostics
+
+Trace preset input -> Color control value -> linked gradient value -> rendered fill. At each available boundary, record a bounded, sanitized value/type and source ownership. Valid JSON, accepted Color inputs, gradient conversion and valid CSS output are distinct contracts. Consult the loaded widget reference: support for tinycolor2-parseable strings means bare hex cannot simply be declared invalid for the whole pipeline.
+
+Separate fresh initialization from same-instance updates. In an authorized disposable fixture, compare equivalent bare hex, prefixed hex and RGB inputs on fresh load, live update, preset reapplication and save/reload. Start each update from a contrasting color so a retained prior fill cannot masquerade as successful parsing. Verify the applied fill as well as model readback. Locate the first divergence before proposing normalization; missing `#` and a white fallback are hypotheses, not diagnoses from screenshots. Do not rewrite shared presets to conceal a possible rendering defect. Report actual Control App palette switching separately from private Player tests, and preserve an unresolved original-overlay comparison as unresolved.
+
+### Countdown verification
+
+Use one initialized Player and the existing Time Control's `timerAction` path for operator actions. Inspect the exact clock region and review its expected output; a command success, lifecycle event, checkpoint name or stable image is not proof of reaching a timer state.
+
+1. Reset and confirm the requested beginning, for example `15:00`.
+2. Start, wait across several configured display ticks and require a clock-region `assertPixelsChanged`. Confirm the displayed time decreased, for example `14:57`; change alone could be blanking or unrelated animation.
+3. Pause only after progression is proven. Capture the paused display and require matching clock-region pixels after more than one tick.
+4. Seed a deterministic, stopped near-end elapsed state only in the private fixture. For a 15-minute countdown, 898000 elapsed milliseconds should display `00:02`; confirm that output before resuming with `timerAction`.
+5. Resume, require progression from the near-end capture, then confirm `00:00`. Only after confirming zero, compare later captures to prove clamping and hold. Use independently seeded, visually reviewed expected-state captures for pixel matches when the clock is absent from the parent DOM.
+6. Reset and match the verified beginning. If period controls exist, exercise reset in another period and confirm the intended beginning and period label without changing their contracts.
+
+Use target-scoped semantic output when available; otherwise use clock-region comparisons plus visual review, not page-wide text hashes. A permanently frozen `15:00` must fail the progression assertion, and frozen nonzero output must fail the zero-state check. Test that negative case in an isolated fixture before trusting a reusable scenario. Restore private fixture inputs; separately restore any authorized persistent changes and report script-error telemetry and Control App limits.
+
 ### Verify the visible contract state
 
 Before comparing an edited element, inspect the template's required inputs and drive them to a documented state in which that element is visible. A countdown whose begin value is zero may legitimately show its end message instead of its ring. Use scenario-local `setPayload` on the correct child composition and the appropriate documented Timer/Time Control action to initialize a nonzero countdown and reset it; do not assume similarly named controls use the same command type. Do not change saved defaults, remove required controls, or bypass their script behavior just to obtain a screenshot. Assert the intended state/visibility before measuring the edit, exercise the changed value and its return to baseline, and keep initialization separate from the behavior under test. Restore any persistent state changed by a separately authorized live workflow. This proves the exercised Player payload path, not Control App or Customize-tab rendering.

@@ -21,6 +21,9 @@ Candidate patterns awaiting Player verification are listed separately below. The
 
 ## Candidate pending Player verification
 
+- [Root external input with descendant Mode gating](recipes/root-external-input.md): root standalone feed fields, one text writer, descendant visibility only, preserved timer theme links and a same-instance OCR scenario. Supplied Landscape evidence is not universal OCR/API or Portrait verification.
+
+- [Opacity slider](recipes/opacity-slider.md): explicit affected-layer scope, 0 as off, preserved initial appearance, general numeric-string compatibility and a same-session 100/40/0/restore scenario; no automatic grouping of decorative layers.
 - [Responsive particle overlay](recipes/responsive-particle-overlay.md): owned widget resize observation, uniform particle geometry/motion, bounded density transitions and cleanup; local resize matrix is separate from Player/output-resolution evidence.
 - [Change-triggered celebration over linked values](recipes/change-triggered-celebration.md): preserve API-facing links, seed while disabled, cover then reveal, and prove a measured cover deadline plus suppression/exit cases.
 - [Material-preserving text color](recipes/material-preserving-color.md): derive a complete gradient and outline from one standalone Color; require saturated and near-white Player frames before promotion.

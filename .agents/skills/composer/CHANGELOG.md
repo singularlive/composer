@@ -2,6 +2,41 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.42 - Protocol 175
+
+- Prefer native Time Control ownership for simple Timer inputs while preserving existing operator controls and removing competing script writes.
+- Add a reusable countdown scenario with positive progression, pause, near-zero, zero-hold and reset checks; reject frozen-output false positives in isolated fixtures.
+- Clarify color interpretation diagnostics, initial-load versus live-update evidence, workaround reporting and structural revision comparison limits. The reported color rendering defect remains unresolved; existing presets are not rewritten.
+
+## 1.7.41 - Protocol 174
+
+- Document verified two-resolution root-input behavior, isolated Player targeting with explicit root payload IDs, nonblank capture gates and GPU-rasterization diagnostics.
+- Keep native UNO Timer preservation, external OCR/API delivery and Control App extract verification distinct from the disposable fixture evidence.
+
+## 1.7.40 - Protocol 173
+
+- Add atomic primitive insertion into existing groups with `--group-id` and optional `--index`, without extra managed groups; add standalone Control Node `--append` and `--index`.
+- Identify invalid Selection default/reset metadata keys and support equals-style script-helper arguments.
+- Allow restoring an empty display-variant configuration when native storage omits its empty array.
+- Add a root external-input/descendant Mode-gating candidate with a Player scenario, scope-provenance guidance, precise template-session paths, required status messages and Windows JSON handling.
+
+## 1.7.39 - Protocol 172
+
+- Extend `create-controls` with explicit multi-target ordinary value entries, validated metadata and append-only existing-container placement with a membership baseline.
+- Create or exactly reuse one source within one native undo/rollback boundary; preserve existing values and omitted metadata, reject conflicting links and verify every target before success.
+- Keep legacy single-target batches compatible. Specialized controls, widget-template sessions and source promotion retain their existing workflows.
+
+## 1.7.38 - Protocol 171
+
+- Accept finite numeric strings across Number, Normalized Number and Counter fields, including widget/layout links, standalone values, source reuse, value/default/reset writes and numeric Table cells.
+- Preserve stored representations, integer/range constraints and existing link ownership; remove the opacity-specific recovery/write prerequisite introduced in 1.7.37.
+
+## 1.7.37 - Protocol 170
+
+- Validate numeric layout-link target and reused-source bounds consistently; give valid legacy numeric strings a precise, unlinked-only typed recovery diagnostic without automatic coercion.
+- Distinguish model readback, separate captured appearances, same-session Player propagation and actual Control App testing in completion reports.
+- Add an explicitly scoped opacity-slider candidate and persistent 100/40/0/restore Player scenario; do not automatically group decorative layers.
+
 ## 1.7.36 - Protocol 169
 
 - Default new game clocks to native Timer Control Nodes with directly linked text and explicit sport-specific timing settings.

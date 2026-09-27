@@ -14,8 +14,8 @@ const { findSkillInstallations, getDuplicateInstallations, getInstallationScope 
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 169;
-const PACKAGE_VERSION = '1.7.36';
+const SKILL_VERSION = 175;
+const PACKAGE_VERSION = '1.7.42';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -69,6 +69,7 @@ const BOOLEAN_OPTIONS = new Set([
   'clear',
   'preview',
   'replace',
+  'append',
   'reuse-existing'
 ]);
 const GLOBAL_COMMAND_OPTIONS = ['server', 'compact', 'template-session', 'connection'];
@@ -2622,7 +2623,7 @@ async function run() {
       assertAllowedOptions(parsed.options, [
         'name', 'node-type', 'target', 'tile-id', 'element-type',
         'element-id', 'property', 'value-file', 'info-mode', 'replace',
-        'reuse-existing',
+        'reuse-existing', 'index', 'append',
         'source-composition', 'options-file', 'options-url', 'use-reload',
         'image-options-csv-file', 'image-options-csv', 'format',
         'family', 'weight', 'style', 'subset', 'font-source', 'compact'
@@ -2773,6 +2774,8 @@ async function run() {
           : requireBooleanOption(parsed.options, 'use-reload'),
         replace: parsed.options.replace === true,
         reuseExisting: parsed.options['reuse-existing'] === true,
+        index: parsed.options.index === undefined ? undefined : Number(parsed.options.index),
+        append: parsed.options.append,
         sourceCompositionId: parsed.options['source-composition']
       });
       break;
@@ -2791,7 +2794,12 @@ async function run() {
             return {
               name: control.name,
               type: control.type,
-              target: control.target || (control.elementId ? 'layout' : 'data'),
+              target: control.targets !== undefined ? control.target : control.target || (control.elementId ? 'layout' : 'data'),
+              targets: Array.isArray(control.targets) ? control.targets.map(function (target) {
+                return { ...target, propertyId: target.propertyId || target.property, property: undefined };
+              }) : control.targets,
+              metadata: control.metadata,
+              container: control.container,
               tileId: control.tileId,
               elementType: control.elementType,
               elementId: control.elementId,
@@ -3163,7 +3171,9 @@ async function run() {
       break;
     case 'create': {
       const params = {
-        primitive: requireOption(parsed.options, 'primitive')
+        primitive: requireOption(parsed.options, 'primitive'),
+        groupId: parsed.options['group-id'],
+        index: parsed.options.index === undefined ? undefined : Number(parsed.options.index)
       };
       if (parsed.options.name) {
         params.name = parsed.options.name;

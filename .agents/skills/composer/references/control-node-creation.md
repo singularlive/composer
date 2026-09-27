@@ -6,6 +6,14 @@ Read [Control Node design and lifecycle](control-nodes.md) first for ownership, 
 
 `--reuse-existing` is lookup-and-link, not create-or-reuse. It requires exactly one existing control with the exact public ID passed as `--name` and the same type in the selected source composition. A missing source returns `NOT_FOUND`; a duplicate source or incompatible type is an error. Reuse preserves that source's value and metadata; it does not initialize from the new target. Omit the flag for initial creation, then inspect the returned public `id`, internal `keyId`, source composition, and value before linking another target.
 
+### Numeric value compatibility
+
+Numeric Control Node fields accept finite numbers and strings containing a complete finite decimal number, including signs, fractions, exponent notation and surrounding whitespace: `100`, `"100.0"`, `"0"`, `"-12.5"`, `" 4e1 "`. This applies to Number, Normalized Number and Counter values across widget-data links, all supported numeric tile/group layout links, standalone controls, source reuse, value changes and default/reset values. Numeric Table cells follow the same rule within their column contracts. It is not an opacity-specific exception.
+
+Validation compares numeric meaning without rewriting stored targets or reused sources. Linked creation preserves the target representation; the existing Number-to-Text adapter still initializes a numeric source from text. Normalized Number payloads must remain in 0-100, Counter values must represent integers, and layout target/reused-source values must satisfy the property's declared bounds. Table Normalized Number cells use their column's low/high range. Empty/whitespace-only strings, units or trailing text, hex syntax, booleans, null, objects, arrays and nonfinite values remain rejected. A value-string allowance does not change structural parameters or typed metadata schemas.
+
+Link valid numeric strings directly using the normal supported commands. Do not first rewrite `"100.0"` to `100`, add a script workaround or replace a conflicting link. Preserve source metadata, ordered container membership, scripts, timelines and template contracts. Verify numeric runtime behavior separately from exact stored representation.
+
 All Color operations accept JSON-representable values understood by tinycolor2: named colors, `transparent`, hex with or without `#` (3/4/6/8 digits), RGB/RGBA, HSL/HSLA and HSV/HSVA strings, and RGB/HSL/HSV objects with optional alpha and supported percentage channels. Tinycolor2 validity is authoritative, including its permissive channel handling. Values are validated without rewriting their representation. Both `create-control --reuse-existing` and `create-controls` with `reuseExisting: true` preserve source payload and metadata. Invalid colors are rejected. Do not rewrite a shared theme control just to satisfy tooling or create a local duplicate to bypass an ancestor link. Verify actual target rendering after linking and changing/restoring the source.
 
 Native Color inputs and renderer color adapters are separate contracts. For a portable native Color payload, use plain `{ "r": 210, "g": 225, "b": 245, "a": 0.5 }` (alpha in 0-1), not `{ "type": "solid", "solidColor": ... }`. A solid wrapper is a widget-gradient/renderer representation, not a TinyColor Color-control input. AI Graphics `context.colors.toCss()` accepts that wrapper directly, but its local preview acceptance does not prove the same shape travels through a native Control Node or real app API. Structured gradient targets can supply their `solidColor` during linked control creation; this extraction is not permission to send wrappers as control values. Test renderer normalization and native linked delivery separately; preserve the current valid source representation rather than rewriting existing values.
@@ -22,7 +30,7 @@ Only after successful creation and source/link readback, reuse the exact returne
 node scripts/composer-agent.js create-control --name "<returned-font-public-id>" --node-type metricfont --tile-id <next-text-id> --property font --source-composition root --reuse-existing
 ```
 
-If any prerequisite fails, stop dependent link attempts. In particular, do not repeat `--reuse-existing` on additional targets after `NOT_FOUND`. Inspect the intended source, resolve the cause, and verify successful creation before continuing. Do not split a failed atomic batch into sequential retries. Batched `reuseExisting: true` also requires a source that already exists when the batch is validated; do not use it to refer to a control being created earlier in that same batch.
+If any prerequisite fails, stop dependent link attempts. In particular, do not repeat `--reuse-existing` on additional targets after `NOT_FOUND`. Inspect the intended source, resolve the cause, and verify successful creation before continuing. Do not split a failed atomic batch into sequential retries. Legacy separate entries with `reuseExisting: true` require a source that exists before validation; for one new ordinary value source and multiple targets, use the configured entry below instead.
 
 A Metric Font control supplies the complete font value, including weight. Share it only across roles intended to use that same value; preserve separate weight roles with separate controls. One control can drive multiple targets through successive exact-field links, not a bulk font operation. For already-linked local themes, follow [Promote theme controls to root](recipes/promote-theme-controls.md) rather than implicitly replacing their sources.
 
@@ -58,9 +66,9 @@ Use a standalone control when the value is an external/script input rather than 
 | --- | --- | --- |
 | `text` | `text`, `textarea` | String |
 | `textarea` | `textarea`, `text` | String |
-| `number` | `number`, `normalizednumber`, numeric `text` | Finite number |
-| `normalizednumber` | `normalizednumber`, `number` | Percentage from 0 to 100 |
-| `counter` | `counter`, `number`, `normalizednumber` | Integer |
+| `number` | `number`, `normalizednumber`, numeric `text` | Finite number or numeric string |
+| `normalizednumber` | `normalizednumber`, `number` | Number or numeric string from 0 to 100 |
+| `counter` | `counter`, `number`, `normalizednumber` | Integer or numeric string representing an integer |
 | `color` | `color`, `gradient` | Any JSON-representable tinycolor2 color; direct colors are preserved and structured gradients initialize from `solidColor` |
 | `image` | `image` | String image URL/value |
 | `checkbox` | `checkbox` | Boolean |
@@ -80,6 +88,38 @@ Use a standalone control when the value is an external/script input rather than 
 Image, Audio, Video, Data, and JSON File values follow Composer's form limit of 2,048 characters. The agent rejects longer values instead of silently truncating them.
 
 `number` and `normalizednumber` have different value contracts. Use `number` when the operator-entered value is the value the destination should receive; `min` and `max` constrain its input UI but do not remap it. Use `normalizednumber` only for a normalized 0–100 input that must map onto a destination range. Its payload remains a percentage from 0 to 100, while a linked destination receives `low + (high - low) * payload / 100`, rounded to three decimals. For example, payload `20` with `low: 0` and `high: 80` delivers `16`, not `20`. If the operator should enter `20` and the graphic should consume `20`, use `number`.
+
+## Atomic configured controls
+
+For related ordinary value controls, prefer `create-controls --file <controls.json>` with optional per-entry `targets`, `metadata`, and `container`. One entry creates one source or explicitly reuses an existing exact public ID. Every entry, native link, metadata change and container append succeeds in one native undo batch or rolls back, including verification, response-size and cancellation failures.
+
+```json
+{
+  "controls": [{
+    "name": "Gradient Opacity",
+    "type": "number",
+    "sourceCompositionId": "root",
+    "targets": [
+      { "target": "layout", "elementType": "tile", "elementId": "<dark-id>", "propertyId": "opacity" },
+      { "target": "layout", "elementType": "tile", "elementId": "<gloss-id>", "propertyId": "opacity" }
+    ],
+    "metadata": { "min": 0, "max": 100, "step": 1, "unit": "%", "showSlider": true, "defaultValue": 100, "resetValue": 100 },
+    "container": { "id": "<palette-id>", "expectedControlIds": ["<existing-public-id>"] }
+  }]
+}
+```
+
+This example applies only when both named opacities initially equal 100 and both layers are explicitly requested. It does not establish a default scope for decorative layers.
+
+- `targets` contains explicit `target: "data"` with `tileId`/`propertyId`, or `target: "layout"` with `elementType`/`elementId`/`propertyId`. Data and layout targets may be mixed. Do not also supply top-level target fields or `value`. Without `targets`, the existing single-target or standalone shape can carry `metadata` and `container`.
+- A new source copies the first target's initial value. All other targets must have equivalent initial values: numeric meaning for numeric types, parsed color equality for Color, otherwise exact JSON equality. Numeric strings remain valid and stored target representations are untouched. Existing names are conflicts in configured batches, not silently suffixed.
+- `reuseExisting: true` requires an exact existing source of the same type before the batch. It preserves its value and omitted metadata; targets then follow that source, which may change appearance. Configure each source once and use its `targets` for fan-out. Existing links, including links to that same source, are conflicts; `replace` is not supported here.
+- `metadata` is a nonempty patch using the [existing metadata contract](control-node-editing.md). It may change title, presentation, ranges, default/reset and other supported type metadata, but not `id` or `index`. Invalid combined slider/range settings fail before writes. Metadata never changes the source payload.
+- `container` requires an existing ordinary container in the source composition and its complete inspected ordered `expectedControlIds` (public IDs, `[]` for empty). Stale membership fails. The source is appended only if absent; existing order/settings remain unchanged. A source already in another container is rejected, never silently moved. Create a suitable Large container separately only when none exists; that creation is outside this transaction.
+- The whole configured batch supports ordinary value types from the compatibility table. Selection, Button, Time Control, Timer, Info Text, Metric Font and Table use their existing specialized workflows. All targets must be in the active ordinary composition; sources may be self/root/active ancestor. Widget-template sessions, source promotion and cross-target-composition fan-out are excluded.
+- At most 100 entries and 100 expanded destinations are accepted; duplicate destinations and duplicate source names are rejected. The native batch is synchronous, not a distributed compare-and-set or a save/publish transaction.
+
+Each returned `controls` item contains one `control`, `compositionId`, `targetCompositionId`, `controlReused`, ordered `links`, and optional `container` readback. `link` remains the first target for compatibility. Inspect the resulting source and all references; prove Player propagation and actual Control App behavior separately. Do not retry a failed configured batch as sequential writes.
 
 ## Selection controls
 
@@ -132,6 +172,12 @@ When the requested input recolors a material rather than propagating one solid c
 ## Transform and Effect controls
 
 Layout targets use Composer's native node-reference model rather than widget `dataLinks`. They work for tiles and groups and initialize from the current effective layout value, including false and zero, so creating the link does not change the rendered graphic.
+
+### Numeric layout links
+
+All supported numeric layout properties follow [numeric value compatibility](#numeric-value-compatibility), including position, dimensions, rotation, opacity and filters on both tiles and groups. Single and batched commands accept numeric strings directly while preserving the stored layout. Reused source values are checked against the same destination bounds; reuse can intentionally change appearance if its existing value differs from the target. This is link compatibility, not permission to change a linked destination or bypass the separate typed layout-write contract.
+
+For a requested intensity/off control, see the explicitly scoped [opacity slider candidate](recipes/opacity-slider.md).
 
 Layout-target `--reuse-existing` is supported for both ordinary composition tiles and groups, including an exact Number source on root or an active-stack ancestor. `create-controls` also supports `reuseExisting: true` on layout entries. Reuse retains the source's public ID, internal key, payload and metadata; the new target follows that source value, which can differ from its prior layout. It does not calculate a relative offset or remap dimensions. Use it only on explicit request for that exact public property and target, inspect anchors/group geometry, then verify nodeRefs and Player movement after changing and restoring the source.
 

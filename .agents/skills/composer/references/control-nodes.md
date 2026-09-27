@@ -18,6 +18,8 @@ Every agent-authored public control belongs in an ordinary semantic Control Node
 
 ## Inspect first
 
+Before copying a pasted Control Node model from another composition, establish whether it belongs to root or a named child. Theme/layout groups and preset URLs are scope clues, not proof; ask when scope is ambiguous. External integration addressing takes precedence over visual proximity: prefer root for integration-addressed inputs unless the documented contract specifies another scope, and confirm that address before creation. Do not infer scope from a phrase such as "overlay content". Keep existing Selection IDs used by local scripts even when the reference uses different IDs. See [root input with descendant display](recipes/root-external-input.md) for the user-confirmed OCR example and its evidence limits.
+
 ```bash
 node scripts/composer-agent.js inspect
 node scripts/composer-agent.js control-nodes

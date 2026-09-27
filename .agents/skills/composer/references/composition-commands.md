@@ -86,6 +86,8 @@ These resources explain the interface between a Control App template and the com
 
 For example, if a contract explicitly requires a `Score` Counter in a `Scoreboard` sub-composition, verify that exact public ID, type and scope, then its documented consumer. A Text control titled `Score` at root is not equivalent. This example is not a default interface to add to other templates.
 
+A pasted reference model also needs scope provenance. Establish root versus named child before placing its fields; theme/layout containers or preset URLs suggest root but do not establish it. Prefer root for externally addressed integration fields unless the contract specifies another scope, and confirm the actual address when resources are silent. Preserve local Selection IDs and script behavior rather than copying a reference's option set. The [root external input candidate](recipes/root-external-input.md) records user-confirmed OCR fields, not a universal Scoreboard OCR API contract.
+
 ### Contract preservation
 
 A matched template's composition contract is a hard invariant, even when the user explicitly requests a violation. Before any structural or contract-dependent behavior change, read the matched template's `composition_contract` using the requested status (for example, development), otherwise the command's published default. Retain exact version provenance; inspect the affected targets and classify each requested change before mutation. A cached task-local contract is usable only while its match/status/version remains current. Missing or conflicting resources do not authorize destructive guesses: pause affected interface changes while continuing independently safe work.

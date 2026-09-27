@@ -25,7 +25,7 @@ Do not prompt for inspection, capture, playback, isolated text/color/property ed
 After inspection and before mutation:
 
 1. Propose a concise description and explain that the revision saves the last persisted scene, not unsaved edits in the current Composer tab.
-2. Send `status --state waiting-for-user` with the question. Offer `Create revision: AI checkpoint before <operation>` as recommended, plus `Continue without revision` and `Cancel operation`, with freeform input enabled. If no structured question UI is available, ask the same question in chat and wait for an explicit answer.
+2. Send `status --state waiting-for-user --message "<revision question>"`; `--message` is required. Offer `Create revision: AI checkpoint before <operation>` as recommended, plus `Continue without revision` and `Cancel operation`, with freeform input enabled. If no structured question UI is available, ask the same question in chat and wait for an explicit answer.
 3. Keep the work lease active while waiting for this revision decision; this is the sole exception to releasing before a blocking question. Do not mutate while awaiting the answer.
 4. After the answer, check readiness and inspect again. If the lease expired, reacquire it with `begin-work` before inspection or mutation. On `OPERATION_CANCELLED`, stop until a new user instruction; do not reacquire automatically.
 5. Create a revision only with explicit approval, using the approved description, and verify the returned revision ID before the planned mutation. On creation failure, stop and report it; do not silently continue without protection. If the user chooses to continue without a revision, proceed with the approved task without creating one. On cancellation, release the lease without mutating.
@@ -42,6 +42,8 @@ node scripts/composer-agent.js delete-revision --revision-id 12
 ```
 
 Revision commands use the visible per-scene revision number, not the internal database row ID. List output includes description, timestamps, creator, and size when available; it never exposes the storage URL or internal row ID. `read-revision` fetches and validates stored content but returns only totals for compositions, groups, elements, controls, and scripts. `compare-revision` returns those totals for the current Composer model and selected revision plus numeric deltas. It deliberately does not enumerate position, size, value, script, or nested-model differences.
+
+Unchanged totals are not proof that individual colors, links or script contents are unchanged. Report only structural equality at this granularity. A detailed original-versus-modified comparison needs concrete supported property/link/script evidence; otherwise leave it unresolved and track the missing comparison capability separately.
 
 Creating a revision saves the composition's last persisted version; it does not save unsaved edits in the current Composer tab or modify the active composition. Run `inspect` first and use a concise non-empty description (up to 500 characters). Create one when the user explicitly requests a snapshot or accepts the runtime skill's AI-chat recommendation before high-impact work. The command reads the current revision list, uses the next numeric revision ID, and returns that ID with the description. If another editor creates the same next revision first, Composer rejects the request rather than replacing a revision; re-inspect and ask the user before trying again.
 

@@ -91,6 +91,8 @@ Read [composition-scripting/singular-scripting-doc.md](composition-scripting/sin
 
 ## Reusable script recipes
 
+For externally addressed root inputs consumed by descendants, use [root input with Mode gating](recipes/root-external-input.md). The integration's confirmed address owns field placement; the root script forwards text while descendant scripts own visibility only. Both `--script-id <id>` and `--script-id=<id>` are supported, including IDs beginning with a single hyphen.
+
 For functions shared by multiple composition scripts, use the versioned [`context.global.composerHelpers` template](composition-scripting/global-script-helpers.md). Read and merge the existing Global Script rather than replacing it. Keep one-off logic local, and keep palette roles or derivation percentages in the graphic's design contract instead of the generic helper namespace.
 
 - [Inline styled text](recipes/inline-styled-text.md): receive Metric Text `bounds` through `msg.params`, route by originating tile ID, and position adjacent text runs from `getPositionX()` and `getSizeX()`.

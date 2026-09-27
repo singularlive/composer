@@ -59,7 +59,7 @@ Continue only for active authorization, connected editor, ready commands, and ac
 node scripts/composer-agent.js finish-work --connection <conversation-connection-name>
 ```
 
-Require `COMPOSER_WORK_RELEASED`. Before a blocking question, send `status --state waiting-for-user`, release, then wait. [Revisions](references/revisions.md) own the approval exception. Use `complete` only for explicit revocation.
+Require `COMPOSER_WORK_RELEASED`. Before a blocking question, send `status --state waiting-for-user --message "<blocking question>"`, release, then wait. `--message` is required. [Revisions](references/revisions.md) own the approval exception. Use `complete` only for explicit revocation.
 
 ## Inspect, mutate, verify
 
@@ -81,4 +81,4 @@ Use bounded projections and temporary structured inputs. Never decompose failed 
 
 Change only requested content. Preserve unrelated structure, controls, links, scripts, and states. One destination has exactly one write authority; update linked fields through their defining source. The paired editor owns structure, the authenticated helper owns persisted script text, and Player owns runtime behavior. Follow routed revision, template, capture, and scripting safeguards.
 
-Before handoff, confirm scope, readback, ownership, applicable visual/runtime evidence, cleanup, final state, and lease release. Report unverified behavior as pending.
+Before handoff, confirm scope, readback, ownership, applicable visual/runtime evidence, cleanup, final state, and lease release. Distinguish model verification, captured appearance (including separate Player instances), same-session payload propagation, and Control App testing; follow [evidence-specific completion](references/composition-scripting/debugging-and-verification.md#evidence-specific-completion). Report unverified behavior as pending.
