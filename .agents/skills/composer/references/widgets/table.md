@@ -1,6 +1,6 @@
 # Table widget
 
-The supported Table widget is widget `1182`. It uses the composition stored in its `composition` field as a row/item template. Read the table and its template contract before updating it:
+The supported Table widget is widget `1182`. It uses the composition stored in its `composition` field as a row/item template. For runtime payloads, paging and split element/group motion, use the [Table scripting reference](../composition-scripting/widget-table.md). Read the table and its template contract before updating it:
 
 ```bash
 node scripts/composer-agent.js get --type tile --id <table-tile-id>
@@ -31,22 +31,15 @@ A Table Control Node is appropriate for operator/external-owned rows only. Its d
 
 ### Pagination and numeric strings
 
-Observed `currentPage` runtime values are strings despite the number schema. Counter and Number links returned `INCOMPATIBLE_PROPERTY`; numeric-string linking is not supported by this workflow. Keep Page as a standalone bounded Counter, read it from `comp.getPayload2()`, clamp against real rows (exclude padding), then write `table.setPayload({ currentPage: String(page) })` and an unlinked Metric Text indicator. Do not rewrite the operator's Page input to report the clamp. `update-table` preserves the inspected option type; accepting a numeric specification value does not prove native numeric linking works.
+Observed `currentPage` runtime values can be strings despite the number schema. `update-table` preserves the inspected option type. The agent supports compatible numeric-string links; inspect the live source and destination before linking rather than assuming every Number or Counter can target every numeric-looking string. Specific `currentPage` live-link behavior is not established by generic compatibility tests. A script-owned page may read a standalone input with `comp.getPayload2()` and write `table.setPayload({ currentPage: String(page) })`; do not also link that destination or rewrite the operator input merely to report a derived page.
 
-## Observed runtime workarounds
+## Runtime evidence boundaries
 
-These are supplied Player observations from a club-table task, not intended semantics or an independent rerun of every widget version. Product confirmation is pending. Check actual output, not just readback.
+Historical club-table observations are not universal widget restrictions. Later published-widget checks passed bulk changes, reversion, shrinking and restoration in both Update and Timeline modes, and a focused check passed empty-string image clear/restore in both modes. Do not require Update mode, constant-capacity padding or fallback image URLs solely because of the older failures. This evidence does not guarantee every widget version or application sequence.
 
-| Observed-only behavior | Workaround |
-| --- | --- |
-| `timeline` bulk changes updated only the first changed visible row; later reversions could be ignored. `update` applied all changed rows. | Use `updateStyle: "update"` for live data and row UpdateOut/UpdateIn effects for replacement motion. |
-| Shrinking 20 rows to 10 or 1 left stale rows in both modes. | Keep an agreed constant capacity from the stored seed onward. Pad with empty text, alpha-zero colors for all visible fills/text/strokes, and hidden image tiles. Reject overflow rather than silently truncate. |
-| Empty image `""` broke later updates; a data-URI one-pixel GIF dropped the next update. Real HTTPS URLs worked. | Supply an approved real HTTPS image URL even in padding; hide unused images with template Checkbox controls. |
-| A template-group `visible` node reference had no runtime effect through rows; tile-level visibility worked. | Link Checkbox controls to individual tiles' `visible` references, not the group. |
-| The Table tile's `widget` Timeline effect did not animate rows on composition In. | Use a verified reveal on the Table tile; do not claim the Widget effect animates rows. |
-| Page switches in `update` mode were instant apart from row Update effects. | Verify requested page motion; do not promise a separate page-transition stagger. |
+Remaining supplied observations concern template-group visibility, owner Widget Timeline effects and page staggering. Tile-level visibility worked in the supplied case; data-URI image recovery was not independently established. Do not promote these observations into guaranteed behavior or a blanket prohibition. Verify the specific requested output when relevant and report its evidence boundary.
 
-Padding requires complete template fields and remains subject to the content-size limit. Compute pages from real rows to avoid exposing blank padded pages. Verify logos on their actual backing. Contributor issue records and reproduction scenarios are maintained separately from the shipped skill; all observations above remain observed-only until independently reproduced.
+Padding, paging policy and source-data normalization are application decisions, not requirements of `update-table`. Any rows supplied to the command must satisfy the complete template contract and content-size limit. General renderer regression matrices and external-data application acceptance are separate from Composer skill verification.
 
 ## Update a table
 

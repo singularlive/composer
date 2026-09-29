@@ -4,6 +4,8 @@ Candidate: supplied Landscape evidence and a disposable two-resolution Player fi
 
 ## Authoring
 
+The OCR field names, Mode values and output scenario below are an application example, not a universal integration contract or skill-maintenance gate. The reusable skill responsibilities are address discovery, source/link preservation, scoped authoring, script handoff and one writer per destination.
+
 Read [Integration Resources and preservation](../composition-commands.md#using-integration-resources), [Control Node scope](../control-nodes.md), [editing](../control-node-editing.md), [widget templates](../widget-subcompositions.md), and [Metric Text](../widgets/metric-text.md). Inspect before mutation and retain revision safeguards. Use a disposable scene for retrospective reproduction, not the completed user graphic.
 
 1. Confirm the external field address, including root versus child. A pasted model's Color Palette/Layout groups or preset URLs are clues, not proof. Keep root as orchestration plus shared/integration inputs; do not put the graphic itself at root.

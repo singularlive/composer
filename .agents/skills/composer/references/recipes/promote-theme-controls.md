@@ -10,6 +10,8 @@ Use when the user requests global palette or typography controls, or an existing
 
 This is a sequenced migration using native typed commands, not an atomic promotion command. Each successful command can remain committed if a later command fails. Do not replace raw composition JSON, copy values with composition scripts, or fabricate Metric Font metrics.
 
+Use the [ownership-change preservation checklist](../control-node-editing.md#preserve-controls-during-ownership-changes) for exact value representation, default/reset and presentation metadata, public-ID versus display-title handling, ordered container membership and retirement gates. Numeric source promotion uses that general checklist; it is not a reason to broaden a theme migration to unrelated controls.
+
 ## Preserve and resolve
 
 1. Inspect root, the module, every affected descendant, and their live widget schemas. Record the current controls, public IDs, internal keys, source compositions, values, metadata, container membership, and exact destination links. Inspect all consumers of the old controls, not only currently visible widgets. Readiness is not evidence that effective widget values have propagated.

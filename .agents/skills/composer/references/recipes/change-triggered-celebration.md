@@ -1,6 +1,6 @@
 # Change-triggered celebration over linked values
 
-Candidate pending the complete Player gates below. Supplied session observations support this pattern, but do not prove the reusable scenario's seed suppression or a measured timing bound. Do not promote it on model readback alone.
+Candidate with limited Player evidence. Supplied session observations do not prove the scenario's seed suppression or a measured timing bound. The application choices and acceptance example below apply only when requested; they are not Composer skill regression gates. Do not promote an unverified claim on model readback alone.
 
 Use an independently animated cover to celebrate an increase in a directly linked score or counter, then reveal the updated value. Keep API-facing Control Node IDs, scopes, types and links intact. Never replace score links with script writes or delayed updates to obtain animation timing. Read [contract preservation](../composition-commands.md#contract-preservation), [optional modules](optional-animated-module.md), [composition motion](../composition-motion.md), [composition scripts](../composition-scripts.md), and the relevant widget scripting references before their respective phases.
 
@@ -34,7 +34,7 @@ Copy [the celebration scenario](change-triggered-celebration-scenario.json) into
 
 The scenario disables before seeding, compares baseline pixels after re-enabling, constructs a settled opaque-cover reference, captures an early cover and compares the score region, then compares the reveal with an independently seeded expected score. It also checks decrement, disabled increment, hidden-overlay Out, and disabling mid-hold. Verify the away branch in a second adapted run. The manual cover reference must contain no changing text/accent/sheens in the compared region; otherwise author an independent equivalent cover reference rather than loosening tolerances.
 
-Required promotion evidence:
+Task-specific acceptance evidence, when these behaviors are requested:
 
 - Setup suppression: no In transition during seed or enable-only steps, Out state and baseline pixel match. A final Out alone cannot rule out a transient trigger; inspect state transitions in a bounded custom harness if necessary.
 - Cover within an agreed **N ms**: a score-region pixel match to the opaque reference plus measured elapsed time from payload dispatch to the actual sampled frame. Version 1's sequential capture does not assert this timing bound. Run fresh seeded early-checkpoint trials or a bounded custom timing harness; do not sum waits and call that elapsed time.

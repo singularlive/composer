@@ -2,6 +2,94 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.58 - Protocol 191
+
+- Hold Composer autosaves during AI work without changing the user's save setting. Add `finish-work --save` for awaited final saving; manual mode remains user-saved and ordinary work release remains a pause.
+- Defer agent script reload notifications through a durable pending-publication marker consumed by the next successful Composer save. Preserve script API persistence, cancellation recovery and save-failure reporting.
+
+## 1.7.57 - Protocol 190
+
+- Require individual settled-milestone review and rendered proof of complete concealment, without prescribing application-specific stages or motion.
+- Document lossless embedded-definition reductions, valid quote choices, raw versus escaped size reporting and preservation checks. No new recipe or tooling is introduced.
+
+## 1.7.56 - Protocol 189
+
+- Add operator-only panel placement checks for protected graphics, opaque backgrounds, stacking and clipping.
+- Require host-specific toggle verification after managed extract refresh, separate output exclusion, and explicit limits for model geometry, approximations and unexplained script errors. No new recipe or verifier action is introduced.
+
+## 1.7.55 - Protocol 188
+
+- Require prompt answer acknowledgement in Composer before revision-readiness checks or task preparation, using the existing working-status path.
+- Document released/expired lease and cancellation handling without granting mutation permission or promising an automatic agent-app event hook.
+
+## 1.7.54 - Protocol 187
+
+- Require precise animation targets, unchanged-neighbor checks and separation of base, visibility and travel effects in AI Graphics guidance.
+- Clarify renderer-owned motion versus native keyframes, finite durations versus settling thresholds, and direction-specific visual evidence.
+- Strengthen typed control-promotion preservation for value representation, numeric metadata, public identity, semantic color roles, container membership and safe retirement. No new recipe or command is added.
+
+## 1.7.53 - Protocol 186
+
+- Remove the application-specific callout-side recipe from the shipped skill; retain general discrete-layout transition and temporal-verification guidance.
+- Clarify that recipes explain combinations of Composer capabilities, not standalone rendering algorithms. Preserve the callout helper and regression outside the skill.
+
+## 1.7.52 - Protocol 185
+
+- Add discrete ambient-layout transition guidance and a persistent callout-side recipe with invisible relocation, independent marker visibility, identity and interruption handling.
+- Distinguish local frame-by-frame preview assertions from installed Player endpoints and Control App evidence; require asset readiness before interpreting motion failures.
+- Preserve native control/link ownership, existing timelines and network policy; no new command or Player assertion surface is introduced.
+
+## 1.7.51 - Protocol 184
+
+- Add a shared Three.js authoring reference for renderer ownership, bounded resources, control updates, resize and finite/ambient lifecycle separation.
+- Keep font outlines and extrusion in the specialized text recipe; lighting, metal, environments and shadows remain optional techniques, and network permissions are unchanged.
+- Include a minimal injected-dependency lifecycle example with isolated ownership and teardown checks, not a universal scene framework or GPU-verified graphic.
+
+## 1.7.50 - Protocol 183
+
+- Distinguish AI Graphics schema validity, lifecycle invocation, dependency readiness and visual acceptance; observed preview runtime/dependency failures now exit nonzero without relaxing network policy.
+- Clarify rendering choices, native-control preservation and the narrow external-outline resource exception.
+- Add a bounded Three.js extruded-text candidate, stale-load lifecycle helper and adaptable same-Player scenario with explicit font-support and evidence limits.
+
+## 1.7.49 - Protocol 182
+
+- Clarify breaking-news headline control types, visibility authority, layer order and explicit Player action targets.
+- Distinguish parent Out from module Out, blank text from hiding a panel, and intentional viewport-edge motion from in-frame animation.
+
+## 1.7.48 - Protocol 181
+
+- Limit the asymmetric Rectangle overlay recipe to opaque, unstroked fills without outline holes and document effective-radius patch bounds.
+- Clarify transparency, gradient, border and animation limitations without implying native per-corner fields or live rendering evidence.
+
+## 1.7.47 - Protocol 180
+
+- Allow `set-properties` element-name writes to omit `path`, returning the normalized `name` path.
+- Preserve explicit-path validation, duplicate rejection, linked-field protection and atomic rollback; read manifests and data-field paths remain explicit.
+
+## 1.7.46 - Protocol 179
+
+- Route Table widget 1182 in script handoffs and full-content summaries to a dedicated payload reference.
+- Document row payload shapes, write ownership, paging and effective element/group In/Out motion with version-specific evidence limits.
+- Keep Table source parsing and application policy separate from Composer command and scripting contracts.
+
+## 1.7.45 - Protocol 178
+
+- Filter improvement handoffs to evidenced Composer-skill command, instruction, API, verification and safety gaps.
+- Exclude graphic recipes, application algorithms and standalone product QA from retrospective work requests; missing coverage alone is not a skill task.
+- Preserve retrospective evidence limits and existing revision, authorization, ownership and credential safeguards.
+
+## 1.7.44 - Protocol 177
+
+- Separate skill command, safety and verifier contracts from native product QA and application-specific acceptance.
+- Narrow public-sheet guidance to permissions, template authoring, write ownership and script handoff; keep the full application example outside the shipped skill.
+- Replace obsolete Table workaround mandates with current evidence boundaries without claiming universal renderer guarantees.
+
+## 1.7.43 - Protocol 176
+
+- Upgrade the bundled WebSocket transport to ws 8.22.0, addressing the known HTTP-header and fragmented-message denial-of-service advisories in the prior dependency.
+- Pin and validate the root WebSocket build input so stale skill-local dependencies cannot override the shipped transport.
+- Verify readiness, cancellation, fragmented responses, close handling and browser reconnect behavior with the upgraded transport.
+
 ## 1.7.42 - Protocol 175
 
 - Prefer native Time Control ownership for simple Timer inputs while preserving existing operator controls and removing competing script writes.

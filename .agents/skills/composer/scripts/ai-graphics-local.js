@@ -100,6 +100,9 @@ async function preview(options, definition, values, validation) {
   let browser;
   const consoleErrors = [];
   let blockedRequests = 0;
+  let failedRequests = 0;
+  let failedResponses = 0;
+  let pageErrors = 0;
   try {
     browser = await playwright.chromium.launch({ channel: 'chrome', headless: true, timeout: timeout * 1000 });
     const page = await browser.newPage({ viewport: { width: width, height: height }, deviceScaleFactor: 1 });
@@ -107,6 +110,9 @@ async function preview(options, definition, values, validation) {
     page.on('console', function (message) {
       if (message.type() === 'error' && consoleErrors.length < 20) consoleErrors.push(message.text().slice(0, 500));
     });
+    page.on('pageerror', function () { pageErrors++; });
+    page.on('requestfailed', function () { failedRequests++; });
+    page.on('response', function (response) { if (response.status() >= 400) failedResponses++; });
     await page.route('**/*', function (route) {
       const resourceType = route.request().resourceType();
       if (['image', 'stylesheet', 'font'].includes(resourceType)) route.continue();
@@ -128,8 +134,11 @@ async function preview(options, definition, values, validation) {
       fs.rmSync(outputPath, { force: true });
       throw commandError('AI_GRAPHICS_PREVIEW_FAILED', 'AI Graphics preview did not produce a valid PNG');
     }
-    return {
+    const failed = blockedRequests > 0 || failedRequests > 0 || failedResponses > 0 ||
+      pageErrors > 0 || consoleErrors.length > 0 || runtime.failedImages > 0;
+    const report = {
       valid: true,
+      preview: { status: failed ? 'failed' : 'captured', accepted: false },
       definitionVersion: validation.definitionVersion,
       output: outputPath,
       width: image.readUInt32BE(16),
@@ -141,8 +150,19 @@ async function preview(options, definition, values, validation) {
       diagnostics: validation.diagnostics.concat(consoleErrors.map(function (message) {
         return { severity: 'warning', code: 'RUNTIME_CONSOLE_ERROR', path: 'runtime', message: message };
       })),
-      runtime: Object.assign({ executed: true, blockedRequests: blockedRequests }, runtime)
+      runtime: Object.assign({ executed: true, blockedRequests: blockedRequests,
+        failedRequests: failedRequests, failedResponses: failedResponses, pageErrors: pageErrors,
+        asynchronousReadiness: 'unverified',
+        dependencies: blockedRequests > 0 ? 'blocked' : failedRequests > 0 || failedResponses > 0 || runtime.failedImages > 0
+          ? 'failed' : 'unverified'
+      }, runtime)
     };
+    if (failed) {
+      report.diagnostics.push({ severity: 'error', code: 'AI_GRAPHICS_PREVIEW_INCOMPLETE', path: 'runtime',
+        message: 'Observed runtime or dependency failures; schema validity and a PNG do not establish rendering success.' });
+      throw commandError('AI_GRAPHICS_PREVIEW_INCOMPLETE', 'AI Graphics preview has runtime or dependency failures', report);
+    }
+    return report;
   } catch (error) {
     if (error.code) throw error;
     throw commandError('AI_GRAPHICS_PREVIEW_FAILED', error.message);

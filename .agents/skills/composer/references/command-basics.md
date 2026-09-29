@@ -58,6 +58,27 @@ For container verification failures, use readback and a non-destructive no-op or
 
 ## Session
 
+### Batched autosave
+
+Composer holds automatic saves while AI work is active without changing the user's autosave setting. Pending automatic saves are cancelled; edits remain dirty. An upload already in flight cannot be retracted. Explicit manual Save and revision restoration retain their existing authority. Do not toggle the user's save setting to implement batching.
+
+Use `finish-work --save` only when the task is ready to complete. Its `composition.autosave.finish` command awaits storage and Firebase timestamp publication before releasing the work lease. With autosave disabled it performs no save and reports `save.manualSaveRequired: true` when dirty; ask the user to save manually before relying on persisted output. With autosave enabled, success reports `save.saved: true`, or false when no save was needed. Datastore notification is dispatched through the existing socket transport, not an acknowledged Control App reload. No command reloads the app automatically.
+
+Plain `finish-work` releases input for a question but retains the save hold until resumed or its last renewed ten-minute work deadline expires. Short command-socket disconnects do not end the hold. Cancellation, authorization loss, terminal editor disconnection or hold expiry restores normal saving; autosave may then publish partial work. Manual mode stays manual. A failed or timed-out finalization is not completion: inspect save status/readback, release work without `--save` when yielding, and do not blindly retry an uncertain save.
+
+Agent script writes remain durable through the separate script API, but their reload notification is deferred using a persisted pending-publication marker. The next successful Composer save publishes the timestamp and clears only the matching marker. Reopening Composer recovers pending publication; manual mode still requires user Save. This is batching, not rollback or an atomic model/script transaction. Already-visible app reload notices cannot be withdrawn. Persisted Player or managed-extract verification needs a completed save first; finalize a coherent version before that verification, and start a new work batch if it exposes further edits.
+
+### Acknowledge answers promptly
+
+Composer does not receive the agent app's answer event directly. As soon as the agent receives an answer, send feedback before other task work; do not wait for the next inspection or mutation to clear the waiting indicator. This is an agent ordering requirement, not a guaranteed transport latency or an automatic app integration.
+
+- With a retained active lease (revision approval), the first Composer action is `status --state working --message "Answer received. Continuing without a revision."` for an explicit no-revision choice. For approval, say "Answer received. Preparing the requested revision." Never claim a revision exists before creation succeeds. Use a concise, sanitized acknowledgement appropriate to the answer; do not echo private freeform text.
+- After an ordinary question whose lease was released, make `begin-work` the first Composer action when the answer authorizes continuation, followed immediately by `status --state working --message "Answer received. Continuing."`. Work-start clears the waiting indicator; readiness must still succeed before inspection or mutation. Do not send status against a known released lease or perform unrelated preparation before resuming.
+- If the retained-lease status returns `WORK_NOT_STARTED`, run `begin-work` only when continuation is authorized, then send the acknowledgement before other work. On `OPERATION_CANCELLED`, revoked authorization, disconnection or timeout, follow the existing stop/recovery rules; do not loop, automatically re-pair, or claim delivery succeeded.
+- A cancellation answer does not authorize renewed work. With the retained revision lease, acknowledge "Answer received. Cancelling the operation." using working status, then release without mutation. If the lease is already released or cancelled, do not reacquire merely to clear an icon; report cancellation in the agent app and stop. An ambiguous answer permits acknowledgement, not assumed revision consent or scene edits.
+
+After acknowledgement, follow the normal readiness, fresh inspection and revision decision gates. A working status means the answer was received, not that the requested operation completed.
+
 | Command | Purpose |
 | --- | --- |
 | `doctor [--capture] [--connection <name>]` | Diagnose package/protocol versions, selected installation, canonical project/global `.agents`/`.claude`/`.codex` paths, physically distinct duplicates, bundled core and required Playwright readiness, and optionally system Chrome and the paired server version. It does not acquire a work lease. |
@@ -67,9 +88,10 @@ For container verification failures, use readback and a non-destructive no-op or
 | `begin-work [--timeout <milliseconds>]` | Preferred task start. Acquire or renew the ten-minute work lease, then wait for active authorization, connected editor, and ready commands. If readiness fails after acquisition, it automatically releases the lease and preserves the readiness error. The timeout range is 1–120000 ms. |
 | `start-work` | Lower-level diagnostic/compatibility command that only acquires or renews the work lease. Normal tasks use `begin-work`. |
 | `wait-ready [--timeout <milliseconds>]` | Lower-level readiness command requiring an existing lease. It does not mutate, navigate, or renew the lease. Normal tasks use `begin-work`. |
-| `finish-work` | Release the current work lease and Composer input while preserving authorization for the 30-minute post-disconnect reconnect grace. Run before final handoff or waiting for user input, except during revision approval under [Revision approval before mutation](revisions.md#revision-approval-before-mutation). |
+| `finish-work` | Release the current work lease and Composer input without saving, preserving authorization for the 30-minute post-disconnect reconnect grace. Use for pauses or failure cleanup, except during revision approval under [Revision approval before mutation](revisions.md#revision-approval-before-mutation). |
+| `finish-work --save` | Complete the task: await composition autosave finalization, then release work. Manual-save mode is preserved and reported as `save.manualSaveRequired`; no forced save. Requires an active lease and editor. |
 | `status --message <text> [--state <working\|waiting-for-user>]` | Show a concise update and renew an active work lease. Use `waiting-for-user` with the exact blocking question immediately before `finish-work`; ordinary updates default to `working`. It does not acquire a missing lease. |
-| `complete` | Revoke the saved authorization only after the user explicitly asks to disconnect the AI Agent. Ordinary task completion uses `finish-work`. |
+| `complete` | Revoke the saved authorization only after the user explicitly asks to disconnect the AI Agent. Successful task completion uses `finish-work --save`. |
 | `inspect` | Read the scene, preview inputs, active composition stack, selection, groups, tile summaries, and a `summary` count of groups, tiles, compositions, and controls. |
 | `composition-tree` | Recursively read the ordinary composition hierarchy from the concrete root without navigating. Widget-owned templates are listed separately by owner name and semantic field, never as ordinary children; their composition and descendant IDs are omitted. The result explicitly reports `activeScopePreserved: true` and `navigationChanged: false`. |
 | `inspect --selection` | Return only the currently selected item (`id`, `type`, `groupId`). |

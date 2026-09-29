@@ -4,7 +4,7 @@ Status: Shipped generation contract for AI Graphics widget `4792`, version `1`.
 
 This file is self-contained inside the installed Composer skill. Its contract body mirrors the application-side authoring prompt and is checked by the runtime-guidance test.
 
-Before installation, run `ai-graphics validate --file <definition.json>` and render representative dimensions with `ai-graphics preview --file <definition.json> --width <px> --height <px> --output <preview.png>`. These local commands require no pairing. Preview verifies the isolated widget runtime, not parent composition context; final Player verification remains required.
+Before installation, run `ai-graphics validate --file <definition.json>` and render representative dimensions with `ai-graphics preview --file <definition.json> --width <px> --height <px> --output <preview.png>`. These local commands require no pairing. Preview samples the isolated widget runtime, not arbitrary asynchronous readiness or parent composition context; follow the [preview evidence contract](ai-graphics.md#preview-evidence-contract). Final Player verification remains required.
 
 ## Widget model invariant
 
@@ -83,7 +83,7 @@ Definition rules:
 - An optional group activeId must reference a defined checkbox field.
 - Use only these field types: text, textarea, number, normalizednumber, checkbox, selection, color, image, metricfont, gradient, json, counter, and button. Timer fields are not supported.
 - Add disableDataLink: true to a generated field only when it must remain editable exclusively in Composer.
-- Keep HTML, CSS, and JavaScript self-contained. Do not encode them as Base64.
+- Keep HTML, CSS, and JavaScript self-contained by default. Only explicit external-renderer or font-outline requirements permit the bounded resource exception below. Do not encode them as Base64.
 - Keep the complete minified definition below the Composer agent's dedicated 256 KiB serialized-value limit. Measure the outer JSON.stringify(definitionText) length; embedded quotes and backslashes add escaping overhead. Other generated field values retain the normal 32 KiB limit.
 
 Additional field contracts:
@@ -145,6 +145,7 @@ Runtime context rules:
 - Renderer wrapper support does not define native Color Control Node inputs. Use plain RGBA with alpha in 0-1 for portable directly linked control tests; test solid wrappers separately at the renderer boundary. For transparent particles, apply color alpha once and multiply only by deliberate per-particle fades; do not paint a background or floor unless requested.
 - For numeric interpolation, first accept finite channels from a plain RGBA value or solid wrapper. Otherwise pass the value through `context.colors.toCss(value)`, validate the resulting CSS color, render it into a private 1-by-1 Canvas, and read `getImageData()` to obtain numeric RGBA. Clamp RGB to 0–255 and alpha to 0–1, and use an explicit design fallback only when conversion fails.
 - Use context.fonts.load(fontData) for metricfont values before applying a changed font.
+- This browser-font service does not expose a documented font-binary/outline resolver. An explicitly requested external outline renderer must derive family, weight and style from the same native metricfont value, not a competing selector.
 - Use context.fonts.computeMetrics(fontData, targetHeight, text) only when exact metric sizing is necessary.
 - Use Singular image values supplied through image fields; do not independently select or upload images.
 - Ignore stale asynchronous font completions when a newer font value has already arrived.
@@ -164,7 +165,11 @@ Animation rules:
 
 Resource and behavior rules:
 - Prefer Singular metricfont and image fields for fonts and images.
-- Do not fetch fonts independently.
+- Do not fetch fonts independently by default. Only an explicit external-renderer/outline requirement permits public HTTPS source access for the selected native font, with exact pinned library versions, declared origins, bounded requests/caches/geometry, stale-completion guards and cleanup. Do not imply universal Google Fonts family, script, style or variable-axis support.
+- Distinguish flat text positioned in 3D, SDF text, simulated extrusion and solid beveled outline geometry. Troika alone does not supply solid extrusion or bevels. Honor the requested representation and composition-native delivery.
+- When replacing a renderer, preserve existing control IDs, types, links, ownership, containers, generated schemas, layout and user-edited values. Never replace those values with recipe defaults.
+- Unsupported outline selection must produce a visible authored error without altering the native control or silently substituting fonts. Retain the last valid mesh, or remain empty before first success; empty text explicitly clears only text geometry. Abort superseded loads and dispose stale results.
+- External-resource permission does not relax local-preview network policy. Schema validity, lifecycle invocation, asynchronous dependency readiness and reviewed output are separate evidence; blocked resources cannot establish rendering success.
 - Do not access the Singular application DOM, global stores, cookies, or browser storage.
 - Do not navigate, open windows, or make external network requests unless the request explicitly requires an allowed exception.
 - Do not create audio or video unless explicitly requested.

@@ -20,3 +20,5 @@ The current widget documents are keyed by widget ID and are not version-pinned. 
 
 The fast handoff lists widgets only in the active composition. `summary --full` rebuilds `widgetReferences` across the token content when a script target or dependency lies outside that scope.
 
+Repeated-template widgets have separate payload references: [Table (1182)](widget-table.md) and [Grid (3284)](widget-grid.md). Their runtime payload methods are distinct from paired `update-table` and `update-grid` commands.
+

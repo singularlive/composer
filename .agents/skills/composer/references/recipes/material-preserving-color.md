@@ -44,6 +44,8 @@ For near-white inputs the lower dark stops and outline must still be visible; a 
 
 ## Version-1 Player scenario
 
+This is an application acceptance example, not a skill-maintenance gate. The skill owns safe field/API use and write ownership; luminance ordering, mixing percentages and sheen readability belong to the requested design.
+
 Copy [the material scenario](material-preserving-color-scenario.json), map `Material Color` and `Material Text` to inspected controls, and target the independently visible styled-text module. Supply explicit payload source IDs when controls live on an ancestor. The example samples saturated red and near-white with two checkpoints per color; adapt waits to the authored sheen period. Use a separate already-In specimen or an agreed longer hold so a celebration timeout does not hide the material during these checks.
 
 Review all four Player frames at output resolution. Each color must show distinct light/dark gradient regions, a visible outline and readable text; the sheen crossing must remain perceptible. `assertPixelsChanged` only detects a difference, not a gradient or correct material. Check the same lettering at both colors, long/multilingual text without forced casing, and transparent input if that is supported by the public contract. Require complete script telemetry, successful initialization and zero `error`/`unknown`. A Control App color picker and real API path need separate verification.

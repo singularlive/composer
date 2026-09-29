@@ -4,6 +4,20 @@ Use this workflow when the user says **generate improvement handoff** after they
 
 This is a retrospective feedback artifact. It is not the CLI `script-handoff`, does not carry credentials or persisted script context, and must not trigger additional Composer or Player work.
 
+## Skill relevance filter
+
+Report only improvements to the Composer skill and its agent integration. Every proposed improvement must name the affected skill command, documented authoring instruction, API contract, verification capability, or safety guarantee, explain the observed gap, and propose the smallest relevant correction.
+
+Apply this filter before filling the template, including lessons, friction, acceptance criteria, and checklist items:
+
+- Include incorrect or missing operating guidance, command response ambiguity, installation or handoff failures, ownership and lifecycle instructions, and capture/verifier contract defects when supported by the completed task's evidence.
+- Exclude graphic-specific design refinements, visual construction recipes, composition-script application algorithms, native renderer/widget QA, browser-tool QA, and Control App product defects as requested skill work. Reusability alone does not establish skill relevance.
+- A product symptom may supply minimal context for a specific instruction or API-contract gap; it does not authorize a product fix, product issue filing, or a renderer regression project. Separate observed behavior from an inferred cause and require confirmation before changing an API claim.
+- Missing Player evidence alone is not a skill task. Scope any proposed check to the named instruction or verification contract, not acceptance of the completed graphic or general widget behavior.
+- Do not turn user declines, cancellations, or repeated prompts into consent to relax revision, authorization, work-lease, single-write-authority, or credential-pipe safeguards.
+
+Keep original-task and implementation details only where needed to explain a qualifying gap. Do not include an excluded-work backlog or invent improvements to populate every section. If nothing qualifies, say that no Composer-skill improvement was established and omit actionable checklist items.
+
 ## Evidence boundary
 
 Use only the completed task conversation and evidence already obtained during that task. Do not acquire or renew a work lease, run Composer commands, reopen scopes, capture more frames, edit the composition, or modify repository files merely to generate the handoff. If the immediately preceding task still owns a work lease, release it before responding.
@@ -15,17 +29,16 @@ Preserve the technical meaning of the user's correction. Separate:
 - what the final implementation and verification established;
 - what remains inferred, disputed, or unverified.
 
-Do not present every preference as universal guidance. Classify each lesson as one or more of:
+Do not present every preference as universal guidance. Classify observations before applying the skill relevance filter:
 
 - reusable Composer authoring guidance;
-- candidate recipe;
 - missing or inadequate command/tooling;
 - product defect;
 - documentation ambiguity;
 - one-off design preference;
 - uncertain and requiring more evidence.
 
-Recommend a skill or product change only when the correction is reusable or exposes repeatable friction. A one-off visual choice may be useful task context but is not by itself a reason to change the runtime skill.
+Retain only lessons that identify a qualifying skill gap. Product defects and one-off preferences are not standalone skill improvements; uncertainty is not a reason to create general investigation work.
 
 ## Sanitization
 
@@ -48,7 +61,7 @@ Return one copy-paste-ready prompt addressed to a Composer-skill development age
 Improve the Singular Composer skill based on the completed user-guided task below.
 
 ## Original task
-<What the user asked to build or change, including only relevant sanitized structure and behavior.>
+<Minimal sanitized task context needed to understand the qualifying skill gaps, not a full graphic specification.>
 
 ## Initial approach
 <What the Composer skill initially did or proposed, including the assumptions and workflow it followed.>
@@ -57,22 +70,22 @@ Improve the Singular Composer skill based on the completed user-guided task belo
 <What the user explicitly identified as incorrect, incomplete, awkward, or below the expected quality. Distinguish explicit instruction from inference.>
 
 ## Correct implementation
-<The final workflow and result, including relevant ownership, compositions, widgets, Control Nodes, links, scripts, timelines, Update animations, display variants, and verification. Explain why it is preferable.>
+<The established correction relevant to the skill gap and its evidence. Omit unrelated final-design details and application algorithms.>
 
 ## Generalizable lessons
-<For each lesson, give its classification and explain why it is reusable, composition-specific, or uncertain.>
+<Only qualifying skill lessons: name the affected command, instruction, API contract, verification capability, or safety guarantee; classify the gap and distinguish evidence from inference.>
 
 ## Evidence
 <Separate Composer model readback, Player/runtime evidence, visual checkpoints, and anything not verified.>
 
 ## Friction observed
-<For each meaningful issue: operation, observable symptom, impact, workaround, and concrete improvement candidate. State explicitly when none was observed.>
+<For each skill-relevant issue: operation, observable symptom, impact, workaround, and bounded skill improvement candidate. State explicitly when none qualifies.>
 
 ## Requested improvements
-<Propose the smallest useful changes. Route each to SKILL.md guidance, a runtime reference, a reusable recipe, CLI/editor/server implementation, a focused regression, a reusable Player scenario, or contributor tracking.>
+<Propose the smallest qualifying changes. Route each to SKILL.md guidance, a runtime reference, CLI/editor/server agent integration, a focused skill-contract regression, or contributor skill tracking. Do not request new graphic recipes or standalone product work.>
 
 ## Acceptance criteria
-<Objective focused checks that prove each proposed improvement without weakening existing contracts.>
+<Objective focused checks for each named skill contract, using existing evidence where sufficient, without general graphic/widget QA or weakening existing contracts.>
 
 ## Safety and preservation
 <Relevant content that must remain untouched, authority boundaries, sanitization requirements, and prohibited shortcuts.>

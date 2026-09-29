@@ -6,7 +6,7 @@ The authorities remain separate:
 
 - Composer owns composition structure, primitives, names, Control Nodes, links, and timelines.
 - The dedicated Composition API script routes own persisted script discovery and script text, and require the unexpired scene/account-scoped agent authorization plus the handoff's composition credential. They are an internal transport reached through the bundled composition-script helper.
-- Managed Control Apps own packaged composition extracts. A successful script write advances the source composition timestamp so an authenticated Control App can offer **Update Composition**; a shared access-token Control App cannot perform that update. Refreshing a shared page or Player iframe does not rebuild its extract.
+- Managed Control Apps own packaged composition extracts. A successful agent script write is durable but leaves a pending-publication marker instead of immediately advancing the source composition timestamp. The final Composer save publishes that timestamp so an authenticated Control App can offer **Update Composition**; manual-save users must save themselves. A shared access-token Control App cannot perform that update. Refreshing a shared page or Player iframe does not rebuild its extract. See [batched autosave](command-basics.md#batched-autosave).
 - `OnairScript` and the Singular Player own runtime behavior and verification.
 
 The paired relay deliberately has no script command. Do not add script text to `graphics.apply`, write `compositionProps.scripts` through a generic update, or replace raw composition JSON.
@@ -43,6 +43,8 @@ The helper rejects direct `--token` and `--host` operation, omits both handoff c
 Each helper request has a 30-second deadline covering headers and body, and a 32 MB response limit. Discovery rejects malformed JSON and invalid script-list shapes instead of treating them as empty results. A timeout after a write does not prove the write failed; obtain authoritative readback before deciding whether to retry.
 
 Concurrent script-store changes return `SCRIPT_WRITE_CONFLICT` without overwriting the newer document. Obtain a fresh handoff and read current scripts before preparing a new write; do not automatically replay the stale write. This protects overlapping server requests, not edits made between an earlier helper read and a later write request.
+
+Before persisted Player or managed-extract verification, complete a coherent version with `finish-work --save`, then reacquire work for the verifier handoff. In manual-save mode, wait for the user's Save instead. Do not verify unsaved model changes against stale persisted content. If verification requires further edits, start another held batch; the script API remains immediately durable while its reload notification stays deferred.
 
 ## End-to-end workflow
 
@@ -99,7 +101,7 @@ For functions shared by multiple composition scripts, use the versioned [`contex
 - [Optional animated module](recipes/optional-animated-module.md): coordinate conditional visibility with local animation state.
 - [Breaking-news lower third](recipes/breaking-news-lower-third.md): build a reusable urgent label and replaceable headline with Update motion.
 - [Current-time clock module](recipes/current-time-clock-module.md): drive the Current Date and Time widget with shared typography (wall-clock time, not a duration Control Node).
-- [Public Google Sheet to Table](recipes/sheet-driven-table.md): public-only source validation, widget-owned runtime data, guarded live refresh and explicit Player verification gates.
+- [Public Google Sheet to Table](recipes/sheet-driven-table.md): public-source permissions, template authoring, write ownership and script handoff; source-specific application logic is separate.
 
 See the complete [recipe index](recipes.md) for authoring and verification routes.
 

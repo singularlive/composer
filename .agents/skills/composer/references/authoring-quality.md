@@ -50,6 +50,14 @@ Use zero captures for nonvisual or model-only work and normally one for a straig
 - Remember that ordinary sub-compositions retain the full Composer canvas coordinate system; they are control boundaries, not cropped layout regions.
 - Preserve existing root visuals unless the user explicitly asks to migrate or replace them; the sub-composition rule governs new authoring and does not authorize unrelated restructuring.
 
+### Operator-only panels and occlusion
+
+An element can remain visible in the model while an opaque sibling covers it. Before adding an operator-only diagnostic panel, identify the protected program-graphic region and inspect occupied bounds, opaque HTML/widget backgrounds, sibling stacking and ancestor clipping in each requested layout. Hidden-by-default is not an overlap safeguard: check the enabled state too. Constrain the panel to an appropriate region or resolve stacking without changing protected artwork, feed wiring, controls or the output visibility rule. Placing a panel below a scorebug is one layout choice, not a universal recipe.
+
+Keep the existing host-specific visibility gate and saved default state. An operator toggle must not make the panel appear in an excluded output host. Follow [operator-only panel verification](composition-scripting/debugging-and-verification.md#operator-only-panel-verification) for actual Control App toggles after managed extract refresh; model bounds and an output capture cannot establish Control App preview behavior.
+
+When a source custom widget is unavailable through supported primitives, identify a proposed HTML/native replacement as an approximation and disclose differences or obtain approval where they affect requirements. Do not imply an exact copy, bypass the supported inventory, or broaden the task into custom-widget transfer tooling. Keep credentials, feed payloads and private identifiers out of diagnostics and captures.
+
 ### Prefer editable native structure
 
 - Prefer Metric Text family widgets, Rectangle, Circle, Image, and other supported native primitives when they can express the design cleanly. Use legacy Text for new elements only when extending a composition that already uses it and consistency is more important than introducing Font 2.0; continue to understand and preserve existing Text widgets.
@@ -148,6 +156,12 @@ Use zero captures for nonvisual or model-only work and normally one for a straig
 - Require a complete settled In state. For Out, remove every transient element cleanly while preserving anything the requested lifecycle says should remain.
 - Verify meaningful intermediate states when timing, masking, clipping, occlusion, path drawing, or staged reveals affect the design. A settled frame alone cannot prove those effects.
 - Treat composition state and timeline readback as implementation evidence, not visual proof. A reported `Out1` or `Out2` state does not prove that the frame looks correct.
+
+### Milestone endpoints and complete concealment
+
+For milestone-driven graphics, visually review every settled milestone independently. Smooth transitions do not guarantee intentional endpoints: check visibility, opacity, scale, feature density and distinctness at each resting state. Features intended to be fully opaque must have effective opacity 1, including ancestor opacity and masks; do not leave them partway through a reveal or fade. Separate feature maturity from overall visual scale when needed so a smaller intermediate state can still look complete. Stage counts, thresholds and transition timing remain task-specific, not universal defaults. Review meaningful intermediate states separately; endpoint acceptance does not prove smooth transitions.
+
+Verify complete concealment in the fully hidden rendered state, including extremities, shadows, masks, clipping and residual geometry. A resting coordinate or visibility flag alone is insufficient evidence. Check the concrete visible geometry and its ancestors at the intended output size; zero bounds from one selector do not prove that all rendered content is absent. Keep local preview, installed Player and actual Control App evidence separate under the completion gate below.
 
 ### Reference-driven refinement order
 

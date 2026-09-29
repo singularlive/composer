@@ -1,10 +1,10 @@
 # Composer authoring recipes
 
-Recipes describe verified ways to combine Composer structure, widgets, Control Nodes, composition scripts, animation, and Player verification into reusable results. They do not replace the authoritative command, widget, or scripting contracts. Read the recipe first to establish its structural and lifecycle constraints, then load its references by phase: authoring before structural mutation, scripting before script work, and verification before Player work. A planning dependency may require an earlier read; do not defer a contract needed to choose safe structure or public inputs. Confirm the relevant live schemas and existing composition state before mutation.
+Recipes describe reusable ways to combine Composer structure, widgets, Control Nodes, composition scripts, animation, and Player verification. Evidence is specific to each pattern and version. They do not replace the authoritative command, widget, or scripting contracts. Read the recipe first to establish its structural and lifecycle constraints, then load its references by phase: authoring before structural mutation, scripting before script work, and verification before Player work. A planning dependency may require an earlier read; do not defer a contract needed to choose safe structure or public inputs. Confirm the relevant live schemas and existing composition state before mutation.
 
-Add or use a recipe only when the pattern is reusable, non-obvious, and verified in Singular Player. Keep one-off visual treatments in the composition rather than generalizing them here.
+Add or use a recipe only when the pattern is reusable, non-obvious, and verified in Singular Player. A recipe should explain how to combine Composer capabilities; a reusable rendering algorithm alone is not sufficient. Keep application-specific algorithms and their regressions outside the shipped skill, and one-off visual treatments in the composition.
 
-Candidate patterns awaiting Player verification are listed separately below. They are not verified recipes; complete their stated gates before treating them as established runtime guidance.
+Candidate patterns awaiting Player verification are listed separately below. Do not call an unverified runtime claim established. Their application algorithms, visual choices and acceptance scenarios are task-specific examples, not mandatory Composer skill tests or a backlog of product QA. During skill maintenance, check syntax, API use, safety and truthful evidence labels; run application acceptance only for an explicitly requested graphic workflow.
 
 | Desired result | Recipe | Use it for |
 | --- | --- | --- |
@@ -21,10 +21,12 @@ Candidate patterns awaiting Player verification are listed separately below. The
 
 ## Candidate pending Player verification
 
+- [Three.js extruded text](recipes/threejs-extruded-text.md): native font/text controls, bounded outline geometry, explicit external dependencies, stale-load disposal and an adaptable same-Player scenario. Supplied task evidence is not broad font compatibility or an independently replayed implementation.
+
 - [Root external input with descendant Mode gating](recipes/root-external-input.md): root standalone feed fields, one text writer, descendant visibility only, preserved timer theme links and a same-instance OCR scenario. Supplied Landscape evidence is not universal OCR/API or Portrait verification.
 
 - [Opacity slider](recipes/opacity-slider.md): explicit affected-layer scope, 0 as off, preserved initial appearance, general numeric-string compatibility and a same-session 100/40/0/restore scenario; no automatic grouping of decorative layers.
 - [Responsive particle overlay](recipes/responsive-particle-overlay.md): owned widget resize observation, uniform particle geometry/motion, bounded density transitions and cleanup; local resize matrix is separate from Player/output-resolution evidence.
-- [Change-triggered celebration over linked values](recipes/change-triggered-celebration.md): preserve API-facing links, seed while disabled, cover then reveal, and prove a measured cover deadline plus suppression/exit cases.
-- [Material-preserving text color](recipes/material-preserving-color.md): derive a complete gradient and outline from one standalone Color; require saturated and near-white Player frames before promotion.
-- [Public Google Sheet to Table](recipes/sheet-driven-table.md): exact public-tab/range source, single row authority and guarded polling. Mocked logic and version-1 scenario validation are covered; Player and real Google network verification remain required.
+- [Change-triggered celebration over linked values](recipes/change-triggered-celebration.md): preserve API-facing links and lifecycle ownership; trigger policy and perceptual timing belong to the requested application.
+- [Material-preserving text color](recipes/material-preserving-color.md): one writer for derived gradient/outline properties; mixing proportions and visual acceptance belong to the graphic.
+- [Public Google Sheet to Table](recipes/sheet-driven-table.md): source permissions, inspected template authoring, single write authority and script handoff. Fetching, parsing and polling are application work, not skill gates.

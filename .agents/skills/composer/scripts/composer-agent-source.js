@@ -14,8 +14,8 @@ const { findSkillInstallations, getDuplicateInstallations, getInstallationScope 
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 175;
-const PACKAGE_VERSION = '1.7.42';
+const SKILL_VERSION = 191;
+const PACKAGE_VERSION = '1.7.58';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -55,6 +55,7 @@ const GRID_OPTION_FIELDS = [
 // Flags that may be passed with no value (default true) or with an explicit
 // true/false value.
 const BOOLEAN_OPTIONS = new Set([
+  'save',
   'pipe',
   'capture',
   'compact',
@@ -2181,7 +2182,11 @@ async function run() {
       result = await waitForComposerReady(parsed.options, false);
       break;
     case 'finish-work':
+      assertAllowedOptions(parsed.options, ['save', 'compact'], 'finish-work');
+      let saveResult;
+      if (parsed.options.save) saveResult = await executeCommand('composition.autosave.finish', {}, 120000);
       result = await sendSessionMessage({ type: 'work_finish' }, 'work_finished');
+      if (saveResult) result.save = saveResult;
       break;
     case 'complete':
       result = await sendSessionMessage({ type: 'session_complete' }, 'session_completed');

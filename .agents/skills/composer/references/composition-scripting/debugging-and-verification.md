@@ -76,6 +76,20 @@ Report asset failures independently, including their count and whether attributi
 
 Review verification screenshots for obvious unrelated regressions, including palette changes, missing artwork and clipping. Report them without silently expanding the repair scope. A workaround that repairs the current appearance is not a root-cause repair or proof that future preset selections work. Structural revision totals cannot prove individual values, links or script contents unchanged; use supported property-level evidence or explicitly leave that comparison unresolved.
 
+### Operator-only panel verification
+
+Use an authorized Control App and its actual preview for this check, not an output Player substituted for that host. Preserve the graphic's look, feed controls/wiring and saved presentation state. Establish protected-region bounds and a visible baseline with controlled inputs so unrelated live score/clock changes do not masquerade as occlusion. Use only sanitized fixtures; do not capture credentials, private feed data or identifiers.
+
+1. Read back the saved panel bounds, sibling order, clipping, hidden default, control links and host-specific visibility rule. This proves model structure only, not rendered visibility or host gating.
+2. Update the managed composition extract through the supported app workflow, reload the tested Control App/output to load that extract, and establish the intended visible program state. A saved definition or script write alone does not update an already-running extract.
+3. In that same Control App, operate the actual control off/on/off. In both states, verify the protected graphic remains visible and unobscured; with the panel enabled, verify the panel itself renders in its allowed region. Check opaque backgrounds, overlap and clipping, including meaningful transition frames when applicable. Use target-scoped region assertions and visual review; unchanged visibility flags or whole-frame differences are insufficient.
+4. Separately exercise the enabled control in the output Player and require panel absence while the protected graphic remains visible. Testing output only with the control disabled does not prove the exclusion rule. Exercise any other explicitly permitted host separately; do not infer Composition Script Editor behavior from Control App behavior.
+5. Restore test values and any authorized saved state changes. Report saved-model geometry, output Player evidence and actual Control App behavior separately, including which extract was loaded and whether the actual toggle was exercised. If no authorized Control App is available, mark that acceptance pending; a synthetic fixture or private Player payload test cannot substitute for it.
+
+Record script-error counts before and after each tested state, and report unexplained errors without attributing them to the panel or its layout correction. Existing errors do not disappear from the report just because their count is unchanged. A geometric correction can be supported by readback while the reported Control App symptom remains unverified.
+
+This is a verification procedure, not a new scenario action or automatic Control App harness. For a separately authorized reusable regression, require an opaque-overlap negative control to fail the protected-region check; a passing isolated negative-control test still does not establish actual Control App operation.
+
 ### Color interpretation diagnostics
 
 Trace preset input -> Color control value -> linked gradient value -> rendered fill. At each available boundary, record a bounded, sanitized value/type and source ownership. Valid JSON, accepted Color inputs, gradient conversion and valid CSS output are distinct contracts. Consult the loaded widget reference: support for tinycolor2-parseable strings means bare hex cannot simply be declared invalid for the whole pipeline.

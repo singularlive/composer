@@ -6,6 +6,7 @@ const WIDGET_SCRIPT_REFERENCES = Object.freeze({
   1022: 'references/composition-scripting/widget-rectangle.md',
   1032: 'references/composition-scripting/widget-text.md',
   1052: 'references/composition-scripting/widget-circle.md',
+  1182: 'references/composition-scripting/widget-table.md',
   1212: 'references/composition-scripting/widget-html.md',
   1216: 'references/composition-scripting/widget-text-ticker.md',
   3284: 'references/composition-scripting/widget-grid.md',

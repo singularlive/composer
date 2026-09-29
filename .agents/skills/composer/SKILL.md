@@ -21,6 +21,8 @@ After `COMPOSER_AGENT_VERSION_MISMATCH`, follow [installation recovery](referenc
 
 Read only references needed for the current task and phase.
 
+Recipe algorithms and acceptance scenarios apply only to the requested graphic. They are not skill-maintenance gates. Do not expand a Composer command or documentation task into general widget QA, external-data integration testing or unrequested source edits.
+
 | Task | Required reference |
 | --- | --- |
 | Install, upgrade, or verify the skill installation | [installation.md](references/installation.md) before changing any installed file |
@@ -59,7 +61,9 @@ Continue only for active authorization, connected editor, ready commands, and ac
 node scripts/composer-agent.js finish-work --connection <conversation-connection-name>
 ```
 
-Require `COMPOSER_WORK_RELEASED`. Before a blocking question, send `status --state waiting-for-user --message "<blocking question>"`, release, then wait. `--message` is required. [Revisions](references/revisions.md) own the approval exception. Use `complete` only for explicit revocation.
+Require `COMPOSER_WORK_RELEASED`. For successful task completion, use `finish-work --save` instead: it awaits the final composition save when autosave is enabled, or reports `save.manualSaveRequired` without saving in manual mode. Plain `finish-work` is a pause/release, not a completion save. Before a blocking question, send `status --state waiting-for-user --message "<blocking question>"`, release without `--save`, then wait. `--message` is required. [Revisions](references/revisions.md) own the approval exception. Use `complete` only for explicit revocation. See [batched autosave](references/command-basics.md#batched-autosave) for interruption, save-failure and publication limits.
+
+When an answer arrives, make the [answer acknowledgement](references/command-basics.md#acknowledge-answers-promptly) your first Composer action, before planning, file preparation, readiness checks or inspection where the lease is still active. Do not leave Composer showing the question while preparing the next operation. This feedback does not authorize a mutation or bypass lease/cancellation gates.
 
 ## Inspect, mutate, verify
 
