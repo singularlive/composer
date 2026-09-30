@@ -238,6 +238,10 @@ The widget object provides methods to read and update widget specific properties
 | `setSizeX(o)`, `setSizeY(o)` | Sets size as percentage (0-100) of the canvas. |
 | `getVisibility()` | Returns visibility as a boolean. |
 | `setVisibility(o)` | Sets visibility as a boolean. |
+| `getOpacity()` | Returns stored layout opacity in percent (0-100), not CSS alpha. |
+| `setOpacity(o)` | Sets layout opacity in percent: 0 is transparent, 100 is fully opaque. |
+
+Widget tiles (including Metric Text) and groups use the same percentage scale. A normalized fade in [0,1] must call `setOpacity(progress * 100)`; `setOpacity(1)` means one percent, not fully shown. The getter reads stored layout opacity, not effective rendered opacity after ancestor opacity, visibility or Timeline/Update effects. Do not infer units from `getOpacity() > 1` or from a missing/non-finite read. Keep one write authority per property and never layer this script fade over a native opacity animation or linked opacity field. This contract is confirmed by an isolated fixture executing production scripting accessors and layout-to-CSS conversion for a Metric Text tile and group, not by replaying the original overlay or every installed widget.
 
 #### [BEST PRACTICE] Widget Dimensions
 
@@ -276,8 +280,8 @@ The group object provides methods to read and update group-specific properties, 
 | `setVisibility(o)` | Sets visibility as a boolean. |
 | `getRotateZ()` | Returns rotation value in degrees. |
 | `setRotateZ(o)` | Sets rotation value in degrees. |
-| `getOpacity()` | Returns opacity value (0-1). |
-| `setOpacity(o)` | Sets opacity value (0-1). |
+| `getOpacity()` | Returns stored layout opacity in percent (0-100), not CSS alpha. |
+| `setOpacity(o)` | Sets layout opacity in percent: 0 is transparent, 100 is fully opaque. |
 | `getBrightness()`, `getBlur()`, `getContrast()`, `getGrayscale()`, `getHue()`, `getInvert()`, `getSaturate()`, `getSepia()` | Returns filter effect values. |
 | `setBrightness(o)`, `setBlur(o)`, `setContrast(o)`, `setGrayscale(o)`, `setHue(o)`, `setInvert(o)`, `setSaturate(o)`, `setSepia(o)` | Sets filter effect values. |
 | `getBorderRadius()` | Returns border radius configuration as an object with `active`, `tl`, `tr`, `bl`, `br` properties. |
@@ -311,7 +315,7 @@ groupLowers.setSizeX(40);
 groupLowers.setSizeY(30);
 
 // Sets filter effects
-groupLowers.setOpacity(0.8);
+groupLowers.setOpacity(80);
 groupLowers.setBlur(5);
 ```
 

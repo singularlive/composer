@@ -7361,8 +7361,8 @@ const { findSkillInstallations, getDuplicateInstallations, getInstallationScope 
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 193;
-const PACKAGE_VERSION = '1.7.60';
+const SKILL_VERSION = 194;
+const PACKAGE_VERSION = '1.7.61';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -8566,6 +8566,35 @@ async function beginWork(options) {
   }
 }
 
+async function finishWork(options) {
+  assertAllowedOptions(options, ['save', 'compact'], 'finish-work');
+  let saveResult;
+  let stage = options.save ? 'save' : 'release';
+  try {
+    if (options.save) saveResult = await executeCommand('composition.autosave.finish', {}, 120000);
+    stage = 'release';
+    const result = await sendSessionMessage({ type: 'work_finish' }, 'work_finished');
+    if (saveResult) result.save = saveResult;
+    return result;
+  } catch (error) {
+    if (!options.save) throw error;
+    const preservedCodes = ['OPERATION_CANCELLED', 'SESSION_CANCELLED', 'SESSION_COMPLETED',
+      'WORK_NOT_STARTED', 'COMPOSER_AGENT_VERSION_MISMATCH', 'SAVE_FAILED'];
+    const code = preservedCodes.includes(error.code) ? error.code : 'COMPOSER_FINALIZATION_UNCONFIRMED';
+    const failure = new Error('Finalization did not complete with an acknowledged result. Save and lease disposition require recovery readback; do not replay the save.');
+    failure.code = code;
+    failure.result = {
+      status: 'failed', code: code, stage: stage,
+      workLease: 'unknown', workExpiresAt: null,
+      save: saveResult ? Object.assign({ status: 'acknowledged' }, saveResult) : { status: 'unknown' }
+    };
+    if (code === 'COMPOSER_AGENT_VERSION_MISMATCH' && Number.isInteger(error.serverVersion)) {
+      failure.result.serverVersion = error.serverVersion;
+    }
+    throw failure;
+  }
+}
+
 function executeCommand(method, params, commandTimeoutMs) {
   const credentials = readCredentials();
   const request = {
@@ -9543,11 +9572,7 @@ async function run() {
       result = await waitForComposerReady(parsed.options, false);
       break;
     case 'finish-work':
-      assertAllowedOptions(parsed.options, ['save', 'compact'], 'finish-work');
-      let saveResult;
-      if (parsed.options.save) saveResult = await executeCommand('composition.autosave.finish', {}, 120000);
-      result = await sendSessionMessage({ type: 'work_finish' }, 'work_finished');
-      if (saveResult) result.save = saveResult;
+      result = await finishWork(parsed.options);
       break;
     case 'complete':
       result = await sendSessionMessage({ type: 'session_complete' }, 'session_completed');

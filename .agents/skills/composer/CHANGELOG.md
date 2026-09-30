@@ -2,6 +2,14 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.61 - Protocol 194
+
+- Correct widget/group opacity methods to layout percentages, confirmed with production scripting accessors and CSS conversion in an isolated Metric Text/group fixture.
+- Require saving held edits at the capture command and document recovery after uncertain finalization without inventing a save-status API or replaying saves.
+- Return structured save/release uncertainty for failed `finish-work --save`, preserving acknowledged save receipts, cancellation, manual-save and version-mismatch behavior.
+- Report bounded first-page-error categories, sanitized messages and numeric runtime-stack locations in AI Graphics preview; omit arbitrary error/console content.
+- Mark Node-major mismatch explicitly blocking with a required recovery action, and permit only one bounded fresh non-mutating retry for `PLAYER_LOAD_TIMEOUT` under documented conditions.
+
 ## 1.7.60 - Protocol 193
 
 - Use elapsed-time animation frames for continuous scripted visual interpolation while retaining network and scheduling timers; require replacement and teardown cleanup.

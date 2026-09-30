@@ -65,6 +65,12 @@ Prefer a version-1 `--scenario-file` for supported payload, message, state, life
 
 The verifier rejects empty/whitespace handoff input with `SCRIPT_HANDOFF_EMPTY` before loading Playwright or launching a browser. Check the producer's exit status, stderr, connection and readiness; never diagnose this as a Player failure or reuse a cached handoff. Malformed JSON reports `SCRIPT_HANDOFF_INVALID_JSON` without parser excerpts; `SCRIPT_HANDOFF_PREVIEW`, `SCRIPT_HANDOFF_INVALID` and `SCRIPT_HANDOFF_READ_FAILED` distinguish preview-only, invalid-contract and unreadable input. Keep stderr separate from credential-only stdout and use a fresh direct pipe after resolving the producer failure. These preflight failures exit nonzero with one sanitized diagnostic, not a runtime report or stack trace.
 
+### Player load timeout retry
+
+For `PLAYER_LOAD_TIMEOUT` only, permit at most one manual fresh verification attempt for the same unchanged saved composition and scenario, after checking the sanitized failure stage and prerequisites. This is non-mutating verification, not a save/authoring retry; use a fresh credential-only handoff pipe and a new private Player, not cached credentials. Confirm the scenario had not begun and has no external side effects before retrying; startup scripts that can affect external systems require separate approval, not an assumed safe replay. Keep the normal deadline and do not loop, increase timeouts, alter the scene or change inputs to force a pass.
+
+Retain both reports in separate task-temporary output locations and report "first load timed out; one fresh load passed" when applicable. A successful retry is sampled success, not a fix or diagnosed root cause. If the second attempt fails, stop and report verification pending with bounded load-stage evidence. Do not retry cancellation, authorization, handoff, missing-Chrome, target-resolution, script, asset or assertion failures under this rule. `PLAYER_LOAD_FAILED` and `PLAYER_SDK_NOT_READY` are different errors. This guidance adds no automatic retry behavior to the verifier and requires no original scene or external-feed regression.
+
 ### Custom browser lifecycle verification
 
 The version-1 scenario contract has no browser visibility, freeze or resume action. Its SDK lifecycle counters are not browser document lifecycle counters. Use a bounded task-temporary custom harness only when the requested verification needs that trigger; do not add browser actions, network recovery algorithms or broad renderer QA as part of a retrospective guidance task.

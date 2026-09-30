@@ -96,7 +96,10 @@ process.stdout.write(JSON.stringify({
     status: nodeExpectedMajor === nodeActualMajor ? 'compatible' : 'version-mismatch',
     expectedMajor: nodeExpectedMajor,
     actualMajor: nodeActualMajor,
-    errorCode: nodeExpectedMajor === nodeActualMajor ? null : 'NODE_VERSION_MISMATCH'
+    errorCode: nodeExpectedMajor === nodeActualMajor ? null : 'NODE_VERSION_MISMATCH',
+    severity: nodeExpectedMajor === nodeActualMajor ? null : 'blocking',
+    requiredAction: nodeExpectedMajor === nodeActualMajor ? null :
+      'Select Node.js ' + nodeExpectedMajor + '.x for the skill CLI and rerun dependency-preflight before pairing or further work. Do not downgrade the skill.'
   },
   lockfile: {
     status: lockMatches ? 'matched' : 'mismatch',

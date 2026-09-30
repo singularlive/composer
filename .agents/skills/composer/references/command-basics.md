@@ -64,9 +64,13 @@ Composer holds automatic saves while AI work is active without changing the user
 
 Use `finish-work --save` only when the task is ready to complete. Its `composition.autosave.finish` command awaits storage and Firebase timestamp publication before releasing the work lease. With autosave disabled it performs no save and reports `save.manualSaveRequired: true` when dirty; ask the user to save manually before relying on persisted output. With autosave enabled, success reports `save.saved: true`, or false when no save was needed. Datastore notification is dispatched through the existing socket transport, not an acknowledged Control App reload. No command reloads the app automatically.
 
-Plain `finish-work` releases input for a question but retains the save hold until resumed or its last renewed ten-minute work deadline expires. Short command-socket disconnects do not end the hold. Cancellation, authorization loss, terminal editor disconnection or hold expiry restores normal saving; autosave may then publish partial work. Manual mode stays manual. A failed or timed-out finalization is not completion: inspect save status/readback, release work without `--save` when yielding, and do not blindly retry an uncertain save.
+Plain `finish-work` releases input for a question but retains the save hold until resumed or its last renewed ten-minute work deadline expires. Short command-socket disconnects do not end the hold. Cancellation, authorization loss, terminal editor disconnection or hold expiry restores normal saving; autosave may then publish partial work. Manual mode stays manual. A failed or timed-out finalization is not completion: follow [save recovery](#recover-an-uncertain-finalization), release work without `--save` when yielding, and do not blindly retry an uncertain save.
 
 Agent script writes remain durable through the separate script API, but their reload notification is deferred using a persisted pending-publication marker. The next successful Composer save publishes the timestamp and clears only the matching marker. Reopening Composer recovers pending publication; manual mode still requires user Save. This is batching, not rollback or an atomic model/script transaction. Already-visible app reload notices cannot be withdrawn. Persisted Player or managed-extract verification needs a completed save first; finalize a coherent version before that verification, and start a new work batch if it exposes further edits.
+
+### Recover an uncertain finalization
+
+Stop on cancellation; otherwise follow [finalization recovery](finalization-recovery.md) for structured failure receipts, lease release and explicit user Save. Never replay uncertain saves.
 
 ### Acknowledge answers promptly
 

@@ -2,6 +2,8 @@
 
 Capture only when pixels answer an unresolved question. Use model readback for structure and avoid screenshots as progress checks.
 
+Capture reads persisted content. Complete held edits with `finish-work --save` (or user Save in manual mode) before reacquiring work for capture; see the [save prerequisite](capture-basics.md#unified-capture-command). Capture success does not certify that an unsaved editor batch was included.
+
 | Task | Reference |
 | --- | --- |
 | Prerequisites, command contract, readiness, results, worker recovery, errors | [Capture basics and troubleshooting](capture-basics.md) |

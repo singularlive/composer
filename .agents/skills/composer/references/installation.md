@@ -16,6 +16,8 @@ Treat the installed skill directory itself as the payload root. It must contain 
 
 The bundled scripts require Node.js 22.x. The core `composer-agent.js` embeds its small JavaScript dependencies, and the complete Playwright Core package is shipped under `scripts/vendor/playwright-core`; normal use requires neither `npm ci` nor `node_modules`. `dependency-preflight.js` always validates the exact vendored Playwright version and reports `NODE_VERSION_MISMATCH` before pairing when another Node major is active. `--capture` additionally checks for system Chrome.
 
+`NODE_VERSION_MISMATCH` is blocking, not a warning: preflight returns `status: "failed"`, exit code 1, `node.severity: "blocking"` and `node.requiredAction`. Stop new pairing/authoring/capture until the skill CLI runs under Node 22.x and preflight passes. Select an existing Node 22 executable or ask the user to install/switch using their normal runtime manager; do not silently replace the machine's global Node or downgrade the skill. Core `ready` and resolved Playwright describe packaging, not support for Node 24 or another major. Commands happening to work do not override the failed gate. Rerun preflight after switching the Node major; no compatibility override flag is provided.
+
 When developing inside the Singular repository, use the in-place `.agents/skills/composer` payload. Do not install a second copy over it or infer an external installer command. Run its preflight directly:
 
 ```bash

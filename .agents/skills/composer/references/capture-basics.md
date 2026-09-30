@@ -10,6 +10,8 @@ Standalone is the unified CLI capture path. It uses a private headless Chrome wo
 
 ## Unified capture command
 
+**Save prerequisite:** standalone `capture` loads persisted content, not the editor's held unsaved batch. Before capturing a changed graphic, require successful `finish-work --save`, then `begin-work` for the capture. In manual-save mode, wait for the user's Save before beginning the capture batch. A successful capture/readiness result can still depict the previous saved scene, including a black frame for an empty saved starter; it does not prove that current editor changes were saved. Do not run capture on known held unsaved changes. There is no runtime dirty-state warning in this command; this prerequisite is an authoring gate, not new capture telemetry. After an uncertain finalization, follow [save recovery](command-basics.md#recover-an-uncertain-finalization) before claiming persisted verification. An already-saved, unchanged composition needs no extra save.
+
 ```bash
 node scripts/composer-agent.js capture \
   --target <root|active> \

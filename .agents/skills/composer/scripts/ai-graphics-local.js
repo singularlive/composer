@@ -77,6 +77,25 @@ function loadPlaywright() {
   }
 }
 
+function sanitizeRuntimeError(error) {
+  const category = ['ReferenceError', 'TypeError', 'SyntaxError', 'RangeError', 'Error'].includes(error && error.name)
+    ? error.name : 'Error';
+  const original = String(error && error.message || '');
+  let message = 'Runtime error; authored details omitted.';
+  if (category === 'ReferenceError' && / is not defined$/.test(original)) message = 'An identifier is not defined.';
+  else if (category === 'TypeError' && /^Cannot read properties of (undefined|null)/.test(original)) {
+    message = 'Cannot read properties of an absent value.';
+  } else if (category === 'TypeError' && / is not a function$/.test(original)) message = 'A value is not a function.';
+  else if (category === 'RangeError') message = 'A runtime value is outside the supported range.';
+  else if (category === 'SyntaxError') message = 'Runtime JavaScript syntax error.';
+  const lifecycleFailure = original.match(/\b(mount|update|seek|destroy) must be a function\b/);
+  if (lifecycleFailure) message = lifecycleFailure[1] + ' must be a function';
+  const position = String(error && error.stack || '').split('\n').slice(1)
+    .map(line => line.match(/:(\d{1,7}):(\d{1,7})\)?\s*$/)).find(Boolean);
+  const location = position ? { source: 'runtime-stack', line: Number(position[1]), column: Number(position[2]) } : null;
+  return { category: category, message: message, location: location };
+}
+
 async function preview(options, definition, values, validation) {
   const width = parseInteger(options, 'width');
   const height = parseInteger(options, 'height');
@@ -103,14 +122,18 @@ async function preview(options, definition, values, validation) {
   let failedRequests = 0;
   let failedResponses = 0;
   let pageErrors = 0;
+  let firstPageError = null;
   try {
     browser = await playwright.chromium.launch({ channel: 'chrome', headless: true, timeout: timeout * 1000 });
     const page = await browser.newPage({ viewport: { width: width, height: height }, deviceScaleFactor: 1 });
     page.setDefaultTimeout(timeout * 1000);
     page.on('console', function (message) {
-      if (message.type() === 'error' && consoleErrors.length < 20) consoleErrors.push(message.text().slice(0, 500));
+      if (message.type() === 'error' && consoleErrors.length < 20) consoleErrors.push('Runtime console error; authored details omitted.');
     });
-    page.on('pageerror', function () { pageErrors++; });
+    page.on('pageerror', function (error) {
+      pageErrors++;
+      if (!firstPageError) firstPageError = sanitizeRuntimeError(error);
+    });
     page.on('requestfailed', function () { failedRequests++; });
     page.on('response', function (response) { if (response.status() >= 400) failedResponses++; });
     await page.route('**/*', function (route) {
@@ -152,12 +175,16 @@ async function preview(options, definition, values, validation) {
       })),
       runtime: Object.assign({ executed: true, blockedRequests: blockedRequests,
         failedRequests: failedRequests, failedResponses: failedResponses, pageErrors: pageErrors,
+        firstPageError: firstPageError,
         asynchronousReadiness: 'unverified',
         dependencies: blockedRequests > 0 ? 'blocked' : failedRequests > 0 || failedResponses > 0 || runtime.failedImages > 0
           ? 'failed' : 'unverified'
       }, runtime)
     };
     if (failed) {
+      if (firstPageError) report.diagnostics.push(Object.assign({
+        severity: 'error', code: 'RUNTIME_PAGE_ERROR', path: 'runtime'
+      }, firstPageError));
       report.diagnostics.push({ severity: 'error', code: 'AI_GRAPHICS_PREVIEW_INCOMPLETE', path: 'runtime',
         message: 'Observed runtime or dependency failures; schema validity and a PNG do not establish rendering success.' });
       throw commandError('AI_GRAPHICS_PREVIEW_INCOMPLETE', 'AI Graphics preview has runtime or dependency failures', report);
@@ -165,7 +192,8 @@ async function preview(options, definition, values, validation) {
     return report;
   } catch (error) {
     if (error.code) throw error;
-    throw commandError('AI_GRAPHICS_PREVIEW_FAILED', error.message);
+    const detail = sanitizeRuntimeError(error);
+    throw commandError('AI_GRAPHICS_PREVIEW_FAILED', detail.category + ': ' + detail.message);
   } finally {
     if (browser) await browser.close();
   }

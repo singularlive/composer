@@ -1,0 +1,12 @@
+# Recover uncertain finalization
+
+Use this procedure after a failed `finish-work --save`; normal batching is described in [command basics](command-basics.md#batched-autosave).
+
+`finish-work --save` failures produce JSON on stdout with `status: "failed"`, `code`, `stage: "save"|"release"`, `workLease: "unknown"`, `workExpiresAt: null`, and `save.status`. Without a save receipt, `save.status` is `unknown`; an acknowledged save followed by uncertain release retains the receipt fields with `save.status: "acknowledged"`. `COMPOSER_FINALIZATION_UNCONFIRMED` covers timeout/connection uncertainty; cancellation and known authorization/save errors retain their codes. Errors exit nonzero, and stderr remains separate from JSON. No receipt means unknown, not unsaved, not still held, and not safe to replay.
+
+1. Stop on cancellation or revoked authorization under the existing rules. Otherwise use `check-connection --connection <name>` for authoritative current lease/readiness observation; it does not acquire work or establish save completion. Do not issue a new `begin-work` just to infer whether finalization released the old lease.
+2. If work is still active or release remains uncertain, use plain `finish-work --connection <name>` when yielding, then `check-connection` to confirm `workLease: "missing"`. If either fails, report unknown rather than retrying a save or claiming release.
+3. There is no dedicated save-status or full saved-model readback command. Editor `inspect`/`get` confirms the open model only. A fresh handoff to the script helper's `get-script` establishes only persisted script text, not model-save or timestamp publication. A newly loaded Player showing an intended change is evidence for that rendered content, not proof that every model field saved or all finalization stages completed.
+4. When the save receipt is missing, retain finalization as unconfirmed. Request the user's explicit Save and confirmation in Composer before relying on current saved content, without toggling autosave, reloading the editor or replaying `finish-work --save` blindly. After confirmed saving and only if authorized verification is still needed, reacquire work and use a fresh handoff/capture. Report the recovery evidence separately from the missing original receipt; managed Control App extract update remains a separate step.
+
+This is a recovery procedure, not a new save-status API or permission to continue after cancellation. Do not conclude that a timed-out save failed merely because no JSON success receipt arrived.
