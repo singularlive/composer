@@ -25,6 +25,14 @@ A template is **dynamic** when its composition exposes Control Nodes. The widget
 
 Dynamic templates may expose a Rectangle or other Gradient-backed fill as a `color` control. A direct RGBA field value is preserved; a structured gradient initializes the control from its current `solidColor`. Instance data may then supply a tinycolor2-compatible string or color object because the existing gradient input converts it to a solid gradient.
 
+## Output readiness
+
+Successful template navigation is not acknowledgement that the owning widget has published its Widget Node schema. Before linking outputs, inspect the current source and fields through [Widget Nodes](widget-nodes.md). Empty discovery may reflect wrong scope or incomplete native callback publication; it is not proof the widget lacks outputs.
+
+In the supplied native-clock case, output discovery was empty while the owning display variant was inactive; activating it and opening a fresh session made outputs available. This is reported task evidence, not a universal activation requirement or a diagnosed renderer defect. If this condition applies, record the current variant with `display-variants`, leave template mode via `open-composition --id root`, and use `activate-display-variant --name <owning-variant>` within authorized scope. Activation changes the persisted active presentation. Reopen the owning ordinary composition, reread the widget, and open its template through `open-widget-subcomposition` without `--create`. Rediscover fields and targets using the fresh token; do not replay old handles. Restore the prior variant after leaving template mode unless the user requested the new active presentation.
+
+Allow callback publication and make one bounded fresh discovery attempt after this correction; if still empty, stop dependent linking and report unresolved readiness. Do not loop activation/reopening, fabricate fields or infer a universal dependency. Cancellation stops recovery.
+
 ## Open safely
 
 Prefer resolving the template from its owning widget rather than retaining a raw composition ID:
@@ -46,6 +54,8 @@ The lifetime boundary covers every identity read from inside that template, not 
 The CLI returns the token at `identityScope.sessionToken` from `open-widget-subcomposition`, and at `activeComposition.identityScope.sessionToken` from full `inspect` (not `inspect --summary` or `--selection`). Every later command that reads or changes this template must pass `--template-session <token>`. Composer validates the opaque token against the active owner/template session before executing the command. A missing token returns `WIDGET_TEMPLATE_SESSION_REQUIRED`; a token retained across close, copy, reopen, or another template returns `WIDGET_TEMPLATE_SESSION_STALE`. Use token-free full `inspect` to recover the current token, and token-free `open-composition --id root` to leave safely. The token is not a substitute for rediscovering element and node identities.
 
 There is no non-session descendant/template-link inspector. Owner-side `get` or `widget-subcompositions` reads relationship/control summaries without opening an edit session; prefer that when sufficient. Opening only to inspect internals still invokes copy-on-exit, so it is not a read-only identity-preserving operation. Do not bypass session guards with raw model access.
+
+On `WIDGET_TEMPLATE_SESSION_STALE`, stop using the old token and every cached descendant/node handle. Full `inspect` can recover the active session; when re-entry is needed, leave through root and reopen from the freshly read owner tile/field. Rediscover targets and outputs before retrying an authorized operation. Never reuse a stale token or treat activation as extending its lifetime.
 
 Once open, ordinary active-composition commands apply: `inspect`, `get`, `apply`, `control-nodes`, and the other scoped composition operations. Read the Control Nodes before changing a dynamic template. Commands within the same uninterrupted edit session may use the active ID reported by `inspect`. Return to root with `open-composition --id root`, then immediately invalidate that ID and re-read the owner to obtain the rebuilt relationship.
 

@@ -69,6 +69,8 @@ An absent/inaccessible template or missing requested status/version returns `APP
 
 ### Using Integration Resources
 
+**Completion gate:** preserving a contract is not implementing it. Account for every mandatory requirement with its target, implementation status and verification evidence; required-field presence alone proves neither its consumer nor behavior. Track interface preservation separately from required behavior, marking missing or unverified behavior as pending. Never present a working subset as complete compatibility. For presentation extensions, cover required behavior in each applicable presentation through the shared sources while preserving the existing presentation. Keep optional and example-only content separate. Distinguish model preservation, script persistence, Player evidence and actual Control App testing.
+
 These resources explain the interface between a Control App template and the composition it drives. Visual correctness alone cannot establish integration: an app may address exact composition names, public Control Node IDs, types, payload shapes, or lifecycle states. A renamed control or a control moved to another composition can break that interface even when the graphic still renders correctly. `defaultAppID` declares the match; it neither validates nor creates the required interface.
 
 | Resource | How to use it |

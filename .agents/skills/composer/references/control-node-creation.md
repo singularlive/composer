@@ -89,6 +89,23 @@ Image, Audio, Video, Data, and JSON File values follow Composer's form limit of 
 
 `number` and `normalizednumber` have different value contracts. Use `number` when the operator-entered value is the value the destination should receive; `min` and `max` constrain its input UI but do not remap it. Use `normalizednumber` only for a normalized 0–100 input that must map onto a destination range. Its payload remains a percentage from 0 to 100, while a linked destination receives `low + (high - low) * payload / 100`, rounded to three decimals. For example, payload `20` with `low: 0` and `high: 80` delivers `16`, not `20`. If the operator should enter `20` and the graphic should consume `20`, use `number`.
 
+## Legacy Time Control batches
+
+`create-controls` selects configured mode for the whole batch if any entry includes `targets`, `metadata` or `container`, even when another entry uses legacy single-target fields. Configured mode excludes Time Control; `reuseExisting` does not change that restriction. For existing Time Control sources, use legacy single-target entries with none of those three fields anywhere in the batch:
+
+```json
+{
+  "controls": [
+    { "name": "Match Clock", "type": "timecontrol", "sourceCompositionId": "root", "reuseExisting": true, "tileId": "<first-clock-tile-id>", "propertyId": "<timecontrol-field-id>" },
+    { "name": "Match Clock", "type": "timecontrol", "sourceCompositionId": "root", "reuseExisting": true, "tileId": "<second-clock-tile-id>", "propertyId": "<timecontrol-field-id>" }
+  ]
+}
+```
+
+This is a form example, not a Soccer contract or a prescribed root scope. Use the inspected exact public ID and defining self/root/active-ancestor source; both targets must be in the active composition and declare exact `timecontrol` fields. The source must exist before batch validation. Reuse preserves its internal key, public ID, metadata and saved value; it never creates a missing source, resets the clock or duplicates it. A new Time Control may use legacy linked or standalone creation, but later entries cannot reuse a source first created in that same batch. Time Control is not the native `timer` type.
+
+Unsupported configured types fail before writes with the entry index/type and mode-selection explanation. After confirmed rejection, reformulate the complete manifest into a supported form and resubmit only when it still expresses the intended operation. Do not discard required metadata/container work or split the failed batch into sequential writes to bypass atomic validation. Verify source preservation and every new link; Player propagation and Control App delivery are separate evidence.
+
 ## Atomic configured controls
 
 For related ordinary value controls, prefer `create-controls --file <controls.json>` with optional per-entry `targets`, `metadata`, and `container`. One entry creates one source or explicitly reuses an existing exact public ID. Every entry, native link, metadata change and container append succeeds in one native undo batch or rolls back, including verification, response-size and cancellation failures.

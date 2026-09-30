@@ -2,6 +2,13 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.62 - Protocol 195
+
+- Separate required behavioral completion from app-template interface preservation, with per-requirement and applicable-presentation evidence rather than required-field counts.
+- Clarify whole-batch configured-mode selection and legacy Time Control reuse; identify unsupported configured entry indices/types without weakening atomic validation.
+- Treat reused widget readback as distinct from destination mutation schemas, with explicit fidelity limits for unsupported fields.
+- Qualify empty Widget Node discovery with native callback readiness and bounded reported inactive-variant recovery, preserving fresh-session and cancellation safeguards. No universal renderer dependency or live Control App verification is claimed.
+
 ## 1.7.61 - Protocol 194
 
 - Correct widget/group opacity methods to layout percentages, confirmed with production scripting accessors and CSS conversion in an isolated Metric Text/group fixture.

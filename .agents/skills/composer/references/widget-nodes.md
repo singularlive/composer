@@ -18,7 +18,7 @@ node scripts/composer-agent.js get --type tile --id <text-tile-id> --template-se
 
 Only the declared field `id` is the semantic Widget Node identity used by agent commands. A field's `keyId`, a target element ID, and a template composition ID are current-edit-session handles. Never cache them across closing, reopening, or revisiting a widget-owned template. A `keyId` difference after template copying is not by itself evidence of a broken connection: rediscover the current template, inspect its semantic source and target, and verify the rendered owner in the Player.
 
-An empty field list means that the chosen source has no declared Widget Nodes. Do not invent fields or substitute Control Nodes. After opening a freshly initialized template, allow its native callback to populate the schema, then re-inspect. If fields remain absent, report that the owning widget has not provided a node contract.
+An empty field list means no Widget Nodes are currently discovered in the selected source, not authoritative absence of an output contract. Check source scope and [template output readiness](widget-subcompositions.md#output-readiness) before concluding anything. Native callback publication may follow navigation; allow it to populate the schema and re-inspect. If fields remain absent after the bounded checks, report output discovery as unresolved. Do not invent fields, substitute Control Nodes or bypass session guards.
 
 For a target inside an ordinary child of the template, keep that child active and inspect the known ancestor explicitly:
 

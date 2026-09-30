@@ -2,6 +2,8 @@
 
 ## Primitives
 
+When reusing widget properties, source readback is not a mutation manifest. Select only fields accepted by the destination's live mutable schema: `primitives` for construction, fresh `get` for an existing instance. Returned data may include unsupported or derived fields. Do not replay those fields, guess replacements or weaken validation. Report any fidelity-relevant omission instead of claiming an exact copy; preserve linked-property write ownership.
+
 Video and embedded-page primitives additionally include `video-animation`, `video-background`, `video-clip`, `video-clip-with-audio`, and `web-page`; use their dedicated authoring guides from [widgets.md](widgets.md).
 
 Use [widgets.md](widgets.md) to find the matching widget authoring reference. This document owns shared schema discovery, color, layout, and declarative-specification rules; widget-specific behavior and examples belong in the linked guides. Runtime payload updates belong to the separate composition-script workflow.
