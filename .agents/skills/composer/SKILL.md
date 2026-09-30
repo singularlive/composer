@@ -55,7 +55,7 @@ For tasks requiring editor commands, run before `inspect` or mutation:
 node scripts/composer-agent.js begin-work --connection <conversation-connection-name>
 ```
 
-Continue only for active authorization, connected editor, ready commands, and active lease. `begin-work` releases on readiness failure. On `OPERATION_CANCELLED`, stop until a new instruction. Before yielding, waiting, or ending, run:
+Continue only for active authorization, connected editor, ready commands, and active lease. `begin-work` attempts release on readiness failure; check its acknowledged or unknown cleanup outcome in [command basics](references/command-basics.md). On `OPERATION_CANCELLED`, stop until a new instruction. Before yielding, waiting, or ending, run:
 
 ```bash
 node scripts/composer-agent.js finish-work --connection <conversation-connection-name>

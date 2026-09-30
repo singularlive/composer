@@ -24,6 +24,12 @@ New values use the current type contract. Color defaults/resets accept all JSON-
 
 Renaming `id` atomically migrates payload, local and cross-composition widget links, node references, and container membership. Changing `index` reorders the field and normalizes all indexes. Reinspect fields, payload, links, ordering, and unrelated metadata after the verified rollback-safe operation.
 
+### Labels, public IDs and JSON keys
+
+A display `title`, public `id`, and external JSON key are separate contracts. For label-only shortening, patch `title` only; preserve the public ID, immutable internal key, type, scope, values, defaults/resets, links and unrelated metadata. Inspect existing font and color IDs before choosing an external key, and compare both controls after the edit.
+
+For example, if a font's public ID is `Titles` and a color's existing public ID is `Titles Color`, the color may display `Titles` without changing either public ID. A script-consumed palette may explicitly map external key `Titles` to color ID `Titles Color`; it must not assign that value to the font ID `Titles`. Use inspected identities, not this illustrative spelling. Shortening the display label does not change the payload key. Native preset compatibility must be checked separately; see [preset mechanism choice](control-node-commands.md#choose-a-preset-mechanism).
+
 ### Legacy Selection reset values
 
 Legacy UNO Selections can retain `resetValue: "id1"` even though no option has that ID. Adding an option then fails with `INCOMPATIBLE_PROPERTY`, naming `resetValue` (or `defaultValue` when that is invalid). Inspect current value and metadata; include the explicit corrected reset in the same patch. Do not add a fake `id1` option or replace local IDs with a reference's IDs. For an inspected timer whose valid default is `clockDown`, the patch is:

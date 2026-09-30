@@ -24,8 +24,6 @@ function loadPlaywrightCore() {
   );
 }
 
-const { chromium } = loadPlaywrightCore();
-
 const defaultOutDir = path.resolve(process.cwd(), 'temp');
 
 // --- CLI args ---
@@ -74,8 +72,24 @@ if (!handoffPath) {
 }
 
 function readHandoff(filePath) {
-  const text = filePath === '-' ? fs.readFileSync(0, 'utf8') : fs.readFileSync(filePath, 'utf8');
-  const handoff = JSON.parse(text);
+  let text;
+  try {
+    text = filePath === '-' ? fs.readFileSync(0, 'utf8') : fs.readFileSync(filePath, 'utf8');
+  } catch (error) {
+    throw new Error('SCRIPT_HANDOFF_READ_FAILED: Unable to read script handoff. Pipe a fresh script-handoff --pipe directly to --handoff-file -.');
+  }
+  if (!text.trim()) {
+    throw new Error('SCRIPT_HANDOFF_EMPTY: script-handoff produced no output. Check its exit status and stderr, including --connection, before piping a fresh handoff.');
+  }
+  let handoff;
+  try {
+    handoff = JSON.parse(text);
+  } catch (error) {
+    throw new Error('SCRIPT_HANDOFF_INVALID_JSON: Script handoff is not valid JSON. Pipe only script-handoff stdout; keep stderr separate. Input omitted to protect credentials.');
+  }
+  if (handoff && handoff.kind === 'composer-agent-script-handoff-preview') {
+    throw new Error('SCRIPT_HANDOFF_PREVIEW: Received a redacted preview. Pipe a fresh script-handoff --pipe directly to this verifier; never print or save that stream.');
+  }
   if (
     !handoff ||
     handoff.version !== 1 ||
@@ -84,13 +98,19 @@ function readHandoff(filePath) {
     !handoff.compositionToken
   ) {
     throw new Error(
-      'Script handoff must have version 1, kind composer-agent-script-handoff, host, and compositionToken'
+      'SCRIPT_HANDOFF_INVALID: Script handoff must have version 1, kind composer-agent-script-handoff, host, and compositionToken'
     );
   }
   return handoff;
 }
 
-const handoff = readHandoff(handoffPath);
+let handoff;
+try {
+  handoff = readHandoff(handoffPath);
+} catch (error) {
+  console.error('[verify] Error:', error.message);
+  process.exit(1);
+}
 const token = handoff.compositionToken;
 const host = String(handoff.host).replace(/\/+$/, '');
 const compositionTargetOption = getArg(
@@ -464,6 +484,7 @@ function summarizeLogs(logs) {
 
 // --- Main ---
 async function main() {
+  const { chromium } = loadPlaywrightCore();
   fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
   fs.mkdirSync(path.dirname(reportPath), { recursive: true });
 

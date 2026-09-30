@@ -2,6 +2,19 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.60 - Protocol 193
+
+- Use elapsed-time animation frames for continuous scripted visual interpolation while retaining network and scheduling timers; require replacement and teardown cleanup.
+- Require delivered browser lifecycle triggers, explicit simulated-event labels and sanitized failure stages before claiming suspension/recovery coverage. No browser lifecycle scenario action or feed algorithm is added.
+- Reject empty, malformed, preview-only and unreadable verifier handoffs before loading Playwright, with bounded actionable diagnostics that omit input and parser stacks.
+- Report acknowledged or unknown automatic cleanup after `begin-work` readiness failure, clear stale lease expiry and retain the original readiness error. Emit a release reminder only when cleanup is acknowledged.
+
+## 1.7.59 - Protocol 192
+
+- Confirm flat container topology before planning and choose native presets versus script-consumed Selection controls before implementation, with explicit identity mapping, manual-override behavior and write authority.
+- Separate display labels from public IDs and external keys while preserving fonts, individual color editing and existing links.
+- Add semantic color and explicit UTF-8 script-readback examples, and distinguish model, script persistence, Player and actual Control App evidence. No new command, runtime behavior or product QA gate is introduced.
+
 ## 1.7.58 - Protocol 191
 
 - Hold Composer autosaves during AI work without changing the user's save setting. Add `finish-work --save` for awaited final saving; manual mode remains user-saved and ordinary work release remains a pause.

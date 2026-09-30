@@ -14,8 +14,8 @@ const { findSkillInstallations, getDuplicateInstallations, getInstallationScope 
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 191;
-const PACKAGE_VERSION = '1.7.58';
+const SKILL_VERSION = 193;
+const PACKAGE_VERSION = '1.7.60';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -437,8 +437,13 @@ function addWidgetTemplateIdentityScope(result, options) {
   return result;
 }
 
-function writeWorkLifecycleReminder(command, succeeded) {
+function writeWorkLifecycleReminder(command, succeeded, result) {
   if (!command || ['doctor', 'pair', 'pair-intent', 'check-connection', 'capture-worker', 'ai-graphics'].includes(command)) return;
+
+  if (command === 'begin-work' && !succeeded && result && result.workCleanup && result.workCleanup.acknowledged) {
+    console.error('COMPOSER_WORK_RELEASED: Automatic work release was acknowledged after readiness failure.');
+    return;
+  }
 
   if (command === 'finish-work' && succeeded) {
     console.error('COMPOSER_WORK_RELEASED: Composer input is unlocked.');
@@ -1196,10 +1201,19 @@ async function beginWork(options) {
   try {
     return await waitForComposerReady(options);
   } catch (error) {
+    const result = Object.assign({ status: 'readiness-failed' }, error.result, {
+      workLease: 'unknown',
+      workExpiresAt: null,
+      workCleanup: { status: 'unknown', acknowledged: false, code: 'WORK_RELEASE_UNCONFIRMED' }
+    });
+    error.result = result;
     try {
       await sendSessionMessage({ type: 'work_finish' }, 'work_finished');
+      result.workLease = 'missing';
+      result.workCleanup = { status: 'released', acknowledged: true };
+      error.message = 'Readiness check failed: ' + error.message + '; automatic work release acknowledged.';
     } catch (cleanupError) {
-      error.message += '; automatic work release also failed: ' + cleanupError.message;
+      error.message = 'Readiness check failed: ' + error.message + '; automatic work release was not acknowledged; final lease disposition is unknown (WORK_RELEASE_UNCONFIRMED).';
     }
     throw error;
   }
@@ -3223,6 +3237,6 @@ run().then(function () {
   if (err.result) console.log(JSON.stringify(err.result, null, 2));
   const prefix = err.code ? `${err.code}: ` : '';
   console.error(prefix + err.message);
-  writeWorkLifecycleReminder(invokedCommand, false);
+  writeWorkLifecycleReminder(invokedCommand, false, err.result);
   process.exitCode = 1;
 });

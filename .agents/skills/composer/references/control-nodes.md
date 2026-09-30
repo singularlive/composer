@@ -16,6 +16,8 @@ Targets resolve in the active composition. Unless the user requests an ancestor-
 
 Every agent-authored public control belongs in an ordinary semantic Control Node container organized around the operator's task. Default to Large (`width: "double"`); use Small (`width: ""`) only for a concrete density reason. Verify ordered membership with `control-nodes` before handoff.
 
+Before promising a container layout, confirm container topology: ordinary Control Node containers are flat within their owning composition, not nested like graphic groups or sub-compositions. A root Color Palette container belongs alongside Styles, never inside it; leave existing font controls in Styles. Before integrating external palettes, choose the [preset mechanism](control-node-commands.md#choose-a-preset-mechanism) and state its key mapping and write authority.
+
 ## Inspect first
 
 Before copying a pasted Control Node model from another composition, establish whether it belongs to root or a named child. Theme/layout groups and preset URLs are scope clues, not proof; ask when scope is ambiguous. External integration addressing takes precedence over visual proximity: prefer root for integration-addressed inputs unless the documented contract specifies another scope, and confirm that address before creation. Do not infer scope from a phrase such as "overlay content". Keep existing Selection IDs used by local scripts even when the reference uses different IDs. See [root input with descendant display](recipes/root-external-input.md) for the user-confirmed OCR example and its evidence limits.

@@ -88,6 +88,21 @@ Each Metric Font create/link invocation targets one explicitly named `metricfont
 
 The native `gradient` Control Node type is intentionally unsupported by these commands. Author structured gradients directly on compatible widget fields or use complete widget-runtime gradient objects inside composition scripts; do not expose their implementation-specific payload through an external control surface. A supported `color` control may target a Gradient field only when the public input is intentionally one solid color.
 
+### Choose a preset mechanism
+
+Decide before creating a Selection or writing a script. An external JSON URL alone does not select the mechanism. State the chosen mechanism, owning composition/container, external-key-to-public-ID mapping, write authority, and required operator behavior.
+
+| Mechanism | Choose when | Contract and evidence limits |
+| --- | --- | --- |
+| Native container presets through `configure-control-container` | The goal is applying presets to the container's operator-editable controls; evaluate this path first. | Use `usePreset`, `presetSourceUrl`, and optional `usePresetFilter`/`usePresetReload`. Confirm the native preset JSON contract and existing public-ID compatibility before configuring it. Do not assume Selection JSON or arbitrary key remapping is supported. Metadata readback does not prove Control App operation, saved applied values, or source refresh. |
+| URL-backed Selection consumed by a composition script | A deliberate runtime consumer needs custom interpretation or explicit key mapping. | Selection options and script mapping are separate from native container presets. Document whether the script writes composition payload or unlinked widget properties. Output-iframe `comp.setPayload()` writes do not update Control App UI; private Player success does not prove picker synchronization or saved color values. |
+
+Keep [display labels, public IDs and JSON keys](control-node-editing.md#labels-public-ids-and-json-keys) separate. If an external key matches a font's public ID rather than the intended color's ID, preserve both controls and map explicitly only through a mechanism that supports it. Do not rename unrelated IDs or rewrite a shared external file as a compatibility workaround.
+
+Preserve individual color editing and existing links. A script writing a Color Control Node can be a justified runtime-consumer exception; it must not also write that control's linked widget properties. Explain why the exception is needed and follow the [output-iframe write limitation](composition-scripting/singular-scripting-doc.md#reading-and-writing-payload). Specify when presets apply or reapply and when they may replace manual overrides; do not continuously reapply a palette on unrelated payload events if manual editing must remain effective. Neither a Selection reload option nor a fetch on initialization proves refresh after an external-file edit.
+
+Use [evidence-specific completion](composition-scripting/debugging-and-verification.md#evidence-specific-completion) to distinguish model, script persistence, same-instance Player behavior, captured appearance and actual Control App operation. Leave picker synchronization, saved runtime-applied colors and external-source refresh pending unless separately exercised. No live composition or external JSON replay is required for retrospective skill maintenance.
+
 ### Table Control Nodes
 
 Table Control Nodes are a compound Control App input, distinct from the Table widget and `update-table`. Create one from a semantic specification:

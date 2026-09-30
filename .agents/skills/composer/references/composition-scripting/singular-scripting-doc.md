@@ -164,6 +164,14 @@ The `init` function here receives the `comp` (composition object) and `context` 
 ```
 
 
+### Continuous visual interpolation
+
+For continuous scripted visual interpolation, always use timestamp-based `requestAnimationFrame`, not a fixed `setInterval` or recursive `setTimeout` animation tick. Compute progress from elapsed time, for example `Math.min(1, (timestamp - startTimestamp) / durationMs)` for a positive duration, then interpolate from the captured starting value to the target. Use the animation callback's monotonic timestamp consistently; do not count frames, assume a refresh rate or mix it with epoch timestamps. Apply the exact endpoint and stop scheduling when complete. This does not replace native Timeline/Update animations or permit script writes to their owned properties or directly linked widget fields.
+
+Keep one active frame chain per animated destination. Before replacement, cancel the outstanding handle with `cancelAnimationFrame` and invalidate the old generation; start from the currently displayed value when continuity is required. In `close()`, cancel frames, invalidate queued callbacks, remove owned listeners and release widget references. Check generation/closed state before writing and again before rescheduling so a stale callback cannot resurrect a replaced or destroyed animation.
+
+Network heartbeats, retry delays, polling, slide scheduling and discrete clock text updates remain timer-driven; do not move them onto animation frames. Browsers may pause `requestAnimationFrame` in background documents. Define whether elapsed time should catch up, pause or restart on return; do not accumulate missed ticks or infer that an animation change fixes feed recovery. Verify background recovery through the [lifecycle evidence contract](debugging-and-verification.md#custom-browser-lifecycle-verification), separately from animation smoothness. This guidance changes no feed algorithm, network policy or write authority.
+
 ## 2. Objects and Methods Reference
 
 ### 2.1 The Composition Object (`comp`)
@@ -210,6 +218,8 @@ const payload = comp.getPayload2();
 const title = comp.findWidget("Derived Title")[0];
 title.setPayload({ text: String(payload.Title || "") });
 ```
+
+#### Reading and writing payload
 
 The destination must be unlinked when the script writes its widget properties directly. Prefer native links for exact one-to-one inputs. By default, send script-fetched or derived data directly to widget properties rather than Control Nodes. `comp.setPayload()` remains available for justified exceptions with a deliberate runtime consumer and ownership contract; explain the reason and verify the intended host behavior. Output iframe writes do not propagate back to the Control App UI, so they cannot be relied on to publish operator-facing data or status. External hosts may set operator inputs through the Player SDK. The Table example (section 4.7) uses direct widget writes, not a backing Table Control Node. Native Timer action commands remain a separate runtime action contract, not a feedback mechanism for the Control App.
 

@@ -63,14 +63,52 @@ node scripts/composer-agent.js script-handoff --pipe --compact |
 
 Prefer a version-1 `--scenario-file` for supported payload, message, state, lifecycle, DOM, bounds, and checkpoint behavior. Create a separate custom harness in the task-temporary directory only when the required external trigger or assertion is outside that bounded contract. Keep the bundled verifier untouched.
 
+The verifier rejects empty/whitespace handoff input with `SCRIPT_HANDOFF_EMPTY` before loading Playwright or launching a browser. Check the producer's exit status, stderr, connection and readiness; never diagnose this as a Player failure or reuse a cached handoff. Malformed JSON reports `SCRIPT_HANDOFF_INVALID_JSON` without parser excerpts; `SCRIPT_HANDOFF_PREVIEW`, `SCRIPT_HANDOFF_INVALID` and `SCRIPT_HANDOFF_READ_FAILED` distinguish preview-only, invalid-contract and unreadable input. Keep stderr separate from credential-only stdout and use a fresh direct pipe after resolving the producer failure. These preflight failures exit nonzero with one sanitized diagnostic, not a runtime report or stack trace.
+
+### Custom browser lifecycle verification
+
+The version-1 scenario contract has no browser visibility, freeze or resume action. Its SDK lifecycle counters are not browser document lifecycle counters. Use a bounded task-temporary custom harness only when the requested verification needs that trigger; do not add browser actions, network recovery algorithms or broad renderer QA as part of a retrospective guidance task.
+
+1. Establish the intended Player document/frame and a ready baseline before triggering anything. Record document continuity without raw URLs or identifiers; a replacement document is not same-instance recovery.
+2. Register observers before dispatch and snapshot baseline counters. Define the exact expected browser events/state transitions for the requested scenario, their order and a bounded observation deadline. Successful Chrome lifecycle-command dispatch proves transport acceptance only, not suspension or event delivery to the Player document.
+3. Require positive delivered-event deltas and the matching document state before advancing to recovery assertions. Zero delivered lifecycle events cannot establish successful suspension coverage. A hidden state alone does not prove a freeze; hidden, frozen, resumed and discarded/reloaded are different scenarios. Use an appropriate browser-state observation for the claimed scenario, not only an event name.
+4. Label manually dispatched visibility/lifecycle events as simulated even with a real Player and feed. Synthetic events do not establish real browser suspension, throttling or reproduction of the user's background-tab failure. Do not set a report to real suspension merely because a browser command returned success.
+5. Verify recovery stages separately: recovery path entry, transport/subscription establishment, fresh data receipt and rendered recovery. Another subscription alone is not fresh data, a lifecycle event is not LIVE output, and a readable capture is not proof of the initiating browser transition. Use bounded counters and target-scoped state/visual evidence, not raw market payloads.
+6. Retain the failing stage and category on every failure, including setup and cleanup, then remove owned observers/timers and close the private harness. Preserve a primary failure if cleanup also fails. Report deterministic fixtures, simulated-event Player checks, real lifecycle coverage and exact-symptom reproduction separately; unverified triggers remain unverified even when later output recovers.
+
+Use fixed allowlists for stages (`setup`, `trigger-dispatch`, `trigger-delivery`, `recovery-entry`, `transport`, `fresh-data`, `rendered-state`, `cleanup`) and categories (`not-observed`, `timeout`, `transport-failed`, `assertion-failed`, `cleanup-failed`, `unknown`). Map caught errors to those categories locally; unknown errors stay `unknown`, never their raw message, stack or browser response. Serialize only those fields, a declared trigger mode, booleans and bounded nonnegative counter deltas. Do not log credentials, handoffs, raw URLs, payloads, script text or document identifiers. Keep producer stderr visible and separate from handoff stdout.
+
+Illustrative sanitized failure record, not a new bundled report schema or scenario action:
+
+```json
+{
+  "status": "failed",
+  "stage": "trigger-delivery",
+  "category": "not-observed",
+  "triggerMode": "browser-lifecycle",
+  "dispatchAcknowledged": true,
+  "deliveredEventDelta": 0,
+  "suspensionCoverage": "unverified"
+}
+```
+
+For a synthetic test, use `triggerMode: "simulated-events"` and retain `suspensionCoverage: "unverified"` even if every recovery assertion passes. Example completion: "One running Player recovered after simulated hidden/visible events, opened a new subscription, received fresh snapshots and returned to LIVE. Actual browser suspension and the original background-tab failure were not reproduced." Use that wording only for evidence actually observed; no original overlay or external feed is required for skill contract checks.
+
 ### Evidence-specific completion
 
 Never say only "verified both settings". Identify each evidence layer and its limits:
 
 - **Model verification:** inspected source type/value/metadata, container membership and every resolved target link; this is not rendered or interactive proof.
+- **Script persistence:** dedicated helper readback matched submitted script text with explicit UTF-8 decoding. This proves script text persistence, not persistence of colors applied later by runtime code, successful initialization or Control App synchronization.
 - **Captured appearance:** named values and images, including whether each capture loaded a separate Player. Separate 100/0 captures prove sampled endpoint appearances only, not intermediate values or propagation after initialization.
 - **Live payload propagation:** one initialized Player and the same running composition receive subsequent source changes without reload. Check every intended target at 100, an intermediate value such as 40, and 0, then restore the initial value. A payload event alone or a whole-frame difference cannot prove every target updated correctly. See the [opacity scenario](../recipes/opacity-slider.md#persistent-player-scenario).
 - **Control App testing:** separately identify the app/extract, slider presentation and operation, and actual output delivery. Player `setPayload` is not dragging the Control App slider. Report this layer as untested unless it was exercised.
+
+For background recovery, follow [custom lifecycle verification](#custom-browser-lifecycle-verification): separate simulated trigger delivery, transport, fresh data and rendered recovery from real browser suspension. A successful recovery test with an unverified initiating trigger does not reproduce the user's reported failure.
+
+For palettes, name the [selected preset mechanism](../control-node-commands.md#choose-a-preset-mechanism), key mapping and write authority. Cross-check the [output-iframe `comp.setPayload()` limitation](singular-scripting-doc.md#reading-and-writing-payload): private Player palette switching and a manual override do not prove Control App picker synchronization, saved runtime-applied colors, override survival across later events, or refresh after editing the external palette file. Mark each unexercised behavior as unverified, not a product defect. Identify captures taken during ordinary content transitions rather than presenting them as settled-state comparisons.
+
+Example completion wording for supplied retrospective evidence, not a new verification claim: "Model checks confirmed container membership, labels, preserved control identities and values, and Selection metadata. UTF-8 script readback matched. Private Player checks passed five palettes across fourteen color roles, repeated selection changes, font preservation and a manual override. Captures sampled rendered presets; some included content transitions. Actual Control App operation, picker synchronization, persistence of runtime-applied colors and external-file refresh remain unverified." Report only the evidence actually available; this example is not a required graphic QA matrix.
 
 Report asset failures independently, including their count and whether attribution is established. Do not attribute pre-existing or unexplained failed images to a control edit. Isolated production-method and simulated SDK fixtures must be labeled as such, not called full Player verification. Restore saved values/scope and release any acquired lease; scenario-local restoration is not saved-model restoration.
 
@@ -95,6 +133,44 @@ This is a verification procedure, not a new scenario action or automatic Control
 Trace preset input -> Color control value -> linked gradient value -> rendered fill. At each available boundary, record a bounded, sanitized value/type and source ownership. Valid JSON, accepted Color inputs, gradient conversion and valid CSS output are distinct contracts. Consult the loaded widget reference: support for tinycolor2-parseable strings means bare hex cannot simply be declared invalid for the whole pipeline.
 
 Separate fresh initialization from same-instance updates. In an authorized disposable fixture, compare equivalent bare hex, prefixed hex and RGB inputs on fresh load, live update, preset reapplication and save/reload. Start each update from a contrasting color so a retained prior fill cannot masquerade as successful parsing. Verify the applied fill as well as model readback. Locate the first divergence before proposing normalization; missing `#` and a white fallback are hypotheses, not diagnoses from screenshots. Do not rewrite shared presets to conceal a possible rendering defect. Report actual Control App palette switching separately from private Player tests, and preserve an unresolved original-overlay comparison as unresolved.
+
+### Semantic color comparison
+
+Compare valid colors semantically, not hex strings against Player RGBA objects. This focused harness example takes an explicitly resolved `tinycolor2` parser as its third argument; the bundled CLI's internal dependency is not a public import. Use an existing harness dependency, not a new runtime dependency or a composition script. This is comparison-only normalization: do not rewrite saved values or external palettes. Renderer gradient wrappers need their own documented solid-color extraction; they are not ordinary Color control inputs.
+
+```javascript
+function sameColor(actual, expected, tinycolor) {
+  const actualColor = tinycolor(actual);
+  const expectedColor = tinycolor(expected);
+  if (!actualColor.isValid() || !expectedColor.isValid()) return false;
+  const actualRgba = actualColor.toRgb();
+  const expectedRgba = expectedColor.toRgb();
+  return actualRgba.r === expectedRgba.r &&
+    actualRgba.g === expectedRgba.g &&
+    actualRgba.b === expectedRgba.b &&
+    Math.abs(actualRgba.a - expectedRgba.a) <= 1 / 255 + Number.EPSILON;
+}
+```
+
+For example, `sameColor('#336699', {r: 51, g: 102, b: 153, a: 1}, tinycolor)` must pass. Bare hex and equivalent RGBA strings may also pass when valid for the inspected boundary. Alpha tolerance is one 8-bit step to accommodate hex alpha quantization; RGB channels must match. Require contrasting RGB, materially different alpha, and invalid-input negative controls to fail. A semantic color match proves only that sampled value, not rendered pixels, saved representation, every palette role or Control App delivery.
+
+### Explicit UTF-8 script readback
+
+After a fresh credential-only handoff pipe to the bundled helper's `get-script` action, parse its successful JSON result and pass the returned script string to this local check. Keep helper output decoding explicitly UTF-8 in the process runner too; keep producer stderr separate and check both exit statuses. Never save or log the handoff, credentials, script text or mismatch contents. The source file may be a credential-free task-temporary script file.
+
+```javascript
+const fs = require('node:fs');
+
+function assertUtf8ScriptReadback(sourcePath, persistedScript) {
+  const submittedScript = fs.readFileSync(sourcePath, 'utf8');
+  if (typeof persistedScript !== 'string' || submittedScript !== persistedScript) {
+    throw new Error('UTF-8 script readback mismatch');
+  }
+  return true;
+}
+```
+
+Compare the decoded script string, not the JSON envelope or its escaped spelling. Do not trim, normalize punctuation or silently normalize line endings. A Python harness must likewise use `Path(source_path).read_text(encoding="utf-8")` and explicit UTF-8 subprocess decoding; account for its newline translation if exact line endings matter. Include curly quotes, an en dash and accented text in a local round-trip fixture; an altered character or wrongly decoded readback must fail. Investigate local decoding before alleging server corruption. This check establishes script persistence only and does not modify the composition or external JSON.
 
 ### Countdown verification
 
