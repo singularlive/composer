@@ -28,7 +28,7 @@ Recipe algorithms and acceptance scenarios apply only to the requested graphic. 
 | Task | Required reference |
 | --- | --- |
 | Install, upgrade, or verify the skill installation | [installation.md](references/installation.md) before changing any installed file |
-| Pairing, global flags, structured files, isolated edits, failure recovery | [command-basics.md](references/command-basics.md) |
+| Pairing, files, and recovery | [command-basics.md](references/command-basics.md), [resuming-work.md](references/resuming-work.md) |
 | Graphic creation, design, or reference matching | [authoring-quality.md](references/authoring-quality.md) |
 | Isolated property edit | "Isolated property edits" in [command-basics.md](references/command-basics.md), then the matching widget guide |
 | Elements, layout, fonts, primitives, or declarative graphics | [element-commands.md](references/element-commands.md), [graphics.md](references/graphics.md), or [auxiliary-commands.md](references/auxiliary-commands.md) |
@@ -73,11 +73,11 @@ For a template-matched composition, the composition contract is inviolable, even
 
 For Control App-driven or template-compatible authoring, follow the [Integration Resources completion gate](references/composition-commands.md#using-integration-resources) before choosing structure, public controls, or scripts. Track required behavior separately from interface preservation. During structural authoring, discover the root match and preserve its contract for externally addressed content. Unrelated visual edits need no resource fetch.
 
-When neither the user nor the existing root match specifies an app template, use **UNO Essentials (ID `518`)** as the authoring default and read its Integration Resources with `--id 518`. Explicit user choices and existing matches take precedence; do not replace an unresolved existing match with the default.
+Before building a new composition, decide which app template to use. If uncertain, fetch the complete available app-template list and let the user decide. Read its contract and assign the template to the composition with `set-app-template-match`. Follow the [completion workflow](references/composition-commands.md#using-integration-resources). Do not silently default to UNO Essentials.
 
 Composer is the source of truth:
 
-1. Run `inspect`, confirm `activeComposition.stack`, and read targets through the narrowest applicable inspector.
+1. Run `inspect` and read targets narrowly; chat is not current state. See [resume safeguards](references/resuming-work.md).
 2. Read required live schemas and ownership through the routed reference; never infer mutable contracts from memory. For matched compositions, complete the contract-preservation check before every structural or contract-dependent mutation, including isolated node-ID edits, deletions, composition renames, and script changes. Reuse the current task's versioned contract only while its match/status/version remains current.
 3. Before the first high-impact mutation in a task, recommend a revision through the AI chat question UI and wait for the user's choice, except for a verified empty starter scene. A default group and empty default sub-composition with no authored content or Control Nodes do not need a backup prompt. Read [revision approval](references/revisions.md#revision-approval-before-mutation) for the scene-wide empty-starter check, other exclusions, and consent procedure before proceeding.
 4. Make one coherent, bounded change through the highest-level supported operation.

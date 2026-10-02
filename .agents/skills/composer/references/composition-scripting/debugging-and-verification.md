@@ -2,6 +2,12 @@
 
 This document covers debugging techniques and Player verification for the paired composition-script phase. The entry workflow is [../composition-scripts.md](../composition-scripts.md).
 
+## Assert the requested behavior
+
+For each named mode or edge state, state the expected payload and visible output before running the Player scenario, and assert the positive result for that mode. For example, a "Both" schedule mode must show the expected full schedule, not merely hide a "Home Schedule" heading. Test the distinct Home, Road and no-game states against their own expected outputs when claiming those behaviors. Capture checkpoints and absence assertions can supplement, not replace, positive content/state assertions; label sampled or untested modes as such.
+
+Keep exact model-preservation checks separate from runtime color checks. Compare persisted Control Node values and metadata against source readback exactly (including representation), so an unintended rewrite is detected. For a Player/native delivery color, validate both colors and compare parsed RGBA channels including alpha (for example with the runtime's tinycolor utility); `#fff8ed` and `rgba(255, 248, 237, 1)` are equivalent at runtime but are **not** identical stored values. Do not stringify runtime colors to decide equality or silently treat invalid colors as equal. Assert badge visibility independently from a glass-effect toggle if those are separate behaviors.
+
 ---
 
 ## Debugging ladder
@@ -105,10 +111,13 @@ For a synthetic test, use `triggerMode: "simulated-events"` and retain `suspensi
 Never say only "verified both settings". Identify each evidence layer and its limits:
 
 - **Model verification:** inspected source type/value/metadata, container membership and every resolved target link; this is not rendered or interactive proof.
+- **Composition persistence:** identify the acknowledged final save separately from model readback. A manual-save requirement or uncertain save remains pending under the [finalization workflow](../finalization-recovery.md); script persistence is not a composition-save acknowledgement.
 - **Script persistence:** dedicated helper readback matched submitted script text with explicit UTF-8 decoding. This proves script text persistence, not persistence of colors applied later by runtime code, successful initialization or Control App synchronization.
 - **Captured appearance:** named values and images, including whether each capture loaded a separate Player. Separate 100/0 captures prove sampled endpoint appearances only, not intermediate values or propagation after initialization.
 - **Live payload propagation:** one initialized Player and the same running composition receive subsequent source changes without reload. Check every intended target at 100, an intermediate value such as 40, and 0, then restore the initial value. A payload event alone or a whole-frame difference cannot prove every target updated correctly. See the [opacity scenario](../recipes/opacity-slider.md#persistent-player-scenario).
 - **Control App testing:** separately identify the app/extract, slider presentation and operation, and actual output delivery. Player `setPayload` is not dragging the Control App slider. Report this layer as untested unless it was exercised.
+
+Player evidence establishes behavior only for the scenarios actually exercised. Passing scripted assertions does not override contradictory visual evidence: if captures show missing or misplaced content, report those observations and leave visual correctness unresolved without inferring a renderer cause. A stored clock Update setting of `active: false`, even after saving and reopening, does not prove that reported flicker was eliminated; that requires post-change visual evidence. Keep model, persistence, Player, visual and actual Control App evidence separate.
 
 For background recovery, follow [custom lifecycle verification](#custom-browser-lifecycle-verification): separate simulated trigger delivery, transport, fresh data and rendered recovery from real browser suspension. A successful recovery test with an unverified initiating trigger does not reproduce the user's reported failure.
 
@@ -544,4 +553,3 @@ player.loadComposition(token, function(obj) {
 ```
 
 **Important**: There is no REST endpoint at `apiv1/compositions/{token}/...` for updating payload. The separate `apiv2/controlapps/{token}/control` API exists in Singular but addresses control apps, not composition payloads — do not conflate them.
-

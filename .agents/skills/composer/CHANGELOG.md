@@ -2,6 +2,23 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.65 - Protocol 198
+
+- On resumed work, inspect the live composition instead of treating chat history as its current state; preserve unrelated changes and ask before a conflicting edit rather than assuming its author or overwriting it.
+
+## 1.7.64 - Protocol 197
+
+- Route unsupported configured Selection batches to the supported multi-control legacy batch and staged metadata, container, script, and deletion workflow without weakening atomic rollback or uncertainty gates.
+- Distinguish compact widget `get` from `get-many` inspector shapes, exact stored-value preservation from semantic runtime color equality, and positive mode assertions from absence-only checks.
+- Preserve an earlier acknowledged save as evidence when a later disconnected finalization leaves its own save and lease disposition unknown; bound connection and release checks.
+
+## 1.7.63 - Protocol 196
+
+- Require an app-template decision for new compositions, full-catalog user choice when uncertain, and assignment of the decided template instead of an unconditional UNO Essentials default.
+- Complete every mandatory contract interface and behavior despite incomplete design references; verify the final declared match and save separately without authorizing Control App instance creation or replacing protecting matches.
+- Choose content-update motion selectively, disabling frequently refreshed clock-digit Update animation by default while preserving clock-display entrance/exit motion.
+- Retain contradictory captures and unverified flicker in evidence-specific completion reports. These guidance changes do not establish renderer fixes or actual Control App compatibility.
+
 ## 1.7.62 - Protocol 195
 
 - Separate required behavioral completion from app-template interface preservation, with per-requirement and applicable-presentation evidence rather than required-field counts.

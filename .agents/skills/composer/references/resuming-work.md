@@ -1,0 +1,8 @@
+# Resuming Composer work
+
+Use this workflow whenever continuing after a pause, disconnect, reconnect, or user editing in Composer.
+
+1. Follow the normal authorization, readiness, work-lease, and answer-acknowledgement rules in [CLI basics](command-basics.md). Freshly run `inspect`, confirm the active composition scope, and read the relevant targets and their values, links, ownership, and structure through the narrowest authoritative inspector before planning mutations. Chat history and earlier AI output describe intent and prior observations, not the current composition.
+2. Compare the live state only with reliable prior readback for the specific targets and properties relevant to the requested next change. Do not infer who made a difference or claim a change detector found one without a reliable baseline. Do not reconstruct or compare the whole scene from memory.
+3. Preserve differences unrelated to the remaining request and continue without asking merely because the scene differs elsewhere. If the proposed change would overwrite, rename, remove, or substantially alter relevant live content that differs from reliable prior readback, do not mutate that conflicting scope. State the exact current state and intended change, explain that the difference's author is unknown, and ask whether to preserve it and adapt the remaining work, apply the requested change to that target, or cancel. Do not ask only a vague "Did you change anything?" and do not treat the original prompt as authorization to undo later edits.
+4. After the user resolves the conflict, acknowledge the answer promptly, then recheck readiness and inspect the affected scope before acting. An answer does not replace the normal contract, revision, cancellation, or verification gates.
