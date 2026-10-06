@@ -22,12 +22,36 @@ node scripts/composer-agent.js ai-graphics validate \
 node scripts/composer-agent.js ai-graphics preview \
 	--file <definition.json> \
 	[--values <sample-values.json>] \
+	[--updates <updates.json>] \
 	--width <pixels> --height <pixels> \
 	[--timeline <In|Out>] [--progress <0..1>] \
 	--output <preview.png>
 ```
 
-These commands are local and require neither pairing nor a work lease. Validation reuses the production definition parser and adds install-size, JavaScript-syntax, and sample-value diagnostics without executing lifecycle code. Preview invokes the production DOM/lifecycle host, runtime context, and font service in Chrome. It samples the isolated widget box and lifecycle position, not composition/group placement, parent transforms or clipping, z-order, composition scripts, Control Node delivery, display variants, neighboring widgets, or linked composition timelines. Always perform final Player verification after installation.
+These commands are local and require neither pairing nor a work lease; both reject `--connection`, so omit it. Validation reuses the production definition parser and adds install-size, JavaScript-syntax, and sample-value diagnostics without executing lifecycle code. Preview invokes the production DOM/lifecycle host, runtime context, and font service in Chrome. It samples the isolated widget box and lifecycle position, not composition/group placement, parent transforms or clipping, z-order, composition scripts, Control Node delivery, display variants, neighboring widgets, or linked composition timelines. Always perform final Player verification after installation.
+
+### Update sequences
+
+Use `preview --updates <file>` to exercise generated-field changes on one mounted host after the initial `--timeline`/`--progress` seek:
+
+```json
+{
+  "version": 1,
+  "steps": [
+    {"at": 100, "values": {"enabled": false}},
+    {"at": 150, "capture": "mid-toggle"},
+    {"at": 500, "values": {"size": 0}, "capture": "zero"},
+    {"at": 700, "values": {"size": 100}},
+    {"at": 900, "capture": "restored"}
+  ]
+}
+```
+
+Replace field IDs with declared fields. `at` is an integer millisecond offset from the mounted, initially seeked state, in nondecreasing order. At each step the controlled JavaScript clock advances with due callbacks, values merge into the current payload through production `update()`, then the optional capture occurs. Equal-time steps run in file order. No extra seek or mount occurs on updates. The clock controls Date, performance, timers and animation frames, not CSS/Web Animations, network completion or randomness; repeatability requires authored work using that clock and deterministic inputs. Finite In/Out remains at the initial seek position.
+
+The file is at most 256 KiB with 1-60 steps over at most 10,000 ms. Each step needs `values`, `capture`, or both. Values must match declared fields and existing sample-value validation; unknown fields and definition replacement are rejected. Up to 10 case-insensitively unique capture names use 1-64 letters/digits/hyphens, starting with a letter/digit. Captures are siblings of `--output`, named `<output-stem>-<capture>.png`; `--output` holds the final frame. The JSON `sequence` reports clock, requested duration, step count and captures with name, time, path, dimensions and bytes. Output limits are 8 MiB per PNG and 32 MiB total. `--timeout` (default 30, maximum 120 seconds) bounds the entire preview, including loading and capture, independently of simulated time. Invalid sequences fail before launching Chrome.
+
+This verifies isolated update transitions and zero/restored field values, not actual tile resizing, Player callback ordering, Control Node propagation or Control App behavior. Diagnostic captures can remain after a failure; clean up their reported task-owned paths.
 
 ### Preview evidence contract
 
@@ -35,6 +59,7 @@ These commands are local and require neither pairing nor a work lease. Validatio
 - `preview.status: "captured"` means a PNG was obtained without observed runtime/dependency failures. `preview.accepted: false` requires visual acceptance; a blank canvas can still be captured.
 - Observed blocked requests, failed requests/responses/images, console errors or page errors produce `preview.status: "failed"`, an `AI_GRAPHICS_PREVIEW_INCOMPLETE` diagnostic and a nonzero exit. The diagnostic PNG and `valid: true` may remain. Do not interpret either as rendering success.
 - `runtime.firstPageError` is null or the first observed page error's allowlisted category, fixed sanitized message and optional numeric `location: {source: "runtime-stack", line, column}`; the same detail appears as `RUNTIME_PAGE_ERROR`. For example, a missing identifier reports `ReferenceError` and `An identifier is not defined.` without its name. Coordinates refer to the generated runtime stack, not guaranteed original definition lines or a source map. Raw URLs, stack frames, identifiers and authored messages are omitted; arbitrary console errors and synchronous preview failures are also sanitized. Unknown messages remain generic rather than risking credential or payload disclosure. A missing location is explicit, not a guessed source position.
+- Synchronous lifecycle exceptions also return structured `preview.status: "failed"`, `runtime.firstPageError` and an `AI_GRAPHICS_PREVIEW_FAILED` diagnostic with the same category/location contract, even without a PNG. `pageErrors` counts browser page-error events only, not synchronous exceptions. An overall deadline produces `AI_GRAPHICS_PREVIEW_TIMEOUT`. Pending images at the final sequence sample produce failure, not rendering success.
 - `runtime.asynchronousReadiness` remains `unverified`. `runtime.dependencies` is `blocked`, `failed` or `unverified`, never a claim that arbitrary dependencies are ready. Absence of observed errors does not establish future async success.
 - The default policy permits image, stylesheet and font resource requests; script, fetch and other requests are blocked. There is currently no opt-in host allowlist or general authored-readiness wait. Do not modify installed tools to bypass the policy or hide blocked requests. Report unsupported local verification and use separately authorized Player verification for an explicitly requested external renderer.
 
@@ -72,7 +97,7 @@ Keep `context.fonts` and native `metricfont` selections as the default. The host
 - Keep operator-facing controls in familiar design units such as degrees, percentages, counts, or domain values. Convert those values inside the AI Graphics lifecycle to container-relative CSS units such as `%`, `cqi`, `cqb`, `cqw`, or `cqh`; do not expose internal responsive CSS units as part of the public control contract.
 - Coordinate spaces are nested. A tile's stored percentage position and size, including `getPositionX/Y()` and `getSizeX/Y()` in a composition script, resolve against its immediate parent group when grouped and against the composition when ungrouped. The AI Graphics runtime root then fills the resulting tile box. Browser `getBoundingClientRect()` values are viewport-relative pixels, not tile-local coordinates; at a 1:1 Player render they align with composition pixels, while scaled hosts require normalization against the tile/root rectangle.
 - Use one top-level authored overlay that fills the complete widget box. Composer alone owns the widget's placement and dimensions in the composition.
-- Do not recreate scene placement inside the definition with scene-relative offsets, safe-area margins, fixed coordinates, or capped outer dimensions.
+- Do not recreate scene placement inside the definition with scene-relative offsets, safe-area margins, fixed coordinates, or capped outer dimensions, except for the explicitly requested operator-transform pattern below.
 - Make the Composer widget bounds contain both settled artwork and its complete animation envelope. Reserve responsive internal motion gutters when transforms, shadows, or other requested effects need runway; the artwork does not need to occupy that reserved space.
 - Derive each motion gutter from the maximum transform or effect extent on that axis, using the same container-relative coordinate system as the animation. Expand or move the Composer widget bounds when necessary to preserve the settled artwork's composition position.
 - Use internal padding and alignment for non-motion spacing.
@@ -80,7 +105,17 @@ Keep `context.fonts` and native `metricfont` selections as the default. The host
 - Use fixed CSS pixel values only for a deliberately invariant detail such as a hairline border or a strict minimum legibility constraint. Do not use pixels for outer placement, primary dimensions, scalable spacing, or animation travel when a container-relative value can express the intent.
 - Test at least one wide or landscape box and one materially different square or portrait box. Text, controls, and intended intermediate animation frames must remain inside the widget bounds without overlap or accidental clipping.
 
+### Explicit operator Size and Position
+
+Prefer native left/top links for public position when they meet the request. Native layout Control Node links do not expose uniform scale; width/height links alone are not a proportional-size contract. For an explicitly requested single Size control on AI Graphics, keep Composer's outer tile/group as a stable bounded viewport and use generated fields to transform an inner artwork wrapper uniformly. Requested X/Y may share that wrapper when they must use the same viewport and pivot. This is the narrow [authoring-standard exception](../authoring-quality.md#scope-and-preservation), not permission to hide ordinary scene layout inside a widget.
+
+Define units, pivot, range, default and reset explicitly; honor a requested 0-100% range in both field and Control Node metadata. Keep operator transforms separate from In/Out and ambient transform owners. Scale from immutable base geometry, never multiply previously scaled dimensions or divide by the old size. Zero must hide/collapse without invalid arithmetic, and restoring size must restore geometry and particle sizes on the same mounted instance. Keep the complete allowed position/scale/animation envelope within Composer bounds and verify linked delivery in Player separately from local preview.
+
 ## Lifecycle and animation
+
+The production widget's natural animation tick clamps a completed In or Out to progress exactly `1`. Its final tick still has `playing: true`; that flag is not a completion signal. A native stop with a supplied time seeks to that time (which may be below `1`); a stop without time cancels ticks without a new seek. Init/jump to In supplies In progress `1`. There is no separate lifecycle "settled" callback, and not every playback/stop sequence guarantees a final seek of `1`.
+
+For accessory interaction, derive readiness from that accessory's authored In amount (for example, `inMode && accessoryAmount >= 0.999` for an intentionally chosen tolerance), not exact equality of the last global progress or `!playing`. Track timeline/direction changes and let parent Out take priority immediately. This is an authoring predicate, not a host-provided completion guarantee. Source-confirmed tick/stop behavior has isolated regression coverage; it does not establish what ended the reported live animation.
 
 Before changing an animation, record a transform-target map: the exact element and property to change, its coordinate space and motion owner, and the neighbors that must remain unchanged. A name-only scale request does not include its panel, secondary text, markers or lines. Keep base sizing/layout, visibility animation and travel-specific effects separate; do not compensate for a transient effect by silently changing settled spacing, widths, movement duration or unrelated transforms. Verify unchanged elements against the pre-edit baseline.
 
@@ -117,7 +152,10 @@ For transparent procedural overlays, follow the [responsive particle candidate](
 - Exercise generated controls through the actual Composer UI or equivalent persisted payload path. Read back both the value and its runtime type, then verify the rendered result; a numeric command-path test alone does not prove that a formatted numeric string from the UI is handled.
 - Open the ordinary module that owns the widget timeline and use active-composition capture. A root capture seeks only the root timeline and is the wrong target for an independently timed nested module.
 - Capture and view exact start, representative midpoint, and settled/end positions. Distinct seek reports or PNG byte sizes are diagnostics, not substitutes for viewing every retained frame.
+- For delayed widget effects, also verify an actual take In from Out before the effect starts and on repeated playback. A direct Timeline seek can exercise different initialization/state callbacks; it does not establish live pre-start visibility. Do not assume either that `seek()` is never called before the effect starts or that it is called continuously during that interval. Keep initial authored DOM intentional, render supplied progress deterministically, and verify the actual triggering sequence before prescribing a timing workaround.
 - At a midpoint where content is transformed, confirm that its motion envelope prevents accidental edge clipping. Restore any temporary portrait, square, or stress-test geometry and verify final layout readback before handoff.
 - Require no lifecycle script errors or unresolved font/image resources, remove temporary manifests and captures, return to the intended Composer scope, and release the work lease.
 
 Generated field types are `text`, `textarea`, `number`, `normalizednumber`, `checkbox`, `selection`, `color`, `image`, `metricfont`, `gradient`, `json`, `counter`, and `button`. Timer fields remain unsupported. Do not define a field named `definition` or a group named `definitionGroup`. Generated fields are eligible for Composer UI and compatible agent-created Control Node links unless their definitions explicitly set `disableDataLink: true`; native Gradient Control Node creation is not supported. JSON stays text, Counter delivers resolved values, and Button uses the optional `button(id, context)` lifecycle callback rather than value-change detection. See the authoring contract for defaults and native gradient rendering requirements. Local preview applies values but does not simulate native button actions.
+
+For a generated `metricfont` field lacking resolved metrics, follow [Generated AI Graphics Metric Font fields](../control-node-creation.md#generated-ai-graphics-metric-font-fields). Catalog discovery supports `metric-fonts --family "<substring>"` before truncation.

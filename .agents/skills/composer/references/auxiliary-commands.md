@@ -12,18 +12,22 @@ Use these command summaries only after reading the routed domain reference for t
 | `create --primitive <name> --name <label> [--group-id <id> [--index <n>]]` | **Targeted only:** create one primitive for an isolated addition. Without a group, retain managed creation. With an existing active-scope group, create an unmanaged tile atomically without an extra group; append by default or insert at zero-based index 0 through the tile count. Index requires a group. Preserve root orchestration and group ownership. |
 | `delete --id <tile-id>` | Delete one primitive. |
 | `validate --file <spec.json>` | Validate a complete required-version-2 specification, including explicit stable-keyed Transform/Effect controls, without mutating anything. |
-| `apply --file <spec.json>` | **Preferred for one existing composition:** compile semantic layout when present, then reconcile keyed graphics, grids, widget-data controls, and explicit root layout controls in one batch. |
+| `apply --file <spec.json> --composition-id <inspected-active-id>` | **Preferred for one existing composition:** guard active scope, then reconcile keyed graphics, semantic layout and explicit controls in one batch. Does not navigate; unscoped root applies fail. |
 
 The CLI commands are `apply` and `validate`; `graphics.apply` and `graphics.validate` are internal relay method names, not CLI aliases. Version 2 responses include expansion counts; all generated primitives retain the existing per-key reconciliation statuses. See [graphics.md](graphics.md).
+
+## Metric Font discovery
+
+Use `metric-fonts [--source <catalog|account>] [--family <substring>]` for Font 2 families, not the legacy `fonts` catalog. For example, `metric-fonts --family "Open Sans" --source catalog` returns matching family/variant summaries without metric geometry or account-font URLs. The family filter is case-insensitive, trims surrounding whitespace, and runs before alphabetical sorting and the 200-family result limit. `total` counts all matching families; `truncated: true` means narrow the substring or source rather than assuming a family is absent. Copy the exact returned family and supported weight/style/subset for creation; no matches returns an empty list with `total: 0`.
 
 ## Local AI Graphics
 
 | Command | Purpose |
 | --- | --- |
 | `ai-graphics validate --file <definition.json> [--values <sample.json>]` | Validate an AI Graphics widget definition locally against the production schema, install-size limit, JavaScript syntax, and optional sample field values. The lifecycle is not executed. No pairing or Composer session is required. |
-| `ai-graphics preview --file <definition.json> [--values <sample.json>] --width <px> --height <px> [--timeline <In\|Out>] [--progress <0..1>] --output <path.png>` | Validate and execute the definition through the production AI Graphics host in headless Chrome, including lifecycle-shape checks. This is widget-level evidence only; it does not include composition scripts, parent transforms, links, neighboring tiles, or Player timeline orchestration. |
+| `ai-graphics preview --file <definition.json> [--values <sample.json>] [--updates <sequence.json>] --width <px> --height <px> [--timeline <In\|Out>] [--progress <0..1>] --output <path.png>` | Execute the production AI Graphics host in Chrome, optionally with bounded controlled-clock updates and named captures. Widget-level evidence only, not composition scripts, parent transforms, links or Player orchestration. |
 
-Both commands accept `--compact`. Preview defaults to `In` at progress `1`, uses the required vendored Playwright Core with system Chrome, blocks lifecycle network requests while allowing image, stylesheet, and font resources, and reports bounded console/resource diagnostics. Use [AI Graphics](widgets/ai-graphics.md) for the complete workflow and accuracy boundary.
+Both commands accept `--compact` and reject `--connection`. Preview defaults to `In` at progress `1`, uses vendored Playwright Core with system Chrome, allows image/stylesheet/font requests while blocking other resource types, and reports sanitized runtime diagnostics. Use [AI Graphics](widgets/ai-graphics.md) for sequence bounds, timeout and evidence limits.
 
 ## Capture
 

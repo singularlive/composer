@@ -4,6 +4,14 @@ Widget Nodes are outputs supplied by an owning widget to its visual template. Th
 
 The owning widget declares the available fields through its native template-edit callback. Composer stores that schema and editor sample payload in the template. The Player supplies the actual values separately to each rendered instance. Do not create, rename, delete, or overwrite Widget Node fields or sample values. The paired commands below edit only native links and cannot run widget code or replace composition JSON.
 
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `widget-nodes [--source-composition <self\|root\|ancestor-id>] --template-session <token>` | Read declared Widget Node fields and editor samples from the selected source, plus native Widget Node links targeting the active composition. The result includes `identityScope`, marking internal IDs as current-template-session handles and declared field IDs as the semantic addressing contract. |
+| `link-widget-nodes --file <links.json> --template-session <token>` | Atomically link 1–100 declared outputs to existing widget fields or supported tile/group layout properties. Same-source reapplication is idempotent; replacing a different link requires `replace: true` on that entry. The result repeats `identityScope`; the command resolves current `keyId` values from semantic `nodeId` inputs. |
+| `unlink-widget-nodes --file <links.json> --template-session <token>` | Atomically remove only links matching the specified Widget Node source and target. Absent links are unchanged; unrelated links are conflicts. The result repeats the same edit-session identity boundary. |
+
 ## Discover the source and target
 
 Open the owning widget's template with `open-widget-subcomposition`, retain its current `identityScope.sessionToken` only for this uninterrupted edit session, then inspect the active scope and its Widget Nodes:

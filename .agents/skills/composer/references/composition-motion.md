@@ -59,6 +59,8 @@ Tiles and groups store animation data in `effects.In` / `keyframes.In` and `effe
 - disabled — taking the composition out reverses the In timeline;
 - enabled — taking the composition out plays the separate Out timeline.
 
+With **2 timelines** disabled, Out reverses the full In timeline, including spans used only by currently hidden or optional siblings. Hiding a late-entering panel does not shorten that timeline, so another element's visible exit can wait while the hidden span reverses. Enable **2 timelines** when exit choreography must be independent, then explicitly author the required Out effects from time zero; enabling the option alone does not remove delays. Verify both optional-element states. Immediate visible motion or an earlier visual finish does not imply a shorter reported composition transition duration.
+
 `inspect` reports it as `activeComposition.timeline2Active`.
 
 ```bash
@@ -142,6 +144,16 @@ For an In animation, `left` means the element starts offscreen left and translat
 ### Property-change Update animation
 
 Update animation applies to supported widget tiles and runs when their properties change. Composer stores it at `element.layout.updateAnimation`; `get` and compact `get` return that complete object with `active`, `alwaysExecute`, `offset`, and the `in` / `out` phase settings. It is not available for groups, composition tiles, widgets with composition-valued fields, widgets with custom animation, or interactive widgets, matching Composer's Update tab.
+
+Before assigning Update motion or enabling Force update (`alwaysExecute`), classify each target:
+
+| Intended policy | Update `active` | Force update `alwaysExecute` |
+| --- | --- | --- |
+| Animate every update, including unchanged values | `true` | `true` |
+| Animate changed values only | `true` | `false` |
+| Exclude the element from Update animation | `false` | `false` |
+
+Do not force unchanged labels to animate because neighboring content changed. A label excluded from Update remains excluded even when its own wording changes. Change only the requested Update policy; preserve existing timeline In/Out animation and unrelated Update phase settings. Verify the flags and preserved In/Out through model readback; repeated-value and changed-value Player checks establish only the exercised runtime behavior.
 
 Apply the [selective motion guidance](authoring-quality.md#motion-and-temporal-quality), not a blanket animation assignment. For frequently refreshed clock digits, set the text element's shared Update `active` flag to `false` with `set-update-animation` or `set-update-animations`; preserve separate clock-display entrance/exit animation. If the text belongs to a widget-owned template, follow [widget-template session lifetimes](widget-subcompositions.md), rediscover internal targets after reopening, and verify the setting through fresh readback. This establishes configuration, not flicker-free rendering.
 

@@ -2,6 +2,47 @@
 
 Use these command contracts with [control-nodes.md](control-nodes.md) when designing or changing the public input model.
 
+## Selection controls
+
+### Moving existing Selection controls between compositions
+
+Decide the command mode before preparing a manifest: if **any** `create-controls` entry contains `targets`, `metadata`, or `container`, the entire batch is configured and cannot contain Selection. For multiple Selection replacements, use one supported legacy Selection batch with none of those keys in any entry; supply each standalone Selection's initial value and inline `selections` or `sourceUrl` option source as required below. For example, after inspecting two source values and options:
+
+```json
+{
+  "controls": [
+    { "name": "Team", "type": "selection", "target": "standalone", "value": "home", "selections": [{ "id": "home", "title": "Home" }, { "id": "away", "title": "Away" }] },
+    { "name": "Schedule", "type": "selection", "target": "standalone", "value": "both", "selections": [{ "id": "both", "title": "Both" }, { "id": "home", "title": "Home" }] }
+  ]
+}
+```
+
+Use the *inspected* options and values in a real migration, not these illustrative IDs. This batch creates the replacements together, but does **not** migrate metadata, container membership, scripts, or delete sources atomically.
+
+Inspect each source's exact public ID, value, complete metadata (including `useFilter`, options and defaults), links, script consumers, destination IDs and existing container membership first. Check template contracts and external addressing: do not move a required root input or silently change a public integration path. In the destination, create the replacements together, read back identities and values, restore supported metadata with `update-control`, then place them in the intended ordinary container. If source metadata cannot be written through the supported contract, preserve the source and report that exact preservation blocker; do not claim a complete migration. Update script consumers through the separate script workflow, verifying persisted script text and destination-driven Player behavior before deleting the old sources. Check every expected mode and edge state explicitly; verify both old and new scopes and the absence of stale links after deletion. Preserve sources if any prerequisite or verification fails. These steps are not a scene-wide transaction; report partial state and the exact remaining work when interrupted.
+
+If a configured Selection batch is **confirmed rejected before writes**, inspect the affected scope to confirm no change, then reformulate the *complete intended migration* into the supported legacy Selection batch plus the necessary specialized metadata/container/script steps. This is not permission to split a failed **supported** atomic batch into individual creates to evade validation. For timeout, missing acknowledgement, partial or unavailable readback, follow [mutation failure recovery](command-basics.md#mutation-failure-recovery) instead; never replay uncertain creation. If all-or-nothing migration across creation, metadata, script and deletion is required, no supported transaction provides it: report that blocker rather than claiming the sequenced workflow is atomic.
+
+Selection controls support inline or URL-backed options. Standalone creation and links to non-Selection fields require exactly one of `--options-file`, `--options-url`, `--image-options-csv-file`, or `--image-options-csv`; a link to an exact `selection` field instead inherits that field's native options and format and rejects overrides. An inline file contains a JSON array of 1 to 100 objects with unique, non-empty string `id` and `title` properties; the initial string value must match one option ID. A URL source accepts an absolute or protocol-relative HTTP(S) URL no longer than 2,048 characters and without embedded credentials; optional `--use-reload true` exposes Composer's native reload action. Composer fetches remote options asynchronously through its existing URL store, so creation cannot atomically match the target value to a remote option ID. A URL-backed color Selection therefore starts with the target's current color serialized as CSS `rgb(...)` or `rgba(...)`; a URL-backed image Selection starts with the target's current URL. After independently confirming the remote options, use `set-control-value` and, when required, a payload-stable `update-control` patch for `defaultValue`/`resetValue` to select the exact option ID. Verify the final value and metadata with non-compact `control-nodes` readback.
+
+For named swatches, use `format: "color"` and valid HTML color strings as option IDs. A Color or Gradient target is accepted only for that format; creation finds the option whose parsed RGBA value matches the current property, preserving its appearance while making the matched option ID authoritative. Color fields and Gradient fields holding a direct RGBA value are matched as-is; a structured Gradient is matched through its `solidColor`. Creation fails if the current solid color is invalid or no option matches. For named images, use `format: "image"`; an Image target's current URL must exactly match one option ID. Text-format selections remain limited to Selection, Text, and Text Area targets. The targeted `create-control` command accepts `--format <text|color|image>`; `create-controls` entries use `format`.
+
+When `--reuse-existing` links a color- or image-format Selection to another non-Selection field, repeat both its effective format and option source, for example `--format color --options-file <same-options.json>`. Reuse preserves the existing control field and payload; the repeated arguments validate target compatibility and option membership rather than replacing its metadata. After creation or reuse, confirm `metadata.format`, links, and value through non-compact `control-nodes` readback. A Player capture cannot verify the Control App's swatch or thumbnail presentation.
+
+To move one already-linked property from control A to a new control B, first inspect all links owned by A, obtain explicit user approval for that property, and create B with `--replace`. For example, `create-control --name "Rectangle Fill" --node-type selection --tile-id <rectangle-id> --property fillGradient --options-url <url> --format color --replace` replaces only the Rectangle's `fillGradient` link. Require the response's `link.previousLink` to identify A, then re-read both controls and links: B must own the Rectangle fill while A and all its unrelated links remain unchanged. Never use `--replace` as implicit permission to migrate other fields.
+
+For a Singular Dashboard export, pass its CSV text directly with `--image-options-csv` or save it and use `--image-options-csv-file`. Dashboard CSV must contain `type`, `name`, and `url` headers and 1 to 100 image rows. Mixed exports are supported: rows such as `appinstance` and `composition` are ignored, while rows whose type is `image` are converted to `{id: row.url, title: row.name}`.
+
+Pasted text may instead be a two-column `name,url` list, with the header optional. Use one pair per line and CSV quoting when a name contains a comma or quote:
+
+```csv
+name,url
+"Home, light",//image.singular.live/account/images/home-light.png
+Away,https://example.com/away.png
+```
+
+The converter preserves absolute and protocol-relative HTTP(S) URLs, rejects embedded credentials and duplicate image URLs, and creates a native inline Selection with `format: "image"`. Supply the selected image URL as the JSON string in `--value-file`; it must exactly match one converted image URL. Quoted commas, escaped quotes, UTF-8 BOMs, and LF or CRLF line endings are supported. The conversion is local and does not upload assets or call a Dashboard API.
+
 ## Control nodes
 
 | Command | Purpose |

@@ -46,7 +46,7 @@ For `COMPOSER_AGENT_VERSION_MISMATCH`, update to the latest available skill. If 
 
 ## Node.js or screenshot checks fail
 
-The skill requires Node.js **22.x**. Ask the agent to verify the Node version used by its terminal, which may differ from another terminal on the same machine.
+The skill supports Node.js **22.x or 24.x**. Ask the agent to verify the Node version used by its terminal, which may differ from another terminal on the same machine. Keep an existing supported version; Node 24 does not require a Node 22 installation. Other majors remain unsupported, and a failed preflight must be resolved before pairing or work.
 
 Screenshots and Player verification require system **Google Chrome** on the agent's machine. Playwright Core is already bundled; do not try to repair the installation by adding packages inside it. Use `doctor --capture` to identify the missing requirement, and report visual/runtime checks as unverified until it is resolved.
 

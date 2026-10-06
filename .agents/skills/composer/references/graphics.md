@@ -50,6 +50,8 @@ For widget-supplied template output, build the target primitives first, then use
 
 `graphics.apply` is a reconciler: it deletes and reorders whatever it finds in the group it manages. That metadata-owned group uses the active composition's functional name, omitting a trailing `Presentation`; for example, `Full-Screen Presentation` produces `Full-Screen`. Its identity does not depend on the visible name. The group is the boundary of the diff, not a permission boundary. Keep generated content in it so `apply` never reaches the rest of the scene.
 
+Inspect immediately before `apply` and pass `--composition-id <active-id>`, including after save/release/capture cycles. This is an expected-active-scope guard, not navigation: the editor rejects `COMPOSITION_SCOPE_MISMATCH` before reconciliation if another composition is active. The raw `graphics.apply` parameter is `compositionId`; a conflicting file/CLI ID is rejected. Unscoped root applies fail with `COMPOSITION_SCOPE_REQUIRED`. Existing unscoped child applies remain supported, but omit the identity guard. Explicit root targeting does not waive the authoring rule against new visual tiles there; use it only for authorized maintenance of existing managed content. Template-session and work-lease guards still apply.
+
 `create` always places its unkeyed primitive in the active composition's managed graphics group. Use it only for one isolated edit or diagnosis inside an ordinary graphic sub-composition:
 
 ```bash
@@ -115,7 +117,7 @@ Save the specification in the unique task-temporary directory described in [comm
 
 ```bash
 node scripts/composer-agent.js validate --file <spec.json>
-node scripts/composer-agent.js apply --file <spec.json>
+node scripts/composer-agent.js apply --file <spec.json> --composition-id <inspected-active-id>
 ```
 
 `graphics.validate` never mutates and reports every error with an element key and property path. `apply` validates the whole specification, then applies it in one undo batch and rolls back on an unexpected runtime error.
@@ -182,6 +184,7 @@ Reconciliation:
 - Manually created managed primitives without declarative keys are preserved, behind the declarative scene.
 - A keyed element that has left the managed group by any route is released: `apply` clears its key, reports it under `released`, and rebuilds the key as a new element.
 - An empty `elements` array clears declarative graphics but preserves unkeyed managed and user-created content. If no managed content, group layout, group control, or `$group` orchestration target remains, `apply` removes the empty managed group when the composition has another group and otherwise creates no group.
+- Do not use an empty specification as generic wrong-scope recovery: it also deletes pre-existing keyed graphics in that scope. Inspect ownership and remove only the accidental content with fresh scope and revision authorization.
 
 The apply response maps stable keys to current Composer tile IDs, reports `created`, `updated`, `unchanged`, or `replaced`, and lists deleted keyed elements.
 

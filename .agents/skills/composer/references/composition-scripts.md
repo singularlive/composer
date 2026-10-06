@@ -46,6 +46,22 @@ Concurrent script-store changes return `SCRIPT_WRITE_CONFLICT` without overwriti
 
 Before persisted Player or managed-extract verification, complete a coherent version with `finish-work --save`, then reacquire work for the verifier handoff. In manual-save mode, wait for the user's Save instead. Do not verify unsaved model changes against stale persisted content. If verification requires further edits, start another held batch; the script API remains immediately durable while its reload notification stays deferred.
 
+### Inspect embedded secrets safely
+
+Handoff credential filtering does not sanitize authored script text. Dedicated `get-script` output can contain embedded third-party API secrets. Do not expose those secrets as operator Control Nodes or include them in inspection artifacts, logs or handoffs.
+
+Before reading an unknown or credential-bearing script, use a task-local process runner that pipes the fresh handoff directly to the bundled helper and captures only the helper's output in memory. Decode UTF-8, check both process exit statuses and validate the helper result before displaying or retaining any projection. Keep producer stderr separate and visible; never insert a redactor into the credential-bearing handoff pipe.
+
+Identify sensitive assignments locally and redact their values, or replace an exact known sensitive value wherever it occurs. Do not assume a provider-independent key shape, hexadecimal encoding or fixed length. Keep sensitive values out of command arguments and exception messages. If an expected assignment/value cannot be identified or sanitization is uncertain, fail closed with a sanitized diagnostic and emit no raw script text; do not fall back to printing the response.
+
+Inspection flow (not a new CLI command):
+
+```text
+fresh handoff -> bundled helper get-script -> in-memory validation/redaction -> sanitized inspection
+```
+
+For example, a deliberately identified `serviceKey` assignment may be shown only as `const serviceKey = "<redacted>";`, regardless of the original value's format. This is an inspection-only projection: never write a redacted inspection copy back as the composition script. Keep the original credential and unrelated behavior unchanged. For exact persistence verification, compare original strings in memory and report only match/mismatch, never a raw diff. Validate task-local redactors with synthetic assignments containing different lengths and non-hexadecimal characters, plus missing/ambiguous-assignment cases that must stop without leaking input.
+
 ## End-to-end workflow
 
 1. Follow the authorization and work-lease workflow in [SKILL.md](../SKILL.md): pair or resume, run `begin-work` before `inspect`, and build the visual structure with `composer-agent`.
@@ -53,13 +69,7 @@ Before persisted Player or managed-extract verification, complete a coherent ver
 3. Create the intended public input surface as Control Nodes in the composition whose script consumes them. Use direct links for one-to-one property inputs and standalone controls for values the script interprets, combines, or forwards. Do not expose a structured gradient through a native Gradient Control Node; keep it as an internal widget-rendering value and use a complete widget-runtime gradient object in the script when needed. A Color control is appropriate only when the external input is intentionally one solid color. Run `control-nodes` and verify every field and payload value, every required `dataLink` or `nodeRef`, and the intentional absence of links for standalone script inputs.
 4. Capture a visual baseline only when the existing layout must be preserved or compared. Otherwise verify structure through inspection and defer visual capture until the coherent layout is ready. Standalone Player capture proves the sampled visual state, not an event-driven path that was never triggered.
 5. Run `script-handoff --pipe --compact` after the final structural readback. Composer already lazily creates the Composition API token when the editor opens, so the handoff supplies the host, composition token, and paired agent authorization automatically. Pipe it directly to the helper; do not print or persist either credential.
-6. For the common active-composition case, pass the handoff to the helper and read the suggested target directly:
-
-   ```bash
-  node scripts/composer-agent.js script-handoff --pipe --connection <conversation-connection-name> --compact |
-     node scripts/compositionScriptCli.js --handoff-file - --action get-script
-   ```
-
+6. For the common active-composition case, pass a fresh handoff directly to `compositionScriptCli.js --handoff-file - --action get-script` to read the suggested target. Apply [safe script inspection](#inspect-embedded-secrets-safely) before exposing helper output; do not run a raw script read into terminal or tool-captured output.
 7. Use the handoff's `suggestedScript`, active composition structure, `widgetReferences`, Control Node models, `datalinks`, and `noderefs`. Route every script-addressed widget through the matching `widgetReferences[].document` before authoring its payload. The route is compact context, not a schema copy: preserve the live `get` and widget-schema read from the paired phase as authority for the reported `loadedVersions`. If the reference is missing or conflicts with the live version, do not guess; return to paired inspection. If the active context is otherwise insufficient, pipe a fresh handoff to `--action summary --full` to discover `global`, `overlay`, root, or another sub-composition and its widget-reference routes.
 8. Read the target script before editing. Preserve its wrapper and signatures, and use the smallest compatible whole-body write through the helper. Prefer `--script-file` for multiline content. A script write may close any currently open Composition Script Editor because the server invalidates active script-editing IDs.
 9. Re-read the dedicated script endpoint through the helper after writing. Compare decoded text using the [explicit UTF-8 readback check](composition-scripting/debugging-and-verification.md#explicit-utf-8-script-readback), not an implicit local encoding. A successful write is not proof that the code initialized or produced the intended output.
@@ -77,9 +87,9 @@ Generate a fresh `script-handoff --pipe --connection <conversation-connection-na
 ```powershell
 node scripts/composer-agent.js script-handoff --pipe --connection <conversation-connection-name> --compact |
   node scripts/compositionScriptCli.js --handoff-file - --action put-script --script-file <task-dir>/script.js
-node scripts/composer-agent.js script-handoff --pipe --connection <conversation-connection-name> --compact |
-  node scripts/compositionScriptCli.js --handoff-file - --action get-script
 ```
+
+The source-file example requires credential-free content. For the following `get-script` readback, generate another fresh handoff and use the [in-memory inspection path](#inspect-embedded-secrets-safely); compare original text before redaction and emit only sanitized results.
 
 Keep producer stderr visible and separate from stdout. Do not use `2>&1`, suppress stderr, or print the handoff to diagnose it. Check both processes' exit statuses when using a process runner: a shell pipeline's last exit code does not establish producer success. If the helper reports empty input, inspect the producer's sanitized failure, connection name, work lease and readiness first. Do not feed old credentials into a retry. Stop on cancellation; read back any uncertain write before deciding whether another write is needed.
 

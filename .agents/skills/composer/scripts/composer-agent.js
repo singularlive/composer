@@ -7264,10 +7264,38 @@ module.exports = {
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("./capture-composition-preview");
+
+
+const SUPPORTED_NODE_MAJORS = Object.freeze([22, 24]);
+const SUPPORTED_NODE_RANGE = SUPPORTED_NODE_MAJORS.map(major => major + '.x').join(' || ');
+
+function inspectNodeVersion(version) {
+  const actualMajor = Number(version.split('.')[0]);
+  const compatible = SUPPORTED_NODE_MAJORS.includes(actualMajor);
+  return {
+    status: compatible ? 'compatible' : 'version-mismatch',
+    expectedMajors: SUPPORTED_NODE_MAJORS.slice(),
+    actualMajor,
+    errorCode: compatible ? null : 'NODE_VERSION_MISMATCH',
+    severity: compatible ? null : 'blocking',
+    requiredAction: compatible ? null :
+      'Select Node.js ' + SUPPORTED_NODE_MAJORS.map(major => major + '.x').join(' or ') +
+      ' for the skill CLI and rerun dependency-preflight before pairing or further work. Do not downgrade the skill.'
+  };
+}
+
+module.exports = { SUPPORTED_NODE_RANGE, inspectNodeVersion };
+
 
 /***/ }),
 /* 52 */
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("./capture-composition-preview");
+
+/***/ }),
+/* 53 */
 /***/ ((module) => {
 
 "use strict";
@@ -7358,11 +7386,12 @@ const credentialSelection = __webpack_require__(47);
 const { parseImageSelectionCsv } = __webpack_require__(48);
 const { createWidgetReferences } = __webpack_require__(49);
 const { findSkillInstallations, getDuplicateInstallations, getInstallationScope } = __webpack_require__(50);
+const { inspectNodeVersion } = __webpack_require__(51);
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 198;
-const PACKAGE_VERSION = '1.7.65';
+const SKILL_VERSION = 204;
+const PACKAGE_VERSION = '1.7.71';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -7455,12 +7484,12 @@ let captureModule = null;
 let aiGraphicsModule = null;
 
 function getCaptureModule() {
-  if (!captureModule) captureModule = __webpack_require__(51);
+  if (!captureModule) captureModule = __webpack_require__(52);
   return captureModule;
 }
 
 function getAIGraphicsModule() {
-  if (!aiGraphicsModule) aiGraphicsModule = __webpack_require__(52);
+  if (!aiGraphicsModule) aiGraphicsModule = __webpack_require__(53);
   return aiGraphicsModule;
 }
 
@@ -7592,8 +7621,8 @@ async function runDoctor(options) {
   }
   const playwright = inspectPlaywrightCore(false);
   const capture = options.capture ? inspectPlaywrightCore(true) : { status: 'not-checked' };
-  const nodeCompatible = Number(process.versions.node.split('.')[0]) === 22;
-  const checksPassed = nodeCompatible && playwright.status === 'ready' &&
+  const node = inspectNodeVersion(process.versions.node);
+  const checksPassed = node.status === 'compatible' && playwright.status === 'ready' &&
     (!options.capture || capture.status === 'ready') &&
     (!(options.connection !== undefined || ENV_CREDENTIALS_OVERRIDE_PATH) || server.status === 'compatible');
   return {
@@ -7604,11 +7633,7 @@ async function runDoctor(options) {
     installations: installations,
     duplicateInstallations: getDuplicateInstallations(installations),
     effectiveRuntime: 'this command uses selectedInstallation; project skills override global skills when both are discovered; realPath identifies aliases of the same physical payload',
-    node: {
-      status: nodeCompatible ? 'compatible' : 'version-mismatch',
-      expectedMajor: 22,
-      actualMajor: Number(process.versions.node.split('.')[0])
-    },
+    node: node,
     core: {
       status: 'ready',
       selfContained: true,
@@ -10582,6 +10607,16 @@ async function run() {
         requireOption(parsed.options, 'file'),
         'graphics specification'
       );
+      if (parsed.options['composition-id'] !== undefined) {
+        const compositionId = parsed.options['composition-id'];
+        if (typeof compositionId !== 'string' || !compositionId.trim()) {
+          throw new Error('--composition-id must be a non-empty composition ID');
+        }
+        if (specification.compositionId !== undefined && specification.compositionId !== compositionId) {
+          throw new Error('--composition-id conflicts with the graphics specification compositionId');
+        }
+        specification.compositionId = compositionId;
+      }
       result = await executeCommand('graphics.apply', specification);
       break;
     }

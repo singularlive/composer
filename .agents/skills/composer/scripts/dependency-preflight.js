@@ -3,6 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { SUPPORTED_NODE_RANGE, inspectNodeVersion } = require('./node-version');
 
 const skillRoot = path.resolve(__dirname, '..');
 const packageJson = JSON.parse(fs.readFileSync(path.join(skillRoot, 'package.json'), 'utf8'));
@@ -67,10 +68,11 @@ const requiredDependencies = packageJson.dependencies || {};
 const dependencies = Object.keys(requiredDependencies).map(function (name) {
   return inspectDependency(name, requiredDependencies[name]);
 });
-const nodeExpectedMajor = Number(String(packageJson.engines.node).match(/\d+/)[0]);
-const nodeActualMajor = Number(process.versions.node.split('.')[0]);
+const node = inspectNodeVersion(process.versions.node);
 const lockedRoot = packageLock.packages && packageLock.packages[''] || {};
 const lockMatches = JSON.stringify(requiredDependencies) === JSON.stringify(lockedRoot.dependencies || {}) &&
+  packageJson.engines.node === SUPPORTED_NODE_RANGE &&
+  lockedRoot.engines && lockedRoot.engines.node === SUPPORTED_NODE_RANGE &&
   Object.keys(packageJson.optionalDependencies || {}).length === 0 &&
   Object.keys(lockedRoot.optionalDependencies || {}).length === 0;
 const coreMetadata = packageJson.composerAgent || {};
@@ -79,7 +81,7 @@ const coreReady = coreMetadata.coreRuntime === 'scripts/composer-agent.js' &&
   Array.isArray(coreMetadata.coreDependenciesBundled) &&
   coreMetadata.coreDependenciesBundled.length > 0;
 const failed = dependencies.some(function (dependency) { return dependency.status !== 'resolved'; }) ||
-  nodeExpectedMajor !== nodeActualMajor || !lockMatches || !coreReady || (captureRequested && !findSystemChrome());
+  node.status !== 'compatible' || !lockMatches || !coreReady || (captureRequested && !findSystemChrome());
 
 process.stdout.write(JSON.stringify({
   status: failed ? 'failed' : 'passed',
@@ -92,15 +94,7 @@ process.stdout.write(JSON.stringify({
     bundledDependencies: coreMetadata.coreDependenciesBundled || [],
     errorCode: coreReady ? null : 'CORE_RUNTIME_INVALID'
   },
-  node: {
-    status: nodeExpectedMajor === nodeActualMajor ? 'compatible' : 'version-mismatch',
-    expectedMajor: nodeExpectedMajor,
-    actualMajor: nodeActualMajor,
-    errorCode: nodeExpectedMajor === nodeActualMajor ? null : 'NODE_VERSION_MISMATCH',
-    severity: nodeExpectedMajor === nodeActualMajor ? null : 'blocking',
-    requiredAction: nodeExpectedMajor === nodeActualMajor ? null :
-      'Select Node.js ' + nodeExpectedMajor + '.x for the skill CLI and rerun dependency-preflight before pairing or further work. Do not downgrade the skill.'
-  },
+  node: node,
   lockfile: {
     status: lockMatches ? 'matched' : 'mismatch',
     errorCode: lockMatches ? null : 'LOCKFILE_MISMATCH'

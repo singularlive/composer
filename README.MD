@@ -9,7 +9,7 @@ The `composer` skill works with editable Composer elements: it can create graphi
 ## Requirements
 
 - An AI agent that supports installing skills and running local Node.js commands.
-- Node.js **22.x** on the machine running the agent.
+- Node.js **22.x or 24.x** on the machine running the agent. Use an existing supported version; there is no need to replace Node 24 with Node 22.
 - Access to **Composer AI**, currently limited to eligible accounts on the beta Composer deployment; it is not available to every Singular account.
 - **Google Chrome** installed on the agent's machine for screenshots and Singular Player verification.
 

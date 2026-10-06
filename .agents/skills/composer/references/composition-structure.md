@@ -18,6 +18,29 @@ The structural decision standard for tiles, groups, sub-compositions, and displa
 - After assembly, inspect the owning parent and verify the intended child tiles and linked or independent lifecycle. Return to the intended editor scope; root is not a mandatory verification target for nested extensions.
 - Preserve pre-existing root visuals unless the user explicitly requests migration; this architecture constrains new authoring rather than granting permission to reorganize unrelated content.
 
+## Group lifecycle and ordering
+
+`delete-group` uses Composer's normal group deletion. As in the UI, a group cannot be deleted without its tiles: each one's data, links, and node references go with it, and any sub-composition it holds is removed too. The response lists the deleted tiles by id and name. Move anything worth keeping into another group first, and confirm the scope with the user before running it. It also refuses to delete a composition's last remaining group.
+
+Managed groups use the active composition's functional name with a trailing `Presentation` omitted. Ownership is metadata-based, so renaming one manually does not release its contents. `ensure-group` restores the concise semantic name.
+
+`move-group` follows Composer's native group-sort path. It rewrites every group's contiguous `priority` and `layout.zindex` values in one editor batch, preserving group contents, animation, Control Nodes, and managed ownership. Read the target group first and use the returned `groupOrder` as authoritative readback.
+
+## Moving between groups
+
+```bash
+node scripts/composer-agent.js move --id <tile-id> --group-id <group-id>
+node scripts/composer-agent.js move --id <tile-id> --group-id <group-id> --index 0
+```
+
+Both the tile and the target group must be in the active composition. `--index` is the 0-based position in the group's layer order, where `0` is front-most; omit it to append behind the group's existing items. Passing the tile's current group reorders it in place.
+
+The move rewrites the target group's item priorities and each moved tile's `layout.zindex`, exactly as a layer-list drag does. It leaves the source group's remaining priorities untouched, and does not touch the tile's data, links, keyframes, or effects.
+
+`--index` is an item position, not an absolute `zindex`: native sorting assigns `targetGroup.layout.zindex + index`. Lower Composer zindex values are front-most. Verify returned `groupOrder` and `moved.zindex` instead of inferring stacking from an old stored value.
+
+Any tile can be moved into or out of any group. Moving a declarative graphic out of its metadata-owned managed graphics group releases it from `graphics.apply`: its spec key is cleared, it becomes an ordinary element, and the response reports `releasedKey`. A later `apply` whose spec still lists that key will build a new element for it rather than reclaim the moved one.
+
 ## Creating, opening, and deleting
 
 Before renaming, moving, restructuring or deleting a composition, apply [Contract preservation](composition-commands.md#contract-preservation). A matched contract's composition names and ancestor paths are protected even on explicit user request; deleting a parent must also preserve every required descendant. Do not use generic name/property writes or a template-match change to bypass this gate. Decline breaking parts and continue contract-safe additions and visual edits within the agreed scope.

@@ -14,6 +14,8 @@ node scripts/composer-agent.js capture --target root --timeline In --at 0.5 --ou
 
 Timeline-position capture deliberately excludes widget-owned active compositions, timed mode, continuous Behavior time, script timers, and video clocks. A paused root Timeline frame includes timeline-aware widget seek callbacks and linked descendants. An ordinary active composition uses the Player composition seek path. Neither form freezes independent runtime clocks.
 
+Direct seeking is not uninterrupted playback: initialization, state changes and effect-start callbacks can take different paths. A correct seeked frame before a delayed widget effect starts does not establish that live playback renders the same pre-start state. For that requirement, observe an actual take In from Out, including the interval before the effect starts and repeated playback; use direct seeks as complementary frame evidence, not a replacement. A disagreement remains unresolved until the real triggering sequence is verified.
+
 Capture an isolated ordinary or widget-owned active scope after opening it in Composer:
 
 ```bash

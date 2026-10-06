@@ -11,11 +11,11 @@ Use the client with one unique connection name per conversation:
 node scripts/composer-agent.js <command> --connection <conversation-connection-name> [options]
 ```
 
-Reuse it for every command. Never reuse another profile or combine it with `COMPOSER_AGENT_CREDENTIALS`. Use only bundled CLIs. Never expose credentials, replace raw composition JSON, construct script REST calls, or add arbitrary relay execution.
+Reuse it for paired commands. Local `ai-graphics validate|preview` reject `--connection`; omit it. Never reuse another profile or combine it with `COMPOSER_AGENT_CREDENTIALS`. Use only bundled CLIs. Never expose credentials, replace raw composition JSON, construct script REST calls, or add arbitrary relay execution.
 
 Run `node scripts/dependency-preflight.js` once per package version, Node major, and lockfile digest; reuse success until one changes. Add `--capture` for Chrome. Use `doctor` for installation diagnostics. Always install the latest available Composer skill; never downgrade for protocol compatibility.
 
-Require a passing preflight before new work. `NODE_VERSION_MISMATCH` is blocking even when core dependencies are ready; select Node 22.x and rerun as described in [installation](references/installation.md), without silently replacing the user's global runtime.
+Require a passing preflight before new work. Use an existing Node 22.x or 24.x runtime. `NODE_VERSION_MISMATCH` remains blocking for other majors even when core dependencies are ready; select a supported runtime and rerun as described in [installation](references/installation.md), without silently replacing the user's global runtime.
 
 After `COMPOSER_AGENT_VERSION_MISMATCH`, follow [installation recovery](references/installation.md) before choosing Control Node types. Upgrade first, then reread type-specific references from the installed replacement; stale references are not authority for the new protocol.
 
@@ -73,14 +73,14 @@ For a template-matched composition, the composition contract is inviolable, even
 
 For Control App-driven or template-compatible authoring, follow the [Integration Resources completion gate](references/composition-commands.md#using-integration-resources) before choosing structure, public controls, or scripts. Track required behavior separately from interface preservation. During structural authoring, discover the root match and preserve its contract for externally addressed content. Unrelated visual edits need no resource fetch.
 
-Before building a new composition, decide which app template to use. If uncertain, fetch the complete available app-template list and let the user decide. Read its contract and assign the template to the composition with `set-app-template-match`. Follow the [completion workflow](references/composition-commands.md#using-integration-resources). Do not silently default to UNO Essentials.
+Before building a new composition, determine the appropriate app template. When template selection calls for Essentials or Studio, use UNO Essentials (template ID 518) unless the user explicitly requests Studio; do not ask the user to choose between Essentials and Studio. This is not a general default for other templates; honor any other explicit template choice. If the user's explicitly requested Control App template appears mismatched, warn them once, then honor their choice and follow that template's Integration Resources contract. Read its contract and assign the template to the composition with `set-app-template-match`. Follow the [completion workflow](references/composition-commands.md#using-integration-resources) for other template decisions and uncertainty. An existing matched composition contract remains inviolable.
 
 Composer is the source of truth:
 
 1. Run `inspect` and read targets narrowly; chat is not current state. See [resume safeguards](references/resuming-work.md).
 2. Read required live schemas and ownership through the routed reference; never infer mutable contracts from memory. For matched compositions, complete the contract-preservation check before every structural or contract-dependent mutation, including isolated node-ID edits, deletions, composition renames, and script changes. Reuse the current task's versioned contract only while its match/status/version remains current.
 3. Before the first high-impact mutation in a task, recommend a revision through the AI chat question UI and wait for the user's choice, except for a verified empty starter scene. A default group and empty default sub-composition with no authored content or Control Nodes do not need a backup prompt. Read [revision approval](references/revisions.md#revision-approval-before-mutation) for the scene-wide empty-starter check, other exclusions, and consent procedure before proceeding.
-4. Make one coherent, bounded change through the highest-level supported operation.
+4. Make one coherent, bounded change through the highest-level supported operation. For `apply`, pass the inspected `--composition-id` as a scope guard.
 5. Reinspect the changed scope and verify authoritative readback, links, ownership, and unrelated state.
 
 Use bounded projections and temporary structured inputs. Never decompose failed atomic operations. Follow [command-basics.md](references/command-basics.md): after an uncertain outcome, obtain authoritative readback before retry. Report errors directly.

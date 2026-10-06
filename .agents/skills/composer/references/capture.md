@@ -10,6 +10,10 @@ Capture reads persisted content. Complete held edits with `finish-work --save` (
 | Root/active/template targeting, measurements, timeline positions, examples | [Capture targeting and examples](capture-targeting.md) |
 | Player scenarios and continuous runtime verification | [Debugging and verification](composition-scripting/debugging-and-verification.md) |
 
+## Seeked versus live evidence
+
+A seeked Timeline capture establishes the rendered frame at the requested position in its private Player instance, not the lifecycle ordering of uninterrupted playback. In particular, a hidden pre-start frame does not prove that a delayed widget effect stays hidden during a real take In. Follow the [temporal evidence guidance](capture-targeting.md#temporal-evidence-for-animated-and-live-output) when acceptance concerns transitions or pre-start visibility; keep model, sampled-frame, live-playback and Control App evidence separate.
+
 ## Verification unavailable
 
 On `CHROME_NOT_FOUND` or an unavailable system Chrome channel, stop capture attempts until the prerequisite changes. Structure readback, mocked tests and persisted script readback remain useful but are not Player or visual proof. Report **pending verification**, naming the missing prerequisite and these remaining checks as applicable:

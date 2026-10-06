@@ -14,6 +14,8 @@ Native Gradient Control Nodes are outside agent support because their implementa
 
 Targets resolve in the active composition. Unless the user requests an ancestor-owned public control or an established shared-theme contract already defines one, create a linked control beside its target and a standalone control where its consuming script lives. An ancestor-owned control may link into a descendant; sibling and unrelated sources are invalid. Confirm `activeComposition.stack` before mutation. Decide content versus theme scope using [the authoring standard](authoring-quality.md); use [theme promotion](recipes/promote-theme-controls.md) when moving existing local styling to root without moving module copy.
 
+An explicit Customize ownership preference remains applicable to later theme controls under [the authoring standard](authoring-quality.md). Do not revert to target-local ownership on a later edit or relocate unrelated content controls to satisfy a theme preference.
+
 Every agent-authored public control belongs in an ordinary semantic Control Node container organized around the operator's task. Default to Large (`width: "double"`); use Small (`width: ""`) only for a concrete density reason. Verify ordered membership with `control-nodes` before handoff.
 
 Before promising a container layout, confirm container topology: ordinary Control Node containers are flat within their owning composition, not nested like graphic groups or sub-compositions. A root Color Palette container belongs alongside Styles, never inside it; leave existing font controls in Styles. Before integrating external palettes, choose the [preset mechanism](control-node-commands.md#choose-a-preset-mechanism) and state its key mapping and write authority.

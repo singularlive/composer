@@ -11,11 +11,12 @@ const credentialSelection = require('./credential-selection');
 const { parseImageSelectionCsv } = require('./selection-image-csv');
 const { createWidgetReferences } = require('./widget-script-references');
 const { findSkillInstallations, getDuplicateInstallations, getInstallationScope } = require('./installation-discovery');
+const { inspectNodeVersion } = require('./node-version');
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 198;
-const PACKAGE_VERSION = '1.7.65';
+const SKILL_VERSION = 204;
+const PACKAGE_VERSION = '1.7.71';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
@@ -245,8 +246,8 @@ async function runDoctor(options) {
   }
   const playwright = inspectPlaywrightCore(false);
   const capture = options.capture ? inspectPlaywrightCore(true) : { status: 'not-checked' };
-  const nodeCompatible = Number(process.versions.node.split('.')[0]) === 22;
-  const checksPassed = nodeCompatible && playwright.status === 'ready' &&
+  const node = inspectNodeVersion(process.versions.node);
+  const checksPassed = node.status === 'compatible' && playwright.status === 'ready' &&
     (!options.capture || capture.status === 'ready') &&
     (!(options.connection !== undefined || ENV_CREDENTIALS_OVERRIDE_PATH) || server.status === 'compatible');
   return {
@@ -257,11 +258,7 @@ async function runDoctor(options) {
     installations: installations,
     duplicateInstallations: getDuplicateInstallations(installations),
     effectiveRuntime: 'this command uses selectedInstallation; project skills override global skills when both are discovered; realPath identifies aliases of the same physical payload',
-    node: {
-      status: nodeCompatible ? 'compatible' : 'version-mismatch',
-      expectedMajor: 22,
-      actualMajor: Number(process.versions.node.split('.')[0])
-    },
+    node: node,
     core: {
       status: 'ready',
       selfContained: true,
@@ -3235,6 +3232,16 @@ async function run() {
         requireOption(parsed.options, 'file'),
         'graphics specification'
       );
+      if (parsed.options['composition-id'] !== undefined) {
+        const compositionId = parsed.options['composition-id'];
+        if (typeof compositionId !== 'string' || !compositionId.trim()) {
+          throw new Error('--composition-id must be a non-empty composition ID');
+        }
+        if (specification.compositionId !== undefined && specification.compositionId !== compositionId) {
+          throw new Error('--composition-id conflicts with the graphics specification compositionId');
+        }
+        specification.compositionId = compositionId;
+      }
       result = await executeCommand('graphics.apply', specification);
       break;
     }

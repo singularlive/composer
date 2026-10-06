@@ -2,6 +2,39 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.71 - Protocol 204
+
+- Add an expected-active `apply --composition-id` guard and reject unscoped root applies before reconciliation.
+- Preserve sanitized synchronous lifecycle error categories and runtime-stack locations in failed AI Graphics preview reports.
+- Add bounded local preview update sequences with controlled JavaScript time, named captures and an overall timeout.
+- Clarify local command connection flags, Windows cleanup, seek completion and explicitly requested operator uniform-size controls.
+
+## 1.7.70 - Protocol 203
+
+- Route Widget Node commands, group moves and Selection-specific controls to their existing focused references, keeping general editing and creation reads within the unchanged reading budgets.
+
+## 1.7.69 - Protocol 202
+
+- Retain explicit Customize ownership preferences across theme edits without relocating unrelated content controls; distinguish forced, changed-value and disabled Update motion while preserving In/Out.
+- Await pending template commands before consuming outputs or leaving scope; retain fresh-identity requirements after reopening.
+- Inspect dedicated script reads through deliberate embedded-secret redaction without changing credential-pipe safeguards or assuming a key format.
+- Clarify successful no-op finalization after verification-only work; preserve save/release failure handling and model, script, Player, visual and Control App evidence boundaries.
+
+## 1.7.68 - Protocol 201
+
+- Support Node 22.x and 24.x for the distributed skill, preferring an existing supported runtime without changing global Node. Other majors remain blocking.
+- Share the Node compatibility policy between preflight and doctor; both report `node.expectedMajors` and explicit mismatch diagnostics.
+
+## 1.7.67 - Protocol 200
+
+- Document consented, official checksum-verified portable Node 22 execution without changing global Node; separate filesystem upgrade swaps from execution and host approval.
+- Distinguish seeked Timeline frames from live pre-start behavior and explain hidden-sibling delays during reversed In timelines.
+- Document catalog-resolved Metric Font linking for generated AI Graphics fields and existing family filtering before catalog truncation; preserve linked creation and source-reuse semantics.
+
+## 1.7.66 - Protocol 199
+
+- When template selection calls for Essentials or Studio, choose Essentials without asking unless Studio is explicitly requested; retain suitability-based selection for other templates, and warn once about an apparently mismatched explicit template choice before honoring it.
+
 ## 1.7.65 - Protocol 198
 
 - On resumed work, inspect the live composition instead of treating chat history as its current state; preserve unrelated changes and ask before a conflicting edit rather than assuming its author or overwriting it.

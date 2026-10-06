@@ -6,11 +6,7 @@ Use these commands after inspecting the active composition and the relevant live
 
 Widget Nodes are owner-supplied template outputs, not public Control Nodes. See [widget-nodes.md](widget-nodes.md) for their read-only schema, native link formats, compatibility, source scope, and verification workflow.
 
-| Command | Purpose |
-| --- | --- |
-| `widget-nodes [--source-composition <self\|root\|ancestor-id>] --template-session <token>` | Read declared Widget Node fields and editor samples from the selected source, plus native Widget Node links targeting the active composition. The result includes `identityScope`, marking internal IDs as current-template-session handles and declared field IDs as the semantic addressing contract. |
-| `link-widget-nodes --file <links.json> --template-session <token>` | Atomically link 1–100 declared outputs to existing widget fields or supported tile/group layout properties. Same-source reapplication is idempotent; replacing a different link requires `replace: true` on that entry. The result repeats `identityScope`; the command resolves current `keyId` values from semantic `nodeId` inputs. |
-| `unlink-widget-nodes --file <links.json> --template-session <token>` | Atomically remove only links matching the specified Widget Node source and target. Absent links are unchanged; unrelated links are conflicts. The result repeats the same edit-session identity boundary. |
+Read the [Widget Node command contracts](widget-nodes.md#commands) before inspecting or changing output links.
 
 ## Elements
 
@@ -29,6 +25,7 @@ Widget Nodes are owner-supplied template outputs, not public Control Nodes. See 
 | `update --type <tile\|group> --id <id> --path <path> --value-file <value.json>` | Update one existing property. The `updated` result includes `id`, `name`, `elementType`, `namespace`, `path`, `previousValue`, and the applied `value`. |
 | `update ... --namespace data --path <field-id> --value-file <value.json>` | Update one existing widget control value and return the same named `updated` result shape. |
 | `fonts [--source <user\|account>] [--family <substring>]` | List safe font summaries from Composer's current font catalogs. |
+| `metric-fonts [--source <catalog\|account>] [--family <substring>]` | List Font 2 families and variants. Case-insensitive substring filtering occurs before the 200-family cap; narrow the query when `truncated` is true. |
 | `set-font --id <tile-id> [...]` | Set catalog-backed Text family, weight, italic, underline, or alignment properties. |
 | `set-metric-font --id <tile-id> [--property <field-id>] [--family <family>] [--weight <weight>] [--style <style>] [--subset <subset>] [--font-source <catalog\|account>]` | Set a catalog-backed Metric Font field directly on an unlinked widget. The field defaults to `font`. |
 | `upgrade-metric-widgets --ids <tile-id-1,tile-id-2>` | Atomically upgrade explicit Text v2 and Simple Ticker tiles in the active composition to their Metric equivalents. |
@@ -99,18 +96,7 @@ Use `upgrade-metric-widgets` only when the user requests migration from legacy F
 
 ### Moving between groups
 
-```bash
-node scripts/composer-agent.js move --id <tile-id> --group-id <group-id>
-node scripts/composer-agent.js move --id <tile-id> --group-id <group-id> --index 0
-```
-
-Both the tile and the target group must be in the active composition. `--index` is the 0-based position in the group's layer order, where `0` is front-most; omit it to append behind the group's existing items. Passing the tile's current group reorders it in place.
-
-The move rewrites the target group's item priorities and each moved tile's `layout.zindex`, exactly as a layer-list drag does. It leaves the source group's remaining priorities untouched, and does not touch the tile's data, links, keyframes, or effects.
-
-`--index` is an item position, not an absolute `zindex`: native sorting assigns `targetGroup.layout.zindex + index`. Lower Composer zindex values are front-most. Verify returned `groupOrder` and `moved.zindex` instead of inferring stacking from an old stored value.
-
-Any tile can be moved into or out of any group. Moving a declarative graphic out of its metadata-owned managed graphics group releases it from `graphics.apply`: its spec key is cleared, it becomes an ordinary element, and the response reports `releasedKey`. A later `apply` whose spec still lists that key will build a new element for it rather than reclaim the moved one.
+Before moving or reordering tiles, read [Moving between groups](composition-structure.md#moving-between-groups) for active-scope, layer-order and managed-ownership effects. This is structural work, not an isolated property edit.
 
 ## Groups
 
@@ -122,11 +108,7 @@ Any tile can be moved into or out of any group. Moving a declarative graphic out
 | `move-group --id <group-id> --index <n>` | Reorder one existing group without moving its children or changing managed metadata; index `0` is front-most. |
 | `delete-group --id <group-id>` | Delete a group and everything in it. |
 
-`delete-group` uses Composer's normal group deletion. As in the UI, a group cannot be deleted without its tiles: each one's data, links, and node references go with it, and any sub-composition it holds is removed too. The response lists the deleted tiles by id and name. Move anything worth keeping into another group first, and confirm the scope with the user before running it. It also refuses to delete a composition's last remaining group.
-
-Managed groups use the active composition's functional name with a trailing `Presentation` omitted. Ownership is metadata-based, so renaming one manually does not release its contents. `ensure-group` restores the concise semantic name.
-
-`move-group` follows Composer's native group-sort path. It rewrites every group's contiguous `priority` and `layout.zindex` values in one editor batch, preserving group contents, animation, Control Nodes, and managed ownership. Read the target group first and use the returned `groupOrder` as authoritative readback.
+Before deleting or reordering groups or changing managed ownership, read [Group lifecycle and ordering](composition-structure.md#group-lifecycle-and-ordering). Keep ordinary property edits scoped to the existing group.
 
 To rename a group, use the existing update command; group `name` is not immutable:
 
