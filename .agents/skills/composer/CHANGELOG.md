@@ -2,6 +2,10 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.72 - Protocol 205
+
+- Allow Info Text controls to use Hide in form (`hidden`) and Tag as advanced (`style`) through `update-control`, preserving static/dynamic content and existing input restrictions.
+
 ## 1.7.71 - Protocol 204
 
 - Add an expected-active `apply --composition-id` guard and reject unscoped root applies before reconciliation.
