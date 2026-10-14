@@ -2,6 +2,20 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.75 - Protocol 208
+
+- Add scoped Dashboard REST access for the Composer AI MCP companion, using pairing authorization and explicit desktop approval for folders or individual files.
+- Reuse image/JSON uploads and add bounded JSON reads, conditional updates and session-bound write receipts. The CLI does not expose Dashboard operations.
+
+## 1.7.74 - Protocol 207
+
+- Add credential-free, offline Player scenario validation with sanitized errors and unchanged scenario limits.
+- Connect reactive HTML source replacement to playback-state loss and clarify user-defined playback continuity contracts, timing evidence and ambiguous pixel differences.
+
+## 1.7.73 - Protocol 206
+
+- Raise inline Selection options and image CSV imports from 100 to 500 entries, including Table selection columns, while retaining payload-size and option validation.
+
 ## 1.7.72 - Protocol 205
 
 - Allow Info Text controls to use Hide in form (`hidden`) and Tag as advanced (`style`) through `update-control`, preserving static/dynamic content and existing input restrictions.

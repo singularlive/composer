@@ -115,6 +115,7 @@ Never say only "verified both settings". Identify each evidence layer and its li
 - **Script persistence:** dedicated helper readback matched submitted script text with explicit UTF-8 decoding. This proves script text persistence, not persistence of colors applied later by runtime code, successful initialization or Control App synchronization.
 - **Captured appearance:** named values and images, including whether each capture loaded a separate Player. Separate 100/0 captures prove sampled endpoint appearances only, not intermediate values or propagation after initialization.
 - **Live payload propagation:** one initialized Player and the same running composition receive subsequent source changes without reload. Check every intended target at 100, an intermediate value such as 40, and 0, then restore the initial value. A payload event alone or a whole-frame difference cannot prove every target updated correctly. See the [opacity scenario](../recipes/opacity-slider.md#persistent-player-scenario).
+- **Playback continuity:** observe animation phase or elapsed playback time across edits in the same running instance, distinguishing normal cycle wrap from restart. Payload propagation, persisted values, matching script text and sampled endpoint images do not establish this; see [playback continuity](#playback-continuity-and-pixel-evidence).
 - **Control App testing:** separately identify the app/extract, slider presentation and operation, and actual output delivery. Player `setPayload` is not dragging the Control App slider. Report this layer as untested unless it was exercised.
 
 Player evidence establishes behavior only for the scenarios actually exercised. Passing scripted assertions does not override contradictory visual evidence: if captures show missing or misplaced content, report those observations and leave visual correctness unresolved without inferring a renderer cause. A stored clock Update setting of `active: false`, even after saving and reopening, does not prove that reported flicker was eliminated; that requires post-change visual evidence. Keep model, persistence, Player, visual and actual Control App evidence separate.
@@ -126,6 +127,16 @@ For palettes, name the [selected preset mechanism](../control-node-commands.md#c
 Example completion wording for supplied retrospective evidence, not a new verification claim: "Model checks confirmed container membership, labels, preserved control identities and values, and Selection metadata. UTF-8 script readback matched. Private Player checks passed five palettes across fourteen color roles, repeated selection changes, font preservation and a manual override. Captures sampled rendered presets; some included content transitions. Actual Control App operation, picker synchronization, persistence of runtime-applied colors and external-file refresh remain unverified." Report only the evidence actually available; this example is not a required graphic QA matrix.
 
 Report asset failures independently, including their count and whether attribution is established. Do not attribute pre-existing or unexplained failed images to a control edit. Isolated production-method and simulated SDK fixtures must be labeled as such, not called full Player verification. Restore saved values/scope and release any acquired lease; scenario-local restoration is not saved-model restoration.
+
+### Playback continuity and pixel evidence
+
+Derive the playback contract from the user's request: identify restart-triggering edits, changes deferred to a defined boundary, immediate appearance updates, and any loop-disabled or visibility behavior. These are not universal defaults. Use one initialized Player for a continuity claim; fresh-page captures restart initialization and cannot prove it.
+
+Prefer the existing scenario actions when they can observe the contract. Screenshots, SDK In/Out state and lifecycle counts alone may not reveal an HTML child's animation restart. If the needed phase or elapsed-time observation is unavailable, use a bounded custom Player harness in the task-temporary directory, not a graphic-specific recipe or arbitrary execution in the paired relay. Define the observation, timing bounds and pass/fail criteria before running; sample before and after edits in the relevant animation phases, distinguish normal wrap from reset, and test deferred settings at the boundary. Verify a stationary state over an interval when required, and confirm the observation would reject an intentional restart or frozen animation in a sanitized local negative control. Report actual sampled intervals and script-error telemetry without claiming unsampled continuity.
+
+Keep handoffs in the direct credential pipe and memory only. Preserve authorization, revision consent, template contracts, single-writer ownership, cleanup and lease release. Do not reopen a completed composition for a retrospective; use sanitized local fixtures for skill checks. Private Player checks do not establish actual Control App operation.
+
+Pixel differences, geometric changes and playback restarts are different findings. Matching foreground bounds establish matching measured extents, not identical internal geometry or playback continuity. Edge-only differences do not identify antialiasing, GPU, font or renderer causes. Keep causes unverified unless independent evidence establishes them; do not declare a renderer cause from screenshots alone. Use targeted regions and runtime observations for the specific question, and never increase pixel tolerances merely to obtain a passing result.
 
 Review verification screenshots for obvious unrelated regressions, including palette changes, missing artwork and clipping. Report them without silently expanding the repair scope. A workaround that repairs the current appearance is not a root-cause repair or proof that future preset selections work. Structural revision totals cannot prove individual values, links or script contents unchanged; use supported property-level evidence or explicitly leave that comparison unresolved.
 
@@ -289,7 +300,8 @@ These are diagnostic additions to report version 1: they do not change pass/fail
    - **Timing**: compare screenshots across frames to confirm animations or toggles at the expected intervals
 
 4. CLI flags:
-   - `--handoff-file PATH|-` — required version-1 handoff; prefer `-` so credentials stay in the pipeline
+   - `--handoff-file PATH|-` — required for Player execution, not local validation; prefer `-` so credentials stay in the pipeline
+   - `--validate-only --scenario-file PATH` — local scenario validation only; accepts no other options and needs no handoff, credentials, work lease or browser
    - `--frames N` — number of screenshots (default: 3)
    - `--interval MS` — milliseconds between screenshots (default: 3000)
    - `--out DIR` — output directory for screenshots and temp files (default: `./temp` relative to cwd)
@@ -318,6 +330,14 @@ These are diagnostic additions to report version 1: they do not change pass/fail
 ### Declarative Player scenario
 
 Use a scenario when runtime proof requires public Player inputs or specific checkpoints. The verifier validates the complete file before opening Player. A scenario is limited to version 1, 50 steps, 64 KiB total, 32 KiB for each payload/message/expected-state value, ten minutes of aggregate wait budget, and 60 seconds for one lifecycle, probe, or state wait.
+
+**Validate locally before acquiring a verification work lease or requesting a fresh handoff. The step count must be 1-50, including setup, waits, assertions and captures.**
+
+```sh
+node scripts/verifyComposition.mjs --validate-only --scenario-file <task-dir>/scenario.json
+```
+
+This mode reuses the Player scenario validator and exits without reading a handoff, contacting Composer, loading a browser or writing capture/report artifacts. It accepts only these two options and a local file path, not stdin. Success prints `{"ok":true,"mode":"scenario-validation","version":1,"stepCount":50}` for a 50-step scenario; failure exits nonzero with a sanitized error that omits input values and file paths. A valid file is not runtime evidence. Split oversized scenarios into independently initialized cases; do not split a same-instance continuity assertion across separate Player runs.
 
 Before diagnosing an incremental Control App update after changing an AI Graphics definition, establish each boundary separately: the new definition exists in Composer model readback; the managed app has updated to a new composition extract; the tested app/output has reloaded that extract; and only then a later Control Node payload change alters the running pixels without another reload. A page still executing the previous definition cannot test the new widget code. Do not add composition-script forwarding or enable `immediateUpdate` to compensate for a stale loaded extract.
 

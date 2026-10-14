@@ -34,6 +34,26 @@ const getArg = (name, fallback) => {
 };
 const hasArg = (name) => args.includes(name);
 
+if (hasArg('--validate-only')) {
+  try {
+    const scenarioFile = getArg('--scenario-file', null);
+    if (args.length !== 3 || !scenarioFile || scenarioFile === '-' || scenarioFile.startsWith('--')) {
+      throw new Error('SCENARIO_VALIDATION_USAGE: Use only --validate-only --scenario-file <path>; no handoff or Player options.');
+    }
+    const scenario = readVerificationScenario(scenarioFile);
+    console.log(JSON.stringify({
+      ok: true,
+      mode: 'scenario-validation',
+      version: scenario.version,
+      stepCount: scenario.steps.length
+    }));
+  } catch (error) {
+    console.error('[verify] Error:', error.message);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 const frameCount = parseInt(getArg('--frames', '3'), 10);
 const intervalMs = parseInt(getArg('--interval', '3000'), 10);
 const framesExplicit = hasArg('--frames');

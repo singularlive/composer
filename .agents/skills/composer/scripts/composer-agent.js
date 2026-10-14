@@ -7036,7 +7036,7 @@ function parseImageSelectionCsv(source) {
     return { id: url, title: title };
   });
   if (!selections.length) throw csvError('Image CSV must contain at least one image row');
-  if (selections.length > 100) throw csvError('Image CSV must contain at most 100 image rows');
+  if (selections.length > 500) throw csvError('Image CSV must contain at most 500 image rows');
   return selections;
 }
 
@@ -7390,8 +7390,8 @@ const { inspectNodeVersion } = __webpack_require__(51);
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 205;
-const PACKAGE_VERSION = '1.7.72';
+const SKILL_VERSION = 208;
+const PACKAGE_VERSION = '1.7.75';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;

@@ -101,7 +101,7 @@ function parseImageSelectionCsv(source) {
     return { id: url, title: title };
   });
   if (!selections.length) throw csvError('Image CSV must contain at least one image row');
-  if (selections.length > 100) throw csvError('Image CSV must contain at most 100 image rows');
+  if (selections.length > 500) throw csvError('Image CSV must contain at most 500 image rows');
   return selections;
 }
 

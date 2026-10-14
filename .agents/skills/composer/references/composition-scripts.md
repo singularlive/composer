@@ -135,6 +135,8 @@ Follow the construction, public-control, lifecycle, and completion requirements 
 
 Initialize script-owned presentation from `comp.getPayload2()` in `init()`, then subscribe to `payload_changed` and apply the newly authoritative payload. Do not rely on initialization alone: Player and Control App payload updates occur after `init()`. Keep one update function, compare against the last applied values when writes are expensive, and remove the listener in `close()`.
 
+For animated HTML, changing `source` replaces child DOM and discards playback state; see the [HTML widget contract](composition-scripting/widget-html.md). Before wiring reactive controls, identify which edits should restart playback, defer to a defined cycle boundary, or preserve playback while updating appearance according to the user's request. Define loop-disabled and visibility-edit behavior explicitly when relevant; these are task-specific contracts, not universal animation defaults. Keep editable appearance separate from playback state when continuity is required. Successful payload delivery does not prove continuity; use [playback continuity verification](composition-scripting/debugging-and-verification.md#playback-continuity-and-pixel-evidence).
+
 ```javascript
 (function() {
   var composition = null;
@@ -232,6 +234,8 @@ For a real-time NYC weather lower third, a sound split is:
 Composition scripts are installed by the dedicated Composition Script editor preview and Player runtime, not by the normal Composer graphic canvas. The runtime installs the global script before composition scripts and initializes child sub-compositions before the root. Use Player evidence for initialization order, listeners, widget changes, and animation calls. Managed Control Apps render packaged composition extracts, so update the extract before comparing them with current Composer state.
 
 For scoped ordinary-composition verification, pipe a fresh handoff to `verifyComposition.mjs --handoff-file -`; the verifier inherits the handoff's active composition. Pass `--composition-id root|active|<id>` only as an intentional override; disagreement with the handoff target produces a warning. The built-in target isolates sibling visuals in the private Player page and scopes DOM sampling, screenshots and default scenario actions; do not copy the verifier to change its selector. Drive target and ancestor In/Out states explicitly. Lifecycle counts remain page-wide, and direct widget-template targeting is unsupported; verify widget-owned output through its rendered owner. See [Player targeting and scenarios](composition-scripting/debugging-and-verification.md).
+
+Validate prepared scenario files locally with `verifyComposition.mjs --validate-only --scenario-file <path>` before acquiring a verification work lease or obtaining a fresh handoff. Each scenario permits 1-50 steps; split longer checks into independently initialized bounded scenarios, not across a continuity interval that requires one running Player. Local validation proves only the scenario contract, not Player behavior.
 
 Choose verification based on behavior:
 

@@ -43,7 +43,7 @@ function isPlainObject(value) {
 function assertAllowedKeys(value, allowed, label) {
   const unknown = Object.keys(value).filter(key => !allowed.includes(key));
   if (unknown.length) {
-    throw new Error(`${label} has unsupported field "${unknown[0]}"`);
+    throw new Error(`${label} has an unsupported field; allowed fields: ${allowed.join(', ')}`);
   }
 }
 
@@ -317,11 +317,31 @@ export function validateVerificationScenario(scenario) {
 export function readVerificationScenario(filePath) {
   if (!filePath) return null;
   const resolved = path.resolve(filePath);
-  const stat = fs.statSync(resolved);
-  if (stat.size > MAX_SCENARIO_BYTES) {
+  let size;
+  try {
+    size = fs.statSync(resolved).size;
+  } catch (error) {
+    throw new Error('SCENARIO_READ_FAILED: Unable to read scenario file; path omitted.');
+  }
+  if (size > MAX_SCENARIO_BYTES) {
     throw new Error(`Verification scenario exceeds ${MAX_SCENARIO_BYTES} bytes`);
   }
-  return validateVerificationScenario(JSON.parse(fs.readFileSync(resolved, 'utf8')));
+  let text;
+  try {
+    text = fs.readFileSync(resolved, 'utf8');
+  } catch (error) {
+    throw new Error('SCENARIO_READ_FAILED: Unable to read scenario file; path omitted.');
+  }
+  if (Buffer.byteLength(text, 'utf8') > MAX_SCENARIO_BYTES) {
+    throw new Error(`Verification scenario exceeds ${MAX_SCENARIO_BYTES} bytes`);
+  }
+  let scenario;
+  try {
+    scenario = JSON.parse(text);
+  } catch (error) {
+    throw new Error('SCENARIO_INVALID_JSON: Scenario file must contain valid JSON; input omitted.');
+  }
+  return validateVerificationScenario(scenario);
 }
 
 function stableJson(value) {
