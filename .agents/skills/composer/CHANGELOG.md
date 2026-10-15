@@ -2,6 +2,16 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.77 - Protocol 210
+
+- Document the existing-container preset workflow: generate typed public-ID JSON payloads, upload through authorized Dashboard tools, and link the returned asset URL while preserving controls and links.
+- Keep the preset reload button off unless explicitly requested; explain native Edit behavior and separate configuration readback from Control App persistence evidence.
+
+## 1.7.76 - Protocol 209
+
+- Support explicit empty-string text Selection option IDs and values/defaults through bounded authoring, including shared Table Selection validation.
+- Retain missing-ID, title, uniqueness, format and atomicity validation; clarify that contract-required empty IDs must not be replaced with invented substitutes.
+
 ## 1.7.75 - Protocol 208
 
 - Add scoped Dashboard REST access for the Composer AI MCP companion, using pairing authorization and explicit desktop approval for folders or individual files.
