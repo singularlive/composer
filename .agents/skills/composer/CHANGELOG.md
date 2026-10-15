@@ -2,6 +2,12 @@
 
 Protocol versions are listed because Composer editor commands require an exact protocol match. Always install the latest available skill; never downgrade to match an older Composer deployment.
 
+## 1.7.78 - Protocol 211
+
+- Require explicit empty-line layout decisions and Player checks for optional stacked text.
+- Document script-owned corner placement, snap-versus-control-reset limitations, stored position/anchor semantics and native-tile interleaving between AI Graphics layers.
+- Clarify separate connection profiles for multiple scenes and authorization replacement when re-pairing the same scene.
+
 ## 1.7.77 - Protocol 210
 
 - Document the existing-container preset workflow: generate typed public-ID JSON payloads, upload through authorized Dashboard tools, and link the returned asset URL while preserving controls and links.

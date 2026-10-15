@@ -15,6 +15,8 @@ The user's request owns explicit content, style, behavior, assets, and scope. Us
 
 Plan the required structure, public inputs, lifecycle, and acceptance checks in whatever concise form serves the task. No prescribed brief format is required. Ask only when a missing decision materially changes the requested output, controls, runtime behavior, or required branding.
 
+For stacked text modules with optional lines, decide before construction whether an empty line collapses, re-centres the remaining content, or keeps its gap. Define whether whitespace-only text counts as empty and what happens when all lines are empty. Preserve the user's requested behavior; do not automatically choose re-centring for every module.
+
 For graphics driven by an external source, establish whether the user wants a snapshot or live updates before building. Confirm the exact source/tab/range, refresh interval, empty/error behavior and who owns subsequent edits. Connector access is not Player authorization. Public Google Sheets use the [sheet-driven Table recipe](recipes/sheet-driven-table.md); private-sheet integration is outside that recipe's scope.
 
 Apply the construction rules, visual-quality requirements, and completion gate below to the user's requirements and the task-specific choices. They remain the standard for every graphic, including work created from a sparse prompt.
@@ -40,6 +42,7 @@ Use zero captures for nonvisual or model-only work and normally one for a straig
 - Inspect the active composition and relevant targets before authoring. Treat Composer readback as authoritative for structure, values, links, and scope.
 - Make the smallest coherent change that fulfills the request. Do not reorganize existing content merely to make it match the agent's preferred structure.
 - For explicitly requested AI Graphics uniform Size controls unsupported by native layout links, a stable Composer viewport may contain an operator-transformed inner artwork wrapper. Requested Position may share that wrapper when necessary. Follow the [bounded operator-transform pattern](widgets/ai-graphics.md#explicit-operator-size-and-position); this is not the default placement strategy.
+- For an operator-selectable corner/side or uniform size spanning native tiles and artwork, use [script-owned group placement](composition-scripts.md#operator-selectable-corner-or-side-placement) when direct layout links cannot express the requested mapping.
 
 ### Choose the right structural unit
 
@@ -188,7 +191,7 @@ Do not present composition work as finished until every applicable check below p
 2. **Structure:** Tiles, groups, and sub-compositions follow control and lifecycle intent; names, stable keys, ownership, links, and public controls are understandable and verified through Composer readback. Every agent-authored public control is in a semantic ordinary Control Node container, Large by default.
 3. **Editability:** Native primitives are used where practical; AI Graphics, Table, widget templates, and scripts are used only for the portions that require them.
 4. **Rendered quality:** Inspect or capture the result at the intended resolution and check theme consistency, safe bounds, clipping, hierarchy, alignment, internal Text alignment, spacing, typography, contrast, effects, and asset placement.
-5. **Dynamic content:** Exercise realistic long, short, wide, empty, and repeated values wherever those variations could affect the layout.
+5. **Dynamic content:** Exercise realistic long, short, wide, empty, and repeated values wherever those variations could affect the layout. For empty optional lines in stacked text modules, verify the chosen collapse, re-centre, or keep-gap behavior, all-empty output, and restoration of the lines. When a script implements the layout change, trigger it with a Player payload scenario; a static empty-text readback is insufficient.
 6. **Animation:** For graphics with In/Out behavior, verify the settled In and intended settled Out frames. Verify intermediate states when the visual contract depends on motion between them.
 7. **Runtime behavior:** Verify composition scripts and other Player-owned behavior in Singular Player with deterministic inputs. A successful write, Composer readback, or single screenshot is not proof of runtime behavior.
 	For template-integrated work, complete the [Integration Resources completion check](composition-commands.md#using-integration-resources), including full required behavior and the final declared match. Report the template ID/version/status and model, persistence, Player, visual and actual Control App evidence separately. Missing resources, unresolved contract differences, and untested Control App behavior remain explicit limitations; assigning `defaultAppID` is not compatibility proof.

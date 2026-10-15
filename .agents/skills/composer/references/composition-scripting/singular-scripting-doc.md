@@ -233,9 +233,9 @@ The widget object provides methods to read and update widget specific properties
 | `setPayload(o)` | Sets one or multiple widget-specific properties. Payload fields are not tile layout dimensions; use `setSizeX()` and `setSizeY()` for the widget's canvas bounds. |
 | `getDomElement(t)` | Returns the HTML `Dom` element for the widget. |
 | `getPositionX()`, `getPositionY()` | Returns the stored percentage position in the immediate parent coordinate space. For a grouped tile, the parent is that group rather than the composition canvas. |
-| `setPositionX(o)`, `setPositionY(o)` | Sets position in [-50, 50] coordinate space. 0 = center. Anchor point is center by default. |
+| `setPositionX(o)`, `setPositionY(o)` | Writes stored layout `left` / `top` without converting or changing the anchor. See [Position and anchor semantics](#position-and-anchor-semantics). |
 | `getSizeX()`, `getSizeY()` | Returns stored size as a percentage of the immediate parent. For a grouped tile, 100 fills the group on that axis. |
-| `setSizeX(o)`, `setSizeY(o)` | Sets size as percentage (0-100) of the canvas. |
+| `setSizeX(o)`, `setSizeY(o)` | Sets stored width/height in the immediate parent coordinate space; with percentage layout, 100 fills the parent on that axis. |
 | `getVisibility()` | Returns visibility as a boolean. |
 | `setVisibility(o)` | Sets visibility as a boolean. |
 | `getOpacity()` | Returns stored layout opacity in percent (0-100), not CSS alpha. |
@@ -243,9 +243,17 @@ The widget object provides methods to read and update widget specific properties
 
 Widget tiles (including Metric Text) and groups use the same percentage scale. A normalized fade in [0,1] must call `setOpacity(progress * 100)`; `setOpacity(1)` means one percent, not fully shown. The getter reads stored layout opacity, not effective rendered opacity after ancestor opacity, visibility or Timeline/Update effects. Do not infer units from `getOpacity() > 1` or from a missing/non-finite read. Keep one write authority per property and never layer this script fade over a native opacity animation or linked opacity field. This contract is confirmed by an isolated fixture executing production scripting accessors and layout-to-CSS conversion for a Metric Text tile and group, not by replaying the original overlay or every installed widget.
 
+#### Position and anchor semantics
+
+Widget and group position getters return stored layout `left` / `top`; setters write those same fields directly. They do not convert a centre coordinate, re-anchor the target or clamp values to [-50, 50]. With ordinary percentage layout, position and size resolve against the immediate parent: the group for a grouped tile, otherwise the containing composition.
+
+Before rotation, scale or animation transforms, the renderer places the box's left edge at `left + (100 - width) * anchor.x / 100` percent of its parent, and its top edge at `top + (100 - height) * anchor.y / 100`. Thus anchor `{x:50,y:50}` and position `0,0` centre the box; anchor `{x:0,y:0}` and the same position align its top-left edge with the parent's top-left edge. The getters return `left` / `top`, not those rendered edges. The anchor also affects transform origin.
+
+Prefer centre anchors for newly authored script-owned positions using centre-based calculations. Re-anchoring an existing tile without compensating its position moves it: preserve the rendered edges using the formula above and verify the result. Do not reuse percentage calculations for pixel-unit layouts or infer final bounds after ancestor transforms, clipping or Timeline/Update effects. This relationship is implementation-backed; it is not a claim of live Player verification for every grouped or animated case.
+
 #### [BEST PRACTICE] Widget Dimensions
 
-Use `setSizeX()` and `setSizeY()` for tile layout dimensions. `widget.setSizeX(50)` sets the tile width to 50% of the canvas; `widget.setSizeY(30)` sets its height to 30%. `widget.setPayload({width: 50, height: 30})` is not an equivalent operation: Rectangle interprets those fields as internal shape percentages, while widgets without those payload fields may ignore them.
+Use `setSizeX()` and `setSizeY()` for tile layout dimensions. With percentage layout, `widget.setSizeX(50)` sets the tile width to 50% of its immediate parent; `widget.setSizeY(30)` sets its height to 30%. `widget.setPayload({width: 50, height: 30})` is not an equivalent operation: Rectangle interprets those fields as internal shape percentages, while widgets without those payload fields may ignore them.
 
 **Why use dedicated methods:**
 - More explicit and readable
@@ -272,8 +280,8 @@ The group object provides methods to read and update group-specific properties, 
 | Method/Property | Description |
 | :--- | :--- |
 | `getDomElement()` | Returns the HTML `Dom` element for the group. |
-| `getPositionX()`, `getPositionY()` | Returns position in [-50, 50] coordinate space. 0 = center. Anchor point is center by default. |
-| `setPositionX(o)`, `setPositionY(o)` | Sets position in [-50, 50] coordinate space. 0 = center. Anchor point is center by default. |
+| `getPositionX()`, `getPositionY()` | Returns stored layout `left` / `top`, not rendered edges. See [Position and anchor semantics](#position-and-anchor-semantics). |
+| `setPositionX(o)`, `setPositionY(o)` | Writes stored layout `left` / `top` without converting or changing the anchor. See [Position and anchor semantics](#position-and-anchor-semantics). |
 | `getSizeX()`, `getSizeY()` | Returns size as percentage (0-100) of the canvas. |
 | `setSizeX(o)`, `setSizeY(o)` | Sets size as percentage (0-100) of the canvas. |
 | `getVisibility()` | Returns visibility as a boolean. |

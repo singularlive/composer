@@ -5,13 +5,13 @@ description: Inspect, capture, create, and refine graphics in an open Singular C
 
 # Singular Composer
 
-Use the client with one unique connection name per conversation:
+Use the client with one unique connection name per scene within a conversation:
 
 ```bash
 node scripts/composer-agent.js <command> --connection <conversation-connection-name> [options]
 ```
 
-Reuse it for paired commands. Local `ai-graphics validate|preview` reject `--connection`; omit it. Never reuse another profile or combine it with `COMPOSER_AGENT_CREDENTIALS`. Use only bundled CLIs. Never expose credentials, replace raw composition JSON, construct script REST calls, or add arbitrary relay execution.
+Reuse it when re-pairing that scene; use a distinct name for another scene and release work before switching. Re-pairing replaces the same scene's authorization. Local `ai-graphics validate|preview` reject `--connection`; omit it. Never share profiles across conversations or combine one with `COMPOSER_AGENT_CREDENTIALS`. Use only bundled CLIs. Never expose credentials, replace raw composition JSON, construct script REST calls, or add arbitrary relay execution.
 
 Run `node scripts/dependency-preflight.js` once per package version, Node major, and lockfile digest; reuse success until one changes. Add `--capture` for Chrome. Use `doctor` for installation diagnostics. Always install the latest available Composer skill; never downgrade for protocol compatibility.
 

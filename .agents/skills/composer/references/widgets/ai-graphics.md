@@ -92,6 +92,19 @@ Keep `context.fonts` and native `metricfont` selections as the default. The host
 5. Read the Timeline animation catalog and assign the `widget` effect to every authored timeline. Enable **2 timelines** when the definition owns a separate Out choreography; with it disabled, taking the composition Out reverses In and the authored Out timeline is dormant.
 6. Verify responsive geometry and finite In/Out behavior in Player. Composer model readback alone cannot prove Shadow DOM rendering or lifecycle JavaScript.
 
+## Interleaving native tiles between artwork layers
+
+A native Composer tile cannot be inserted between layers inside one AI Graphics tile's rendering root. When native text must sit between back and front artwork, use separate Composer tiles ordered back artwork, native text, front artwork in the same module/group. Keep their bounds, responsive coordinates and intended lifecycle aligned.
+
+Choose between two patterns:
+
+- **Separate definitions per layer:** each AI Graphics tile contains only its own artwork. Prefer this when the layers are independently editable or when duplicating the whole definition adds unnecessary code or runtime work. Shared geometry, colors and motion still need coordination.
+- **Two instances of one definition:** declare a generated `selection` layer field with stable back/front values and `disableDataLink: true`, then configure each instance after its dynamic schema is available. Render only the selected layer. This supports one authoring source, but the installed definitions remain independent copies, not a shared reference: edits must keep both copies synchronized. Each instance has its own lifecycle and resources; avoid running hidden-layer animation or particle work.
+
+The two-instance pattern duplicates inline definition payloads and requires per-instance links; normal field and request size limits still apply. Reuse the exact existing Color Control Node sources with `--reuse-existing` when linking compatible generated fields, and ensure color links cover every instance and any native text sharing those roles. Inspect both generated schemas and link readback after definition changes; do not assume copying artwork also copies controls or links. Use only supported inline definition writes, not local-path references or an assumed server-side definition-copy command.
+
+Verify the combined layer order, native text legibility, color delivery and relevant In/Out states in Player. An isolated AI Graphics preview cannot establish interleaving with neighboring native tiles. This pattern is structural guidance, not a prescription for any particular artwork or decoration.
+
 ## Geometry and resolution independence
 
 - Keep operator-facing controls in familiar design units such as degrees, percentages, counts, or domain values. Convert those values inside the AI Graphics lifecycle to container-relative CSS units such as `%`, `cqi`, `cqb`, `cqw`, or `cqh`; do not expose internal responsive CSS units as part of the public control contract.

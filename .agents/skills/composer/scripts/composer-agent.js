@@ -7390,8 +7390,8 @@ const { inspectNodeVersion } = __webpack_require__(51);
 
 const DEFAULT_DEVICE_NAME = 'AI Agent';
 const DEFAULT_SERVER_URL = 'https://beta.singular.live/';
-const SKILL_VERSION = 210;
-const PACKAGE_VERSION = '1.7.77';
+const SKILL_VERSION = 211;
+const PACKAGE_VERSION = '1.7.78';
 const DEFAULT_TIMEOUT_MS = 15000;
 const EDITOR_CONNECTION_GRACE_MS = 2000;
 const PAIRING_INTENT_WAIT_MS = 2 * 60 * 1000;
